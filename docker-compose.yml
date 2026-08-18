@@ -8,7 +8,9 @@ services:
     # DİKKAT: postgres:16 DEĞİL — PostGIS eklentisi gelmez.
     image: postgis/postgis:16-3.4
     container_name: vivido-postgis
-    profiles: ["dev", "full"]
+    # "etl" de dahil: ETL osm2pgsql ile doğrudan bu veritabanına yazar,
+    # yani etl profili tek başına açıldığında da postgis ayakta olmalı.
+    profiles: ["dev", "full", "etl"]
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-vivido}
       POSTGRES_USER: ${POSTGRES_USER:-vivido}
@@ -17,8 +19,12 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # İlk açılışta otomatik çalışan betikler (yalnızca boş volume'de).
       - ./db/schema:/docker-entrypoint-initdb.d:ro
       - ./db/checks:/checks:ro
+      # Sonraki şema değişiklikleri için: db/migrate.sh yalnızca
+      # uygulanmamış dosyaları çalıştırır (pnpm db:migrate).
+      - ./db:/db:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vivido} -d ${POSTGRES_DB:-vivido}"]
       interval: 5s
@@ -103,6 +109,53 @@ services:
     ports:
       - "8080:8080"
     restart: unless-stopped
+
+  # ══════════════════════════════════════════════════
+  #  ETL araç kutusu — YALNIZCA ETL makinesinde.
+  #
+  #  Ekipte tek kişi çalıştırır, çıktıları GitHub Release'e yükler.
+  #  Diğerleri data/scripts/00_fetch_artifacts.sh ile indirir ve bu
+  #  profile hiç dokunmaz (§12.2 "ETL tek makinede bir kez").
+  #
+  #  Tek seferlik çalıştırma için tasarlandı:
+  #    docker compose --profile etl build etl
+  #    docker compose --profile etl run --rm etl osmium fileinfo data/artifacts/cankaya.osm.pbf
+  #    docker compose --profile etl run --rm etl bash
+  # ══════════════════════════════════════════════════
+  etl:
+    build:
+      context: ./data
+      dockerfile: Dockerfile.etl
+    image: vivido-etl:local
+    profiles: ["etl"]
+    environment:
+      # psql / osm2pgsql bu değişkenleri kendiliğinden okur — her komutta
+      # -h -U -d yazmaya gerek kalmaz. Host adı `postgis`: aynı compose ağı.
+      PGHOST: postgis
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-vivido}
+      PGUSER: ${POSTGRES_USER:-vivido}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-vivido}
+      DATA_VERSION: ${DATA_VERSION:-osm-2026-08-20}
+    volumes:
+      - ./data:/work/data
+      - ./db:/work/db
+    working_dir: /work
+    depends_on:
+      postgis:
+        condition: service_healthy
+
+  # Harita tile üretimi (§9.7). Java kurulumu gerekmez.
+  #   docker compose --profile etl run --rm planetiler \
+  #     --osm-path=/data/artifacts/cankaya.osm.pbf \
+  #     --output=/data/artifacts/cankaya.mbtiles --force
+  planetiler:
+    image: ghcr.io/onthegomap/planetiler:latest
+    profiles: ["etl"]
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx4g"
+    volumes:
+      - ./data:/data
 
   # ══════════════════════════════════════════════════
   #  Konteynerize uygulama — yalnızca "full" profilinde.

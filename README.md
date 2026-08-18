@@ -38,6 +38,7 @@ Başarsoft stajyer projesi · CBS tabanlı web + mobil uygulama · Pilot bölge:
 Isochrone · toplu taşıma/GTFS · bisiklet modu · günlük yaşam senaryoları · konut karşılaştırma matrisi · zaman avantajı · kaydedilmiş aramalar · satılık konut · **sesli navigasyon** · **mobilde arama/filtreleme/rota oluşturma** · gerçek ilan verisi · offline çalışma · gerçek zamanlı trafik.
 
 📖 Tam teknik tasarım: [`docs/01-PROJE-PLANI.md`](docs/01-PROJE-PLANI.md)
+🧭 Uygulama sırasında verilen kararlar ve gerekçeleri: [`docs/02-KARARLAR.md`](docs/02-KARARLAR.md)
 
 ---
 
@@ -164,7 +165,7 @@ Girdi `ScoringInput`, çıktı `ScoreResult`. Bu sayede skorlama motoru veritaba
 | `pnpm dev:mobile` | Expo dev server (dev client ile) |
 | `pnpm infra:up` / `infra:down` | Docker altyapısı |
 | `pnpm infra:reset` | Volume dahil sıfırlar (**veri gider**) |
-| `pnpm db:migrate` | EF Core migration uygular |
+| `pnpm db:migrate` | `db/schema` altındaki uygulanmamış SQL dosyalarını uygular |
 | `pnpm db:check` | Veri kalitesi (DQ) sorgularını çalıştırır |
 | `pnpm test` | Tüm testler |
 | `pnpm test:golden` | Skorlama altın veri seti (180 vaka) |

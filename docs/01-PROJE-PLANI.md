@@ -1087,7 +1087,13 @@ cp .env.example .env
 docker compose --profile dev up -d postgis redis osrm-foot osrm-car tileserver
 
 # 3) Şema + seed
-dotnet ef database update -p api/src/Vivido.Infrastructure -s api/src/Vivido.Api
+#    Şema, postgis konteyneri İLK açıldığında db/schema/*.sql ile
+#    kendiliğinden kurulur — ayrı komut gerekmez.
+#    Sonradan eklenen şema dosyaları için (veri kaybı olmadan):
+pnpm db:migrate
+
+#    ETL çıktısı — yalnızca VERİ içerir (pg_dump --data-only),
+#    şemayı yeniden yaratmaya çalışmaz:
 psql -h localhost -U vivido -d vivido -f data/artifacts/seed.sql
 
 # 4) API
@@ -1139,7 +1145,9 @@ Bir kez kurulan dev client APK'sı sonra sadece `npx expo start --dev-client` il
 | `Location request timed out` | Emülatörde GPS yok | Android Studio → Extended Controls → Location → GPX iz yükleyin |
 | Türkçe karakterli yol hatası | `Masaüstü` klasörü | Depoyu `C:\dev\vivido` gibi ASCII bir yola klonlayın |
 | OSRM `/table` "too many locations" | `--max-table-size` düşük | `--max-table-size 200` ile başlatın |
-| `dotnet ef` bulunamıyor | Global tool eksik | `dotnet tool install --global dotnet-ef` |
+| Yeni tablo/kolon DB'de yok | Şema dosyası eklendi ama uygulanmadı | `pnpm db:migrate` (bkz. [02-KARARLAR.md](02-KARARLAR.md) K-01) |
+| `migrate.sh: bad interpreter` | Dosya CRLF ile kaydedilmiş | `.gitattributes` `*.sh`'ı LF'e zorlar — dosyayı LF olarak yeniden kaydedin |
+| Git Bash'te `C:/Program Files/Git/db/migrate.sh: No such file` | Git Bash konteyner içi mutlak yolları Windows yoluna çevirir | `MSYS_NO_PATHCONV=1` verin, ya da PowerShell'den `pnpm db:migrate` çalıştırın |
 
 ---
 

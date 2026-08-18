@@ -25,12 +25,13 @@
     "lint": "pnpm -r lint",
 
     "infra:up": "docker compose --profile dev up -d",
-    "infra:down": "docker compose down",
+    "infra:down": "docker compose --profile dev --profile routing --profile full down",
     "infra:logs": "docker compose logs -f",
-    "infra:reset": "docker compose down -v && docker compose --profile dev up -d",
+    "infra:reset": "docker compose --profile dev --profile routing --profile full down -v && docker compose --profile dev up -d",
 
-    "db:migrate": "dotnet ef database update -p api/src/Vivido.Infrastructure -s api/src/Vivido.Api",
-    "db:check": "docker compose exec -T postgis psql -U vivido -d vivido -f /checks/dq.sql",
+    "db:migrate": "docker compose exec -T postgis bash /db/migrate.sh",
+    "db:check": "docker compose exec -T postgis psql -U vivido -d vivido -v ON_ERROR_STOP=1 -f /checks/dq.sql",
+    "db:seed:ref": "docker compose exec -T postgis psql -U vivido -d vivido -v ON_ERROR_STOP=1 -f /docker-entrypoint-initdb.d/002_seed_reference.sql",
 
     "gen:api": "openapi-typescript-codegen --input api/openapi.yaml --output packages/shared/src/api --client fetch"
   },
