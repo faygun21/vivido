@@ -1147,6 +1147,7 @@ Bir kez kurulan dev client APK'sı sonra sadece `npx expo start --dev-client` il
 | OSRM `/table` "too many locations" | `--max-table-size` düşük | `--max-table-size 200` ile başlatın |
 | Yeni tablo/kolon DB'de yok | Şema dosyası eklendi ama uygulanmadı | `pnpm db:migrate` (bkz. [02-KARARLAR.md](02-KARARLAR.md) K-01) |
 | `migrate.sh: bad interpreter` | Dosya CRLF ile kaydedilmiş | `.gitattributes` `*.sh`'ı LF'e zorlar — dosyayı LF olarak yeniden kaydedin |
+| Git Bash'te `C:/Program Files/Git/db/migrate.sh: No such file` | Git Bash konteyner içi mutlak yolları Windows yoluna çevirir | `MSYS_NO_PATHCONV=1` verin, ya da PowerShell'den `pnpm db:migrate` çalıştırın |
 
 ---
 
