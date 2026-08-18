@@ -1,0 +1,26 @@
+packages:
+  - 'web'
+  - 'mobile'
+  - 'packages/*'
+
+# pnpm 11, bağımlılıkların kurulum betiği çalıştırmasını varsayılan olarak engeller
+# (tedarik zinciri güvenliği). Aşağıdakiler bilinçli olarak izinlidir.
+allowBuilds:
+  # Vite'ın paketleyicisi — derlenmiş ikili indirir, çalışması zorunlu.
+  esbuild: true
+
+# pnpm 11 "minimum yayın yaşı" koruması: çok yeni sürümler varsayılan olarak
+# beklemeye alınır. Expo şablonunun getirdiği sürümler istisna tutuluyor.
+minimumReleaseAgeExclude:
+  - '@expo/cli@57.0.16'
+  - '@expo/config@57.0.8'
+  - '@expo/fingerprint@0.20.8'
+  - '@expo/inline-modules@0.1.6'
+  - '@expo/log-box@57.0.3'
+  - expo-asset@57.0.12
+  - expo-constants@57.0.12
+  - expo@57.0.14
+  - expo-dev-client@57.0.13
+  - expo-dev-launcher@57.0.13
+  - expo-dev-menu@57.0.13
+  - expo-location@57.0.11

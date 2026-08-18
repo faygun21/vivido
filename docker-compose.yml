@@ -1,0 +1,137 @@
+name: vivido
+
+services:
+  # ══════════════════════════════════════════════════
+  #  Hafta 1'den itibaren gerekli
+  # ══════════════════════════════════════════════════
+  postgis:
+    # DİKKAT: postgres:16 DEĞİL — PostGIS eklentisi gelmez.
+    image: postgis/postgis:16-3.4
+    container_name: vivido-postgis
+    profiles: ["dev", "full"]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vivido}
+      POSTGRES_USER: ${POSTGRES_USER:-vivido}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vivido}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema:/docker-entrypoint-initdb.d:ro
+      - ./db/checks:/checks:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vivido} -d ${POSTGRES_DB:-vivido}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: vivido-redis
+    profiles: ["dev", "full"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: vivido-pgadmin
+    profiles: ["dev"]
+    environment:
+      # DİKKAT: pgAdmin .local / .test gibi ayrılmış alan adlarını reddeder
+      # ve konteyner sonsuz yeniden başlama döngüsüne girer.
+      PGADMIN_DEFAULT_EMAIL: dev@vivido.dev
+      PGADMIN_DEFAULT_PASSWORD: vivido
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    ports:
+      - "5050:80"
+    depends_on:
+      postgis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ══════════════════════════════════════════════════
+  #  Hafta 2'den itibaren — veri artefaktları gerekli
+  #  data/scripts/00_fetch_artifacts.sh çalıştırılmadan
+  #  bu servisler BAŞLAMAZ. Bu yüzden ayrı profilde.
+  # ══════════════════════════════════════════════════
+  osrm-foot:
+    image: ghcr.io/project-osrm/osrm-backend:latest
+    container_name: vivido-osrm-foot
+    profiles: ["routing", "full"]
+    command: >
+      osrm-routed --algorithm mld
+      --max-table-size ${Routing__MaxTableSize:-200}
+      /data/cankaya.osrm
+    volumes:
+      - ./data/artifacts/osrm/foot:/data:ro
+    ports:
+      - "5001:5000"
+    restart: unless-stopped
+
+  osrm-car:
+    image: ghcr.io/project-osrm/osrm-backend:latest
+    container_name: vivido-osrm-car
+    profiles: ["routing", "full"]
+    command: >
+      osrm-routed --algorithm mld
+      --max-table-size ${Routing__MaxTableSize:-200}
+      /data/cankaya.osrm
+    volumes:
+      - ./data/artifacts/osrm/car:/data:ro
+    ports:
+      - "5002:5000"
+    restart: unless-stopped
+
+  tileserver:
+    image: maptiler/tileserver-gl:latest
+    container_name: vivido-tileserver
+    profiles: ["routing", "full"]
+    command: ["--mbtiles", "/data/cankaya.mbtiles", "--port", "8080"]
+    volumes:
+      - ./data/artifacts:/data:ro
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  # ══════════════════════════════════════════════════
+  #  Konteynerize uygulama — yalnızca "full" profilinde.
+  #  Geliştirirken API ve web'i host'ta çalıştırmak
+  #  (pnpm dev:api / dev:web) çok daha hızlıdır.
+  # ══════════════════════════════════════════════════
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: vivido-api
+    profiles: ["full"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5000
+      ConnectionStrings__Default: Host=postgis;Port=5432;Database=${POSTGRES_DB:-vivido};Username=${POSTGRES_USER:-vivido};Password=${POSTGRES_PASSWORD:-vivido}
+      ConnectionStrings__Redis: redis:6379
+      Routing__FootUrl: http://osrm-foot:5000
+      Routing__CarUrl: http://osrm-car:5000
+      Tiles__BaseUrl: http://tileserver:8080
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgis:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:

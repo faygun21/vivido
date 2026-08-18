@@ -1,0 +1,58 @@
+# ─────────── .NET ───────────
+bin/
+obj/
+*.user
+*.suo
+.vs/
+artifacts/
+TestResults/
+coverage/
+*.coverage
+*.trx
+
+# ─────────── Node / pnpm ───────────
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+.eslintcache
+pnpm-debug.log*
+npm-debug.log*
+
+# ─────────── Expo / React Native ───────────
+.expo/
+.expo-shared/
+android/
+ios/
+*.jks
+*.keystore
+!debug.keystore
+.easignore
+
+# ─────────── Ortam değişkenleri ───────────
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ─────────── Veri artefaktları (GitHub Release'ten iner) ───────────
+data/artifacts/
+*.osm.pbf
+*.mbtiles
+*.osrm
+*.osrm.*
+osrm/
+!data/artifacts/.gitkeep
+
+# ─────────── IDE ───────────
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.sample.json
+*.swp
+
+# ─────────── İşletim sistemi ───────────
+.DS_Store
+Thumbs.db
+desktop.ini

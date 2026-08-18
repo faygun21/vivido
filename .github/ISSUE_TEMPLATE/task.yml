@@ -1,0 +1,65 @@
+name: 📋 Görev
+description: Yapılacak bir iş parçası
+labels: ["type:task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Bir görev **3 günden uzun sürmemeli**. Uzunsa böl —
+        böylece iş devredilebilir kalır ve ilerleme görünür olur.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Alan
+      options: [api, web, mobile, data, devops, docs]
+    validations:
+      required: true
+
+  - type: dropdown
+    id: requirement
+    attributes:
+      label: Hangi gereksinime hizmet ediyor?
+      options:
+        - "W1 — Kayıt / giriş"
+        - "W2 — Persona + bütçe seçimi"
+        - "W3 — Skorlu varsayılan liste"
+        - "W4 — Anchor ekleme ve sıralama"
+        - "W5 — Skor + düşük skorlu evler"
+        - "W6 — Gerekçe tablosu"
+        - "W7 — Ziyaret rotası (TSP)"
+        - "M1 — Mobil giriş"
+        - "M2 — Kayıtlı rota listesi"
+        - "M3 — Rota görüntüleme"
+        - "M4 — Navigasyon"
+        - "M5 — Skor kartı + ziyaret işaretleme"
+        - "Altyapı / hiçbiri"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Ne yapılacak?
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Kabul kriteri
+      description: Ölçülebilir olmalı. "Çalışsın" kabul kriteri değildir.
+      placeholder: |
+        Given 3 anchor eklemiş bir öğrenciyim
+        When  sürükle-bırak ile 2. anchor'ı 1. sıraya taşırım
+        Then  liste 3 saniye içinde yeniden yüklenir
+         And  ilk evin skoru en az 5 puan değişir
+    validations:
+      required: true
+
+  - type: textarea
+    id: blockers
+    attributes:
+      label: Bağımlılıklar
+      description: Bu iş başlamadan önce neyin bitmesi gerekiyor?
+      placeholder: "db/schema/001_initial.sql donmuş olmalı"

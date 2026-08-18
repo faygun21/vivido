@@ -1,0 +1,76 @@
+name: 🐛 Hata bildirimi
+description: Beklenmeyen bir davranış bildir
+labels: ["type:bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Hatayı düzeltebilmemiz için **tekrar üretebilmemiz** gerekiyor.
+        Aşağıdaki alanları eksiksiz doldur.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Hangi alanda?
+      options: [api, web, mobile, data, devops]
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Şiddet
+      options:
+        - "S1 — Sistem çalışmıyor / veri kaybı / skor tamamen yanlış"
+        - "S2 — Ana akış bozuk, geçici çözüm yok"
+        - "S3 — İşlev hatalı ama geçici çözüm var"
+        - "S4 — Kozmetik"
+    validations:
+      required: true
+
+  - type: input
+    id: env
+    attributes:
+      label: Ortam
+      placeholder: "local · Windows 11 · .NET 10.0.1 · Node 24.19 · Chrome 141"
+    validations:
+      required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: dataVersion / scoringVersion
+      description: Uygulama footer'ında gösteriliyor. Skorla ilgili hatalarda ZORUNLU.
+      placeholder: "osm-2026-08-20 / 1.0.0"
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Tekrar üretme adımları
+      placeholder: |
+        1. Öğrenci personasıyla giriş yap
+        2. 3 anchor ekle
+        3. Sırayı sürükle-bırak ile değiştir
+        4. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Ne olmasını bekliyordun?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Ne oldu?
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Ekran görüntüsü / kayıt / log
+      description: Mobil hatalarda ekran kaydı çok yardımcı olur. Varsa traceId'yi de ekle.

@@ -1,0 +1,28 @@
+# Vivido — kod sahipliği
+#
+# Buradaki yollara dokunan PR'lar otomatik olarak ilgili kişiye atanır.
+# Ekip netleştikçe @faygun21 yerine gerçek sahipler yazılacak.
+
+# Varsayılan sahip
+*                           @faygun21
+
+# ── KORUMALI: skorlama altın veri seti ──
+# Beklenen skor değerleri. Testi geçirmek için bu değerleri DEĞİŞTİRMEK YASAKTIR.
+# Değişiklik gerekiyorsa PR'da diff tablosu + gerekçe zorunludur.
+api/tests/**/golden/**      @faygun21
+
+# ── KORUMALI: şema kontratı ──
+# Dört iş kolu da buna güveniyor. Değişiklik herkesi etkiler.
+db/schema/**                @faygun21
+
+# ── KORUMALI: API kontratı ──
+# Web ve mobil bu dosyadan tip üretiyor.
+api/openapi.yaml            @faygun21
+
+# ── KORUMALI: skorlama motoru ──
+# "Tek sahip + bir yedek gözden geçiren" kuralı geçerli.
+api/src/Vivido.Scoring/**   @faygun21
+
+# ── Altyapı ──
+docker-compose.yml          @faygun21
+.github/workflows/**        @faygun21

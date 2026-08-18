@@ -1,0 +1,42 @@
+{
+  "name": "vivido",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vivido — kiralık ev bulma, kişiselleştirilmiş skorlama ve ziyaret rotası (web + mobil)",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev:api": "dotnet run --project api/src/Vivido.Api",
+    "dev:web": "pnpm --filter web dev",
+    "dev:mobile": "pnpm --filter mobile start --dev-client",
+
+    "build:api": "dotnet build api/Vivido.sln -c Release",
+    "build:web": "pnpm --filter web build",
+
+    "test:api": "dotnet test api/Vivido.sln",
+    "test:golden": "dotnet test api/Vivido.sln --filter Category=Golden",
+    "test:invariant": "dotnet test api/Vivido.sln --filter Category=Invariant",
+    "test:web": "pnpm --filter web test",
+    "test:mobile": "pnpm --filter mobile test",
+    "test": "pnpm test:api && pnpm test:web && pnpm test:mobile",
+
+    "typecheck": "pnpm -r exec tsc --noEmit",
+    "lint": "pnpm -r lint",
+
+    "infra:up": "docker compose --profile dev up -d",
+    "infra:down": "docker compose down",
+    "infra:logs": "docker compose logs -f",
+    "infra:reset": "docker compose down -v && docker compose --profile dev up -d",
+
+    "db:migrate": "dotnet ef database update -p api/src/Vivido.Infrastructure -s api/src/Vivido.Api",
+    "db:check": "docker compose exec -T postgis psql -U vivido -d vivido -f /checks/dq.sql",
+
+    "gen:api": "openapi-typescript-codegen --input api/openapi.yaml --output packages/shared/src/api --client fetch"
+  },
+  "devDependencies": {
+    "openapi-typescript-codegen": "^0.29.0",
+    "typescript": "^5.6.0"
+  },
+  "packageManager": "pnpm@11.22.0"
+}
