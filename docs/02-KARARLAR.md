@@ -36,10 +36,15 @@ ve uygulamaz**; C# entity'leri var olan şemaya uyacak şekilde elle yazılır.
 
 **Gerekçe.**
 
-1. **Departman sınırı.** [CODEOWNERS](../.github/CODEOWNERS) `db/` ve `data/`
-   klasörlerini veri ekibine veriyor. Şema C# migration'ında yaşasaydı
-   (`api/` altında) veri ekibi her şema değişikliğinde yazılım ekibinin
-   bölgesine PR açmak zorunda kalırdı.
+1. **Şema paylaşılan bir kontrat, yazılım ekibinin iç meselesi değil.**
+   [CODEOWNERS](../.github/CODEOWNERS) `db/schema/**` satırını ayrıca
+   işaretliyor: *"KORUMALI: şema kontratı — dört iş kolu da buna güveniyor."*
+   ETL, API, web ve mobil aynı şemaya bakıyor. Kontratın `api/` altındaki
+   C# migration'larında yaşaması, onu tek bir ekibin bölgesine hapsederdi.
+   [Üç haftalık plan](../habi-v2-3-hafta-plan.md) ayrıca `db/` ve `data/`
+   klasörlerini veri ekibine devretmeyi öngörüyor (CODEOWNERS'ta henüz
+   `@veri-lead` yazılmadı, hepsi `@faygun21`) — o geçiş yapıldığında SQL
+   tabanlı şema bu ayrımla kendiliğinden uyumlu olur.
 2. **ETL doğrudan yazıyor.** `osm2pgsql` tabloları EF'ten habersiz doldurur.
    Şema SQL'de olunca ETL ile tek kaynağı paylaşır.
 3. **`DEFERRABLE INITIALLY DEFERRED`.** Anchor öncelik kısıtının EF Fluent
