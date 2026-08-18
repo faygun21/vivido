@@ -1,0 +1,10 @@
+# ETL imajı build edilirken build context'e ne GİRMESİN.
+#
+# artifacts/ ileride ~1 GB olacak (PBF, OSRM grafikleri, mbtiles).
+# Bunlar konteynere kopyalanmaz — çalışma anında volume ile mount edilir.
+# Hariç tutulmazsa her build'de 1 GB Docker daemon'a gönderilir.
+artifacts/
+*.osm.pbf
+*.mbtiles
+*.tar.gz
+*.sql
