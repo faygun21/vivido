@@ -1,4 +1,4 @@
-namespace Vivido.Api.DTOs.Auth;
+namespace Vivido.Application.DTOs.Auth;
 
 //Request
 public record RegisterRequest(string Email, string Password, string? DisplayName);
