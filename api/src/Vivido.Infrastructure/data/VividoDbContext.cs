@@ -23,7 +23,7 @@ public class VividoDbContext : DbContext
             entity.Property(e => e.Email).HasColumnType("citext"); 
             
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()"); 
-            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("now()");
+        
         });
 
         
