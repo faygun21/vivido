@@ -25,7 +25,8 @@ builder.Services.AddSwaggerGen(o =>
 
 // Sağlık kontrolleri.
 // Hafta 2'de PostGIS, Redis ve OSRM kontrolleri buraya eklenecek.
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks()
+    .AddNpgSql(connectionString, name: "database");
 
 // Web ve mobil istemciler için CORS.
 // Mobil fiziksel cihazdan geldiğinde origin farklı olur — geliştirmede serbest bırakıyoruz.
