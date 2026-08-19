@@ -1,4 +1,10 @@
 using Serilog;
+using Microsoft.EntityFrameworkCore;
+using Vivido.Infrastructure.Data;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using Vivido.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,6 +15,16 @@ builder.Host.UseSerilog((ctx, cfg) => cfg
     .WriteTo.Console());
 
 // ─── Servisler ───
+
+// 1. ÖNCE DEĞİŞKENİ TANIMLIYORUZ
+var connectionString = builder.Configuration.GetConnectionString("Default");
+
+// 2. SONRA VERİTABANI BAĞLANTISINI KURUYORUZ
+builder.Services.AddDbContext<VividoDbContext>(options =>
+    options.UseNpgsql(connectionString, o => o.UseNetTopologySuite())
+           .UseSnakeCaseNamingConvention()
+);
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(o =>
@@ -21,12 +37,32 @@ builder.Services.AddSwaggerGen(o =>
     });
 });
 
-// Sağlık kontrolleri.
-// Hafta 2'de PostGIS, Redis ve OSRM kontrolleri buraya eklenecek.
-builder.Services.AddHealthChecks();
+// JwtService'i sisteme kaydetme
+builder.Services.AddScoped<JwtService>();
+
+// JWT Doğrulama ayarlarını ekleme
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
+        };
+    });
+
+builder.Services.AddAuthorization();
+
+// Sağlık kontrolleri. (Artık connectionString'i tanıyor)
+builder.Services.AddHealthChecks()
+    .AddNpgSql(connectionString!, name: "database");
 
 // Web ve mobil istemciler için CORS.
-// Mobil fiziksel cihazdan geldiğinde origin farklı olur — geliştirmede serbest bırakıyoruz.
 const string DevCors = "dev";
 builder.Services.AddCors(o => o.AddPolicy(DevCors, p => p
     .AllowAnyOrigin()
@@ -43,18 +79,17 @@ if (app.Environment.IsDevelopment())
     app.UseCors(DevCors);
 }
 
+// Kimlik kontrolü her ortamda çalışmalı, if bloğundan çıkarıldı
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.UseSerilogRequestLogging();
 
-// Uygulama ayakta mı? (yeniden başlatma kararı için)
 app.MapHealthChecks("/health/live");
-
-// Bağımlılıklar hazır mı? (trafik almaya hazır mı)
-// Hafta 2: DB + Redis + OSRM kontrolleri eklenince anlamlı hale gelecek.
 app.MapHealthChecks("/health/ready");
 
 app.MapControllers();
 
 app.Run();
 
-// Entegrasyon testlerinin WebApplicationFactory ile erişebilmesi için.
 public partial class Program;
