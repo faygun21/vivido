@@ -48,6 +48,8 @@ export function OnboardingPage() {
         <h2 style={{ fontSize: '1.2rem', marginBottom: '16px' }}>1. Persona Seçimi</h2>
         {isLoading ? (
           <p>Yükleniyor...</p>
+        ) : personas.length === 0 ? (
+          <p className="muted">Persona listesi yüklenemedi. Lütfen tekrar deneyin.</p>
         ) : (
           <div>
             {personas.map((p) => (
