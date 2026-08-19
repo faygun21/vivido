@@ -27,10 +27,10 @@ builder.Services.AddSwaggerGen(o =>
     });
 });
 
-// JwtService'i sisteme kaydediyoruz
+// JwtService'i sisteme kaydetme
 builder.Services.AddScoped<JwtService>();
 
-// JWT Doğrulama ayarlarını ekliyoruz
+// JWT Doğrulama ayarlarını ekleme
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {

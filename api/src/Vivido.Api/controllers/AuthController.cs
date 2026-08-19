@@ -3,20 +3,24 @@ using Microsoft.EntityFrameworkCore;
 using Vivido.Api.DTOs.Auth;
 using Vivido.Domain.Entities;
 using Vivido.Infrastructure.Data;
-using BCrypt.Net;
+using Vivido.Api.Services; 
 
 namespace Vivido.Api.Controllers;
 
 [ApiController]
-[Route("api/v1/auth")] // Rehber kuralı: Tüm auth endpointleri bu yolun altında[cite: 1]
+[Route("api/v1/auth")]
 public class AuthController : ControllerBase
 {
     private readonly VividoDbContext _context;
+    private readonly JwtService _jwtService;
+    private readonly IConfiguration _config;
 
-    // Veritabanı bağlantımızı (DbContext) içeri alıyoruz (Dependency Injection)
-    public AuthController(VividoDbContext context)
+    // 1. Sınıfın kurucusuna (constructor) JwtService ve Ayarları (IConfiguration) enjekte ediyoruz
+    public AuthController(VividoDbContext context, JwtService jwtService, IConfiguration config)
     {
         _context = context;
+        _jwtService = jwtService;
+        _config = config;
     }
 
     [HttpPost("register")]
@@ -26,7 +30,6 @@ public class AuthController : ControllerBase
         bool userExists = await _context.Users.AnyAsync(u => u.Email == request.Email);
         if (userExists)
         {
-            // Sözleşmeye tam uyumlu RFC 7807 hata formatı[cite: 1, 2]
             return Conflict(new 
             {
                 type = "https://vivido.dev/errors/email-already-exists",
@@ -37,7 +40,7 @@ public class AuthController : ControllerBase
             });
         }
 
-        // 2. Yeni Kullanıcıyı Oluştur ve Şifreyi Güvenli Hale Getir (BCrypt)[cite: 1]
+        // 2. Yeni Kullanıcıyı Oluştur ve Şifreyi Kriptola (BCrypt)
         var newUser = new User
         {
             Email = request.Email,
@@ -46,15 +49,30 @@ public class AuthController : ControllerBase
         };
 
         _context.Users.Add(newUser);
+        await _context.SaveChangesAsync(); // Kullanıcının Id'si (Guid) oluşsun diye önce bunu kaydediyoruz
+
+        // 3. Gerçek Token'ları Üret
+        var accessToken = _jwtService.GenerateAccessToken(newUser.Id, newUser.Email);
+        var rawRefreshToken = _jwtService.GenerateRefreshToken();
+        
+        // Sözleşmeye göre süre "saniye" (expiresIn) cinsinden döner
+        var expiresIn = int.Parse(_config["Jwt:AccessTokenMinutes"]!) * 60; 
+
+        // 4. Güvenlik Kuralı: Refresh Token'ı hash'leyerek veritabanına kaydet
+        var refreshTokenEntity = new RefreshToken
+        {
+            UserId = newUser.Id,
+            TokenHash = BCrypt.Net.BCrypt.HashPassword(rawRefreshToken),
+            ExpiresAt = DateTime.UtcNow.AddDays(double.Parse(_config["Jwt:RefreshTokenDays"]!))
+        };
+        
+        _context.RefreshTokens.Add(refreshTokenEntity);
         await _context.SaveChangesAsync();
 
-        // 3. Kullanıcı Bilgisini Hazırla
+        // 5. Yanıtı Hazırla (Kullanıcıya açık halini SADECE bir kere, burada döner)
         var authUser = new AuthUser(newUser.Id, newUser.Email, newUser.DisplayName);
-        
-        // ŞİMDİLİK JWT Token üretimini boş (dummy) bırakıyoruz, bir sonraki adımda gerçek JWT yazacağız.
-        var dummyTokens = new TokenPair("gecici_access_token", "gecici_refresh_token", 900);
+        var tokenPair = new TokenPair(accessToken, rawRefreshToken, expiresIn);
 
-        // Sözleşme Kuralı: Kayıt işlemi başarılıysa 201 Created dönmeli[cite: 1, 2]
-        return Created(string.Empty, new AuthResponse(authUser, dummyTokens));
+        return Created(string.Empty, new AuthResponse(authUser, tokenPair));
     }
 }
