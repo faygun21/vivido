@@ -4,9 +4,16 @@
     "target": "es2023",
     "lib": ["ES2023", "DOM"],
     "module": "esnext",
-    "types": ["vite/client"],
+    "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"],
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
+
+    /* Yol takma adı — vite.config.ts'deki alias ile AYNI olmalı.
+       `baseUrl` YOK: TypeScript 6'da kullanımdan kalktı, `paths`
+       zaten bu dosyanın konumuna göre çözülüyor. */
+    "paths": {
+      "@/*": ["./src/*"]
+    },
 
     /* Bundler mode */
     "moduleResolution": "bundler",

@@ -8,6 +8,10 @@ packages:
 allowBuilds:
   # Vite'ın paketleyicisi — derlenmiş ikili indirir, çalışması zorunlu.
   esbuild: true
+  # MSW'nin postinstall'ı web/public/mockServiceWorker.js dosyasını kurulu
+  # sürümle eşitler. Eşitlenmezse MSW çalışma anında sürüm uyuşmazlığı uyarısı
+  # verir. Betik yalnızca dosya kopyalar, ağ erişimi yoktur.
+  msw: true
 
 # pnpm 11 "minimum yayın yaşı" koruması: çok yeni sürümler varsayılan olarak
 # beklemeye alınır. Expo şablonunun getirdiği sürümler istisna tutuluyor.
