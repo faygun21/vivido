@@ -38,10 +38,15 @@ ios/
 
 # ─────────── Veri artefaktları (GitHub Release'ten iner) ───────────
 data/artifacts/
+data/sources/
+data/tmp/
 *.osm.pbf
 *.mbtiles
 *.osrm
 *.osrm.*
+*.tsv.gz
+*.zip
+*.shp
 osrm/
 !data/artifacts/.gitkeep
 

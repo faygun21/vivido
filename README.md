@@ -173,17 +173,19 @@ Girdi `ScoringInput`, çıktı `ScoreResult`. Bu sayede skorlama motoru veritaba
 
 ---
 
-## 5. Veri Artefaktları
+## 5. Veri Boru Hattı ve Artefaktları
 
-OSRM grafikleri, harita tile'ları ve seed SQL toplam ~1 GB'tır ve **git'te tutulmaz**.
-ETL **tek makinede bir kez** çalıştırılır (16 GB RAM gerekir), çıktılar GitHub Release'e yüklenir.
+Veri (DATA) ekibinin tamamladığı tüm ETL süreçleri, betikler ve dokümantasyon için bkz: [`data/README.md`](data/README.md)
+
+OSRM grafikleri (`osrm/foot/`, `osrm/car/`), harita tile'ları (`cankaya.mbtiles`) ve veritabanı yedeği (`seed.sql`) toplam ~1 GB'tır ve **git'te tutulmaz**.
+ETL **tek makinede bir kez** çalıştırılmıştır; çıktılar GitHub Release üzerinden indirilir.
 
 ```bash
-./data/scripts/00_fetch_artifacts.sh    # gh release download ile indirir
-pnpm infra:up                            # artık routing profili de çalışır
+./data/scripts/00_fetch_artifacts.sh    # gh release download ile hazır artefaktları indirir
+pnpm infra:up                            # veritabanı, OSRM ve harita servisleri ayağa kalkar
 ```
 
-Kendi 8 GB'lık makinende `osrm-extract` çalıştırma — **OOM ile çöker.**
+Geliştirme makinende `osrm-extract` tekrar çalıştırmana gerek yoktur — hazır artefaktlar tek tıkla yüklenir.
 
 ---
 
