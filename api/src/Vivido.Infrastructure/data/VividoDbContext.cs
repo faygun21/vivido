@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Vivido.Domain.Entities;
 
-namespace Vivido.Infrastructure; // Projendeki klasör yapısına göre .Data ekleyebilirsin
+namespace Vivido.Infrastructure.Data; 
 
 public class VividoDbContext : DbContext
 {
