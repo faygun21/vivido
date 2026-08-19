@@ -1,4 +1,6 @@
 using Serilog;
+using Microsoft.EntityFrameworkCore;
+using Vivido.Infrastructure.Data; 
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,6 +34,14 @@ builder.Services.AddCors(o => o.AddPolicy(DevCors, p => p
     .AllowAnyOrigin()
     .AllowAnyMethod()
     .AllowAnyHeader()));
+
+// Veritabanı bağlantı dizesini (.env dosyasından) alıyoruz
+var connectionString = builder.Configuration.GetConnectionString("Default");
+
+builder.Services.AddDbContext<VividoDbContext>(options =>
+    options.UseNpgsql(connectionString, o => o.UseNetTopologySuite())
+           .UseSnakeCaseNamingConvention()
+);
 
 var app = builder.Build();
 
