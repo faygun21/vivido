@@ -10,6 +10,15 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
 
+  optimizeDeps: {
+    // MapLibre GeoJSON ayrıştırmayı ve karo çizimini bir Web Worker'da yapar.
+    // Vite'ın bağımlılık ön-derleyicisi bu worker dosyasını bozuyor:
+    //   "The file does not exist at .../deps/maplibre-gl-worker.mjs"
+    // Sonuç sinsi — harita kabı, arka plan ve kontroller çalışır ama HİÇBİR
+    // veri katmanı çizilmez, hata da vermez. Ön-derlemenin dışında tutuyoruz.
+    exclude: ['maplibre-gl'],
+  },
+
   resolve: {
     alias: {
       // `@/shared/api/client` gibi import'lar için — özellik klasörleri

@@ -7,8 +7,12 @@ using Vivido.Infrastructure.Data; // VividoDbContext'in bulunduğu namespace
 namespace Vivido.Api.Controllers;
 
 [ApiController]
-[Route("api/v1/[controller]")]
-[AllowAnonymous] 
+[Route("api/v1/personas")]
+// Sözleşme K-F: akış landing → register/login → onboarding şeklinde, kullanıcı
+// persona ekranına geldiğinde zaten token'ı var. Korumasız kalan tek uçlar
+// /auth/* ve /health/*; tek bir endpoint'i istisna yapmak "hangisi korumalı"
+// sorusunu sürekli sordurur.
+[Authorize]
 public class PersonasController : ControllerBase
 {
     private readonly VividoDbContext _context;

@@ -59,3 +59,7 @@ osrm/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Veri ekibinin GeoJSON'larindan uretilir (web/scripts/sync-geo.mjs).
+# Dogruluk kaynagi data/ altindadir; kopyasi git'e girmez.
+web/public/geo/

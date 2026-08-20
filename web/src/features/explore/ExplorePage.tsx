@@ -1,20 +1,87 @@
+import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import type { UserProfile, Persona } from '@vivido/shared';
+import { api } from '@/shared/api/client';
+import { CankayaMap, type MapMarker } from '@/shared/map/CankayaMap';
+
 /**
- * Ana ekran — Hafta 2
+ * Ana ekran — Çankaya haritası.
  *
- * Harita + skorlanmış ev listesi + filtreler (docs/01-PROJE-PLANI.md §11.2).
- * Hafta 1'de yalnızca route'un var olması yeterli — giriş sonrası
- * yönlendirme hedefi burası.
- *
- * ⚠️ Harita altlığı Hafta 2 Gün 9'a kadar BOŞ görünecek:
- * `cankaya.mbtiles` henüz üretilmedi. Bu bir hata değil.
+ * Bu tur kapsamı: harita görünür ve gezilebilir, profil özeti yanda.
+ * Skorlanmış ev listesi + filtreler Hafta 2'nin backend işleri
+ * (`GET /properties`) bitince buraya eklenecek — harita bileşeni aynı kalır,
+ * üzerine nokta katmanı serilir.
  */
 export function ExplorePage() {
+  const { data: profile } = useQuery({
+    queryKey: ['profile'],
+    queryFn: () => api.get<UserProfile>('/profile'),
+    retry: false,
+  });
+
+  const { data: personas = [] } = useQuery({
+    queryKey: ['personas'],
+    queryFn: () => api.get<Persona[]>('/personas'),
+  });
+
+  const persona = personas.find((p) => p.code === profile?.personaCode);
+
+  const markers: MapMarker[] = (profile?.anchors ?? []).map((a) => ({
+    id: a.id,
+    lat: a.lat,
+    lon: a.lon,
+    label: a.label,
+    priority: a.priority,
+  }));
+
   return (
-    <section className="page">
-      <h1>Keşfet</h1>
-      <p className="muted">
-        Harita ve skorlanmış ev listesi Hafta 2'de gelecek.
-      </p>
+    <section className="explore">
+      <aside className="explore-side">
+        <h1>Keşfet</h1>
+
+        <div className="info-card">
+          <h2>Profilin</h2>
+          {profile ? (
+            <dl className="kv">
+              <dt>Persona</dt>
+              <dd>{persona?.displayNameTr ?? profile.personaCode}</dd>
+              <dt>Bütçe</dt>
+              <dd>
+                {profile.monthlyBudget != null
+                  ? `${profile.monthlyBudget.toLocaleString('tr-TR')} ₺`
+                  : 'Girilmedi'}
+              </dd>
+              <dt>Yerlerin</dt>
+              <dd>{profile.anchors.length} / 3</dd>
+            </dl>
+          ) : (
+            <p className="muted">
+              Profil bulunamadı. <Link to="/onboarding">Onboarding'i tamamla</Link>
+            </p>
+          )}
+          <Link className="btn-secondary" to="/profile">
+            Profili düzenle
+          </Link>
+        </div>
+
+        <div className="info-card">
+          <h2>Harita</h2>
+          <p className="muted">
+            Çankaya ilçe sınırı ve <strong>124 mahalle</strong> poligonu gösteriliyor.
+            Mahalle üzerine gelince adı görünür.
+          </p>
+          <p className="muted">
+            Skorlanmış kiralık ev noktaları, filtreler ve gerekçe tablosu
+            Hafta 2'nin kalan işleri.
+          </p>
+        </div>
+
+        <p className="data-badge">Konut verisi sentetiktir</p>
+      </aside>
+
+      <div className="explore-map">
+        <CankayaMap markers={markers} />
+      </div>
     </section>
   );
 }
