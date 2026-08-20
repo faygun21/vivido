@@ -50,7 +50,15 @@ done
 
 echo
 echo "▸ Kontrol:"
-for required in osrm/foot/cankaya.osrm osrm/car/cankaya.osrm cankaya.mbtiles seed.sql; do
+# NOT: `cankaya.osrm` diye bir dosya YOKTUR. OSRM `cankaya.osrm.*` uzantılı
+# ~26 dosya üretir; `osrm-routed /data/cankaya.osrm` bunu TABAN AD olarak
+# kullanır. Bu yüzden zincirin SON adımının (osrm-customize) çıktısını
+# kontrol ediyoruz — varsa extract + partition + customize tamamlanmış demektir.
+for required in \
+  osrm/foot/cankaya.osrm.cell_metrics \
+  osrm/car/cankaya.osrm.cell_metrics \
+  cankaya.mbtiles \
+  seed.sql; do
   if [ -e "$DEST/$required" ]; then
     echo "  ✓ $required"
   else
@@ -59,5 +67,13 @@ for required in osrm/foot/cankaya.osrm osrm/car/cankaya.osrm cankaya.mbtiles see
 done
 
 echo
-echo "✓ Bitti. Şimdi routing servislerini başlatabilirsin:"
-echo "    docker compose --profile dev --profile routing up -d"
+echo "✓ Bitti. Sıradaki adımlar:"
+echo
+echo "  1) Servisler:"
+echo "     docker compose --profile dev --profile routing up -d"
+echo
+echo "  2) Veriyi yükle (seed.sql /seed altına mount edili):"
+echo "     docker compose exec -T postgis psql -U vivido -d vivido -f /seed/seed.sql"
+echo "     # Git Bash kullanıyorsan komutun başına MSYS_NO_PATHCONV=1 ekle"
+echo
+echo "  3) Doğrula:  pnpm db:check      # 6/6 PASS bekleniyor"
