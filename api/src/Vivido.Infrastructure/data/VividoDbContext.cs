@@ -33,8 +33,14 @@ public class VividoDbContext : DbContext
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
         });
 
-        // --- YENİ EKLENENLER BURASI ---
-        
+        // --- BURASI EKLENECEK ---
+        builder.Entity<Persona>(entity =>
+        {
+            entity.ToTable("personas");
+            entity.HasKey(e => e.Code); // Persona tablosunun birincil anahtarı
+        });
+        // -------------------------
+
         builder.Entity<UserProfile>(entity =>
         {
             entity.ToTable("user_profiles");
@@ -62,7 +68,5 @@ public class VividoDbContext : DbContext
             entity.Property(e => e.Geom)
                   .HasColumnType("geometry (Point, 4326)");
         });
-        
-        // ------------------------------
     }
 }
