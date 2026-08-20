@@ -2,43 +2,54 @@ name: ci-mobile
 
 on:
   push:
-    branches: [main]
-    paths: ['mobile/**', 'packages/**', 'pnpm-lock.yaml', '.github/workflows/ci-mobile.yml']
+    branches: [main, dev]
+    paths:
+      - "mobile/**"
+      - ".github/workflows/ci-mobile.yml"
+
   pull_request:
-    paths: ['mobile/**', 'packages/**', 'pnpm-lock.yaml', '.github/workflows/ci-mobile.yml']
+    paths:
+      - "mobile/**"
+      - ".github/workflows/ci-mobile.yml"
 
 concurrency:
   group: ci-mobile-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # NOT: Mobil uygulama CI'da DERLENMEZ — Android build'i 15+ dakika sürer
-  # ve her PR'da çalıştırmak anlamsızdır. APK üretimi EAS ile elle yapılır.
-  # Burada tip güvenliği ve saf mantık (adım durum makinesi) test edilir.
-  typecheck-test:
+  flutter:
+    name: Flutter kalite kontrolleri
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Repository'yi checkout et
+        uses: actions/checkout@v4
 
-      # Sürüm BİLEREK verilmiyor: action, package.json'daki
-      # "packageManager": "pnpm@11.22.0" alanını okur. İkisi birden
-      # yazılırsa "Multiple versions of pnpm specified" ile kırılır.
-      - uses: pnpm/action-setup@v4
+      - name: Flutter 3.47.0 kur
+        shell: bash
+        run: |
+          git clone https://github.com/flutter/flutter.git \
+            --depth 1 \
+            --branch 3.47.0 \
+            "$HOME/flutter"
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
+          echo "$HOME/flutter/bin" >> "$GITHUB_PATH"
 
-      - name: Bağımlılıklar
-        run: pnpm install --frozen-lockfile
+      - name: Flutter sürümünü doğrula
+        run: flutter --version
 
-      - name: Tip kontrolü
-        run: pnpm --filter mobile exec tsc --noEmit
+      - name: Bağımlılıkları yükle
+        working-directory: mobile
+        run: flutter pub get
 
-      - name: Lint
-        run: pnpm --filter mobile lint
-        continue-on-error: true   # Hafta 1'de lint kuralları henüz oturmadı
+      - name: Format kontrolü
+        working-directory: mobile
+        run: dart format --set-exit-if-changed lib test
 
-      - name: Testler (adım durum makinesi + manevra çevirisi)
-        run: pnpm --filter mobile test
+      - name: Statik analiz
+        working-directory: mobile
+        run: flutter analyze
+
+      - name: Testleri çalıştır
+        working-directory: mobile
+        run: flutter test

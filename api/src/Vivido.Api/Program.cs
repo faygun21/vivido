@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Vivido.Api.Services;
 
+
 var builder = WebApplication.CreateBuilder(args);
 
 // ─── Loglama ───
@@ -18,6 +19,7 @@ builder.Host.UseSerilog((ctx, cfg) => cfg
 
 // 1. ÖNCE DEĞİŞKENİ TANIMLIYORUZ
 var connectionString = builder.Configuration.GetConnectionString("Default");
+Console.WriteLine("---> KULLANILAN BAGLANTI CUMLESI: " + connectionString);
 
 // 2. SONRA VERİTABANI BAĞLANTISINI KURUYORUZ
 builder.Services.AddDbContext<VividoDbContext>(options =>
@@ -27,6 +29,7 @@ builder.Services.AddDbContext<VividoDbContext>(options =>
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+// ─── SWAGGER AYARLARI ───
 builder.Services.AddSwaggerGen(o =>
 {
     o.SwaggerDoc("v1", new()
@@ -36,7 +39,6 @@ builder.Services.AddSwaggerGen(o =>
         Description = "Kiralık ev bulma, kişiselleştirilmiş skorlama ve ziyaret rotası"
     });
 });
-
 // JwtService'i sisteme kaydetme
 builder.Services.AddScoped<JwtService>();
 
