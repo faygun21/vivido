@@ -9,7 +9,7 @@ import {
   type MapOptions,
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { MAP_ATTRIBUTION, USE_RASTER_BASEMAP } from '@/shared/config';
+import { GLYPHS_URL, MAP_ATTRIBUTION, TILE_URL, USE_RASTER_BASEMAP } from '@/shared/config';
 
 /** `StyleSpecification` maplibre-gl tarafından yeniden dışa aktarılmıyor. */
 type MapStyle = NonNullable<MapOptions['style']>;
@@ -79,6 +79,106 @@ const GEO_NEIGHBOURHOODS = '/geo/cankaya-mahalleler.geojson';
 /** Çankaya kaba bbox — sınır verisi okunamazsa kullanılacak yedek görünüm. */
 const FALLBACK_CENTER: [number, number] = [32.85, 39.87];
 
+/**
+ * Kendi karo sunucumuzdan gelen sokak / bina / su katmanları.
+ *
+ * Şema: OpenMapTiles (Planetiler'ın varsayılan çıktısı). `source-layer`
+ * adları o şemadan gelir — `transportation`, `building`, `water`…
+ * Alta serilir; mahalle poligonları bunların ÜSTÜNDE yarı saydam durur.
+ */
+function vectorBasemapLayers(): unknown[] {
+  return [
+    {
+      id: 'su',
+      type: 'fill',
+      source: 'karolar',
+      'source-layer': 'water',
+      paint: { 'fill-color': '#b9d6de' },
+    },
+    {
+      id: 'yesil-alan',
+      type: 'fill',
+      source: 'karolar',
+      'source-layer': 'landcover',
+      paint: { 'fill-color': '#d6e6d2', 'fill-opacity': 0.7 },
+    },
+    {
+      id: 'park',
+      type: 'fill',
+      source: 'karolar',
+      'source-layer': 'park',
+      paint: { 'fill-color': '#cfe6c8', 'fill-opacity': 0.6 },
+    },
+    {
+      id: 'binalar',
+      type: 'fill',
+      source: 'karolar',
+      'source-layer': 'building',
+      minzoom: 13,
+      paint: {
+        'fill-color': '#d9d4cc',
+        'fill-outline-color': '#c2bcb2',
+        // Uzakta bina kalabalığı haritayı okunmaz yapıyor; yakınlaştıkça belirginleşsin.
+        'fill-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0.25, 16, 0.85],
+      },
+    },
+    {
+      id: 'yollar-kucuk',
+      type: 'line',
+      source: 'karolar',
+      'source-layer': 'transportation',
+      filter: ['!', ['in', ['get', 'class'], ['literal', ['motorway', 'trunk', 'primary']]]],
+      paint: {
+        'line-color': '#ffffff',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.4, 16, 3],
+      },
+    },
+    {
+      id: 'yollar-ana',
+      type: 'line',
+      source: 'karolar',
+      'source-layer': 'transportation',
+      filter: ['in', ['get', 'class'], ['literal', ['motorway', 'trunk', 'primary']]],
+      paint: {
+        'line-color': '#f7c873',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 9, 0.8, 16, 6],
+      },
+    },
+  ];
+}
+
+/** Etiketler en üstte — karo sunucusu varsa (glyph gerekir). */
+function vectorLabelLayers(): unknown[] {
+  return [
+    {
+      id: 'yol-adlari',
+      type: 'symbol',
+      source: 'karolar',
+      'source-layer': 'transportation_name',
+      minzoom: 14,
+      layout: {
+        'text-field': ['get', 'name'],
+        'text-font': ['Noto Sans Regular'],
+        'text-size': 11,
+        'symbol-placement': 'line',
+      },
+      paint: { 'text-color': '#4a4a4a', 'text-halo-color': '#ffffff', 'text-halo-width': 1.2 },
+    },
+    {
+      id: 'yer-adlari',
+      type: 'symbol',
+      source: 'karolar',
+      'source-layer': 'place',
+      layout: {
+        'text-field': ['get', 'name'],
+        'text-font': ['Noto Sans Regular'],
+        'text-size': ['interpolate', ['linear'], ['zoom'], 10, 11, 15, 15],
+      },
+      paint: { 'text-color': '#2b3a36', 'text-halo-color': '#ffffff', 'text-halo-width': 1.4 },
+    },
+  ];
+}
+
 function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): MapStyle {
   const sources: Record<string, unknown> = {
     ilce: { type: 'geojson', data: district },
@@ -90,7 +190,12 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
     { id: 'arka-plan', type: 'background', paint: { 'background-color': '#eef2f0' } },
   ];
 
-  if (USE_RASTER_BASEMAP) {
+  const hasVectorTiles = TILE_URL !== '';
+
+  if (hasVectorTiles) {
+    sources.karolar = { type: 'vector', url: TILE_URL, attribution: MAP_ATTRIBUTION };
+    layers.push(...vectorBasemapLayers());
+  } else if (USE_RASTER_BASEMAP) {
     sources.osm = {
       type: 'raster',
       tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
@@ -100,6 +205,8 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
     };
     layers.push({ id: 'osm', type: 'raster', source: 'osm' });
   } else {
+    // Altlık yokken ilçe alanını beyaza boyamak, mahalle sınırlarını
+    // okunur kılıyor. Altlık varsa sokakları örteceği için eklenmez.
     layers.push({
       id: 'ilce-dolgu',
       type: 'fill',
@@ -124,7 +231,7 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
           'case',
           ['boolean', ['feature-state', 'hover'], false],
           0.6,
-          USE_RASTER_BASEMAP ? 0.18 : 0.35,
+          TILE_URL !== '' || USE_RASTER_BASEMAP ? 0.18 : 0.35,
         ],
       },
     },
@@ -142,10 +249,20 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
     },
   );
 
+  // Etiketler her şeyin üstünde kalmalı.
+  if (hasVectorTiles) layers.push(...vectorLabelLayers());
+
   // Stil koşullu kurulduğu için TypeScript `type: 'raster'` gibi alanları
   // string-literal birleşimine daraltamıyor. Tek noktada dönüştürüyoruz;
   // şekil MapLibre style-spec v8 ile birebir uyumlu (validateStyleMin: 0 hata).
-  return { version: 8, sources, layers } as MapStyle;
+  return {
+    version: 8,
+    // `glyphs` yalnızca symbol katmanı varken anlamlı; karo sunucusu yoksa
+    // hiç metin çizmediğimiz için dış bir font kaynağına da bağlanmıyoruz.
+    ...(hasVectorTiles ? { glyphs: GLYPHS_URL } : {}),
+    sources,
+    layers,
+  } as MapStyle;
 }
 
 /** Bir GeoJSON nesnesinin sınırlayıcı kutusunu hesaplar. */
