@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Vivido.Api.DTOs.Auth;
+using Vivido.Application.DTOs.Auth;
 using Vivido.Domain.Entities;
 using Vivido.Infrastructure.Data;
 using Vivido.Api.Services;
