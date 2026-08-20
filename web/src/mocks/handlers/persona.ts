@@ -4,14 +4,6 @@ import { API_BASE_URL } from '@/shared/config';
 import { userIdFromAuthHeader } from '@/mocks/db';
 import { problem } from '@/mocks/problem';
 
-/**
- * Persona handler'ı — SAHİBİ: Kişi 2
- *
- * Metinler `db/schema/002_seed_reference.sql` ile BİREBİR aynı.
- * Değiştirmeyin — gerçek API'ye geçildiğinde ekran değişirse
- * tasarım kararları yanlış veriyle alınmış olur.
- */
-
 const PERSONAS: Persona[] = [
   {
     code: 'student',
@@ -44,7 +36,6 @@ const PERSONAS: Persona[] = [
 ];
 
 export const personaHandlers = [
-  // Korumalı (K-F): onboarding kayıttan SONRA geliyor, token her zaman var.
   http.get(`${API_BASE_URL}/personas`, ({ request }) => {
     if (!userIdFromAuthHeader(request)) {
       return problem(401, 'Oturum gerekli', 'TOKEN_EXPIRED');

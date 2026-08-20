@@ -17,7 +17,8 @@
 | [K-04](#k-04) | Persona ağırlıkları 8 kategoriye yeniden normalize edildi | Kabul |
 | [K-05](#k-05) | ETL araçları host'a değil Docker imajına kurulur | Kabul |
 | [K-06](#k-06) | Konut verisi sentetik, coğrafi veri gerçek OSM | Kabul |
-| [K-07](#k-07) | Mobil dev client bulutta (EAS Build) üretilir | Öneri |
+| [K-07](#k-07) | Mobil dev client bulutta (EAS Build) üretilir | **Değişti** → K-08 |
+| [K-08](#k-08) | Mobil uygulama Flutter ile yazılır, web React kalır | Kabul |
 
 ---
 
@@ -228,7 +229,8 @@ veritabanına yazdığı için profil tek başına açıldığında da ayakta ol
 ## K-07
 ### Mobil dev client bulutta (EAS Build) üretilir
 
-**Durum:** **Öneri — henüz onaylanmadı**
+**Durum:** **Değişti · 2026-08-19** — mobil tarafı Flutter'a geçti, bkz. [K-08](#k-08).
+Aşağıdaki metin tarihsel kayıt olarak duruyor.
 
 **Bağlam.** `@maplibre/maplibre-react-native` native bir modül ve Expo Go'nun
 sabit native setinde yok — harita Expo Go'da hiç açılmaz (§12.4). Development
@@ -247,3 +249,55 @@ derlemeye geçilir.
 **Durum notu.** [`mobile/app.json`](../mobile/app.json) zaten doğru
 yapılandırılmış (plugins, izinler, paket adı, konum metinleri). Eksik olan:
 `eas.json` ve APK'nın kendisi. `mobile/App.tsx` hâlâ Expo boilerplate.
+
+---
+
+## K-08
+### Mobil uygulama Flutter ile yazılır; web React+Vite olarak kalır
+
+**Durum:** Kabul · 2026-08-19 · [K-07](#k-07)'nin yerine geçer
+
+**Bağlam.** Hafta 2'ye 7 kişilik yazılım ekibiyle giriliyor (4 backend + 3 frontend). Frontend
+ekibi mobil tarafı **Flutter** ile yazma kararı aldı. Karar alındığında `mobile/` klasöründe
+`App.tsx` hâlâ Expo boilerplate'ti — yani terk edilen çalışan kod yok.
+
+**Karar.**
+
+| Katman | Seçim |
+|---|---|
+| Web (W1–W7) | **React 18 + TS + Vite + MapLibre GL JS** — değişmiyor |
+| Mobil (M1–M5) | **Flutter** (`maplibre_gl`, `dio`, `go_router`, `flutter_secure_storage`) |
+| Sözleşme | `packages/shared` (TS) **doğruluk kaynağı olmaya devam eder**; Dart modelleri onu yansıtır |
+
+**Gerekçe.**
+
+1. **Web tarafında terk edilecek gerçek iş var, mobilde yok.** `web/src/shared/api/client.ts`
+   (RFC 7807 ayrıştırma + tek-uçuş 401→refresh→tekrar dene, testli), MSW handler'ları, auth store
+   ve korumalı route'lar çalışıyor. Mobilde ise sadece boş şablon vardı. Sınırı buradan çekmek
+   en az işi çöpe atan yer.
+2. **Expo Go / dev client ayrımı ortadan kalkar.** K-07'nin çözmeye çalıştığı problem — native
+   modülün Expo Go'da çalışmaması — Flutter'da yok. `flutter run` doğrudan native derler.
+   R1 riski ("mobil ekip haftalarca kurulumla boğuşur") yapısal olarak kapanır.
+3. **EAS hesabı ve bulut kuyruğu bağımlılığı gider.** APK derlemesi yerel ve tekrarlanabilir olur.
+
+**Bedeli — açıkça yazıyorum.**
+
+- **Android SDK yerel kurulum zorunlu (~10 GB).** K-07'nin kaçındığı maliyet buydu; artık ödeniyor.
+- **Sözleşme iki kez yazılıyor.** `packages/shared`'daki TS tipleri Dart'ta elle yansıtılacak.
+  Doğruluk kaynağı TS tarafı; Dart sapmaz. `anchorWeights()` gibi saf yardımcılar birebir port edilir.
+- **Tek-uçuş refresh mantığı ikinci kez yazılıyor** (K-E). Web'deki uygulama referans alınır.
+- **Kod paylaşımı yok.** Web ve mobil yalnızca API sözleşmesini paylaşır — zaten §2.3 mobilde
+  arama/filtreleme/rota oluşturmayı kapsam dışı bıraktığı için örtüşen ekran yok.
+
+**Sonuçları.**
+
+- `mobile/` pnpm workspace'inden çıkar: `pnpm-workspace.yaml`, kök `package.json`
+  (`dev:mobile`, `test:mobile`), `.github/workflows/ci-mobile.yml` (→ `flutter analyze` +
+  `flutter test`), `.github/CODEOWNERS` güncellenir.
+- `eas.json` ve EAS Build akışı gündemden düşer.
+- `docs/01-PROJE-PLANI.md` §3 (teknoloji yığını) ve §12.4 (Expo dev client tuzağı) mobil satırları
+  **eskimiştir** — bu karar onların yerine geçer.
+- **Doğrulama kapısı:** `maplibre_gl` ile "hello map" gerçek Android cihazda **Hafta 2 Gün 6'da**
+  açılmalı. Açılmazsa karar Hafta 2 içinde yeniden değerlendirilir — Hafta 3'te değil.
+
+Uygulama planı: [`03-HAFTA-2-PLANI.md`](03-HAFTA-2-PLANI.md) §7 FE-3.
