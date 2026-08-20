@@ -33,8 +33,19 @@ public class VividoDbContext : DbContext
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
         });
 
+        builder.Entity<Persona>(entity =>
+        {
+            entity.ToTable("personas");
+            // ⚠️ personas tablosunun PK'sı `code` (text). EF'in varsayılan
+            // konvansiyonu `Id` adlı bir özellik arar, bulamayınca TÜM model
+            // doğrulaması patlar ve veritabanına giden HER sorgu 500 döner —
+            // register dahil. Anahtarı açıkça bildirmek zorunlu.
+            entity.HasKey(e => e.Code);
+            entity.Property(e => e.Code).HasColumnName("code");
+        });
+
         // --- YENİ EKLENENLER BURASI ---
-        
+
         builder.Entity<UserProfile>(entity =>
         {
             entity.ToTable("user_profiles");
