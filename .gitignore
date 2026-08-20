@@ -23,8 +23,6 @@ npm-debug.log*
 # ─────────── Expo / React Native ───────────
 .expo/
 .expo-shared/
-android/
-ios/
 *.jks
 *.keystore
 !debug.keystore
