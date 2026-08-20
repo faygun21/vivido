@@ -52,22 +52,31 @@ jobs:
       # Beklenen tabloların hepsi var mı?
       - name: Şema kuruldu mu
         run: |
-          EKSIK=$(docker compose exec -T postgis psql -U vivido -d vivido -tA -c "
-            SELECT string_agg(t, ', ')
-            FROM unnest(ARRAY[
-              'users','refresh_tokens','user_profiles','anchors',
-              'personas','persona_category_weights',
-              'poi_categories','poi_tag_mapping','pois',
-              'neighborhoods','buildings','properties',
-              'property_poi_access','score_cache','routes','route_stops'
-            ]) AS t
-            WHERE to_regclass('public.' || t) IS NULL;")
+          for i in $(seq 1 30); do
+            if EKSIK=$(docker compose exec -T postgis psql -U vivido -d vivido -tA -c "
+              SELECT string_agg(t, ', ')
+              FROM unnest(ARRAY[
+                'users','refresh_tokens','user_profiles','anchors',
+                'personas','persona_category_weights',
+                'poi_categories','poi_tag_mapping','pois',
+                'neighborhoods','buildings','properties',
+                'property_poi_access','score_cache','routes','route_stops'
+              ]) AS t
+              WHERE to_regclass('public.' || t) IS NULL;"); then
+              if [ -z "$EKSIK" ]; then
+                echo "✓ 16 tablonun hepsi mevcut."
+                exit 0
+              fi
+            fi
+            sleep 2
+          done
           if [ -n "$EKSIK" ]; then
             echo "::error::Şemada eksik tablo(lar): $EKSIK"
-            docker compose logs postgis | tail -40
-            exit 1
+          else
+            echo "::error::PostGIS şema sorgusu 60 saniye boyunca cevap vermedi"
           fi
-          echo "✓ 16 tablonun hepsi mevcut."
+          docker compose logs postgis | tail -40
+          exit 1
 
       - name: Eklentiler
         run: |
