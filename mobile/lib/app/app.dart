@@ -1,11 +1,53 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/config/app_config.dart';
+import '../core/network/api_client.dart';
+import '../core/storage/token_store.dart';
 import '../core/theme/app_theme.dart';
+import '../features/auth/application/session_controller.dart';
+import '../features/auth/presentation/pages/welcome_page.dart';
 import '../features/home/presentation/pages/home_page.dart';
+import '../features/onboarding/presentation/pages/onboarding_page.dart';
 
-class VividoApp extends StatelessWidget {
-  const VividoApp({super.key});
+class VividoApp extends StatefulWidget {
+  const VividoApp({this.controller, super.key});
+
+  final SessionController? controller;
+
+  @override
+  State<VividoApp> createState() => _VividoAppState();
+}
+
+class _VividoAppState extends State<VividoApp> {
+  late final SessionController _controller;
+  late final bool _ownsController;
+
+  @override
+  void initState() {
+    super.initState();
+    _ownsController = widget.controller == null;
+    _controller = widget.controller ?? _createController();
+    unawaited(_controller.bootstrap());
+  }
+
+  SessionController _createController() {
+    final client = ApiClient(
+      baseUrl: AppConfig.apiBaseUrl,
+      tokenStore: SecureTokenStore(),
+    );
+    return SessionController(
+      client: client,
+      repository: VividoRepository(client),
+    );
+  }
+
+  @override
+  void dispose() {
+    if (_ownsController) _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -13,7 +55,45 @@ class VividoApp extends StatelessWidget {
       title: AppConfig.appName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      home: const HomePage(),
+      home: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) => switch (_controller.phase) {
+          SessionPhase.booting => const _LaunchScreen(),
+          SessionPhase.guest => WelcomePage(controller: _controller),
+          SessionPhase.onboarding => OnboardingPage(controller: _controller),
+          SessionPhase.authenticated => HomePage(controller: _controller),
+        },
+      ),
+    );
+  }
+}
+
+class _LaunchScreen extends StatelessWidget {
+  const _LaunchScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.location_city_rounded,
+              size: 72,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 18),
+            Text(
+              AppConfig.appName,
+              style: Theme.of(context).textTheme.headlineMedium
+                  ?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 20),
+            const CircularProgressIndicator(),
+          ],
+        ),
+      ),
     );
   }
 }
