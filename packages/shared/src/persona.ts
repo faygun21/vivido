@@ -22,9 +22,15 @@ export const PERSONA_CODES = [
 
 export type PersonaCode = (typeof PERSONA_CODES)[number];
 
+export interface PersonaCategoryWeight {
+  categoryCode: string;
+  weight: number;
+}
+
 export interface Persona {
   code: PersonaCode;
   displayNameTr: string;
   descriptionTr: string;
   icon?: string;
+  categoryWeights: PersonaCategoryWeight[];
 }

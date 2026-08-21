@@ -6,6 +6,11 @@ public record UserProfileDto(
     string LastName,
     string PersonaCode,
     decimal? MonthlyBudget,
+
+    // Kullanıcının kaydettiği yaşam kriterleri önem sırası.
+    // Örn: ["school", "market", "park", ...]
+    List<string> CategoryOrder,
+
     List<AnchorDto> Anchors
 );
 
@@ -13,7 +18,11 @@ public record UpdateProfileRequest(
     string FirstName,
     string LastName,
     string PersonaCode,
-    decimal? MonthlyBudget
+    decimal? MonthlyBudget,
+
+    // Frontend sürükle-bırak sonrası kriterleri
+    // en önemliden en aza doğru gönderir.
+    List<string>? CategoryOrder
 );
 
 public record AnchorDto(
