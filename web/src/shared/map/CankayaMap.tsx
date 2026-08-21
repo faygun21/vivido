@@ -65,10 +65,18 @@ export interface MapMarker extends MapPoint {
   priority?: number;
 }
 
+export interface MapFocus extends MapPoint {
+  id: string;
+  label: string;
+  bounds?: { south: number; west: number; north: number; east: number } | null;
+}
+
 interface CankayaMapProps {
   /** Verilirse haritaya tıklanabilir hale gelir (anchor ekleme akışı). */
   onMapClick?: (point: MapPoint) => void;
   markers?: MapMarker[];
+  /** Arama sonucu değiştiğinde haritayı bu konuma taşır. */
+  focus?: MapFocus | null;
   /** Harita kabının yüksekliği (CSS değeri). */
   height?: string;
 }
@@ -287,7 +295,7 @@ function boundsOf(geojson: GeoCollection): LngLatBounds {
   return bounds;
 }
 
-export function CankayaMap({ onMapClick, markers = [], height = '100%' }: CankayaMapProps) {
+export function CankayaMap({ onMapClick, markers = [], focus, height = '100%' }: CankayaMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerObjectsRef = useRef<Marker[]>([]);
@@ -417,9 +425,37 @@ export function CankayaMap({ onMapClick, markers = [], height = '100%' }: Cankay
         new Marker({ element: el }).setLngLat([marker.lon, marker.lat]).addTo(map),
       );
     }
+
+    if (focus) {
+      const el = document.createElement('div');
+      el.className = 'map-pin map-pin--search';
+      el.textContent = '⌖';
+      el.title = focus.label;
+      markerObjectsRef.current.push(
+        new Marker({ element: el }).setLngLat([focus.lon, focus.lat]).addTo(map),
+      );
+    }
     // `status` bağımlılığı şart: harita asenkron kurulduğu için ilk render'da
     // mapRef henüz boş olabiliyor, hazır olunca işaretçiler yeniden basılır.
-  }, [markers, status]);
+  }, [markers, focus, status]);
+
+  // ─── Konum arama sonucu ───
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== 'hazir' || !focus) return;
+
+    if (focus.bounds) {
+      map.fitBounds(
+        [
+          [focus.bounds.west, focus.bounds.south],
+          [focus.bounds.east, focus.bounds.north],
+        ],
+        { padding: 56, maxZoom: 16, duration: 700 },
+      );
+    } else {
+      map.flyTo({ center: [focus.lon, focus.lat], zoom: 16, duration: 700 });
+    }
+  }, [focus, status]);
 
   // İmleci tıklanabilirlik durumuna göre değiştir.
   useEffect(() => {

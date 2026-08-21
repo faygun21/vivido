@@ -14,6 +14,7 @@ public class VividoDbContext : DbContext
     public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
     public DbSet<UserProfile> UserProfiles { get; set; }
     public DbSet<Anchor> Anchors { get; set; }
+    public DbSet<Neighborhood> Neighborhoods { get; set; }
     public DbSet<FavoriteProperty> FavoriteProperties { get; set; }
     public DbSet<Route> Routes { get; set; }
     public DbSet<RouteStop> RouteStops { get; set; }
@@ -98,28 +99,36 @@ public class VividoDbContext : DbContext
             entity.Property(e => e.Geom)
                   .HasColumnType("geometry (Point, 4326)");
         });
+        builder.Entity<Neighborhood>(entity =>
+        {
+            entity.ToTable("neighborhoods");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Geom)
+                  .HasColumnType("geometry (MultiPolygon, 4326)");
+        });
+
         builder.Entity<FavoriteProperty>(entity =>
-{
-    entity.ToTable("favorite_properties");
-    
-    // Composite Primary Key (user_id ve property_id birleşimi)
-    entity.HasKey(e => new { e.UserId, e.PropertyId }); 
-    
-    // User ile ilişki
-    entity.HasOne(e => e.User)
-          .WithMany()
-          .HasForeignKey(e => e.UserId)
-          .OnDelete(DeleteBehavior.Cascade);
-          
-    // Tarih için varsayılan değer
-    entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
-});
+        {
+            entity.ToTable("favorite_properties");
+
+            // Composite Primary Key (user_id ve property_id birleşimi)
+            entity.HasKey(e => new { e.UserId, e.PropertyId });
+
+            // User ile ilişki
+            entity.HasOne(e => e.User)
+                  .WithMany()
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            // Tarih için varsayılan değer
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
+        });
 
         builder.Entity<Route>(entity =>
         {
             entity.ToTable("routes");
             entity.HasKey(e => e.Id);
-            
+
             // User ile ilişki
             entity.HasOne(e => e.User)
                   .WithMany() // User tarafında liste tutmuyoruz
@@ -129,26 +138,26 @@ public class VividoDbContext : DbContext
             // NetTopologySuite ve JSON tiplerinin PostGIS karşılıkları
             entity.Property(e => e.StartGeom)
                   .HasColumnType("geometry(Point, 4326)");
-            
+
             entity.Property(e => e.Geometry)
                   .HasColumnType("geometry(LineString, 4326)");
-            
+
             entity.Property(e => e.Steps)
                   .HasColumnType("jsonb"); // OSRM manevra adımları için
-            
+
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
         });
 
         builder.Entity<RouteStop>(entity =>
         {
             entity.ToTable("route_stops");
-            
+
             // Composite Primary Key (route_id ve seq birleşimi)
-            entity.HasKey(e => new { e.RouteId, e.Seq }); 
-            
+            entity.HasKey(e => new { e.RouteId, e.Seq });
+
             // Rota içindeki bir evin ikinci kez eklenmemesi için Unique kısıtlaması
             entity.HasIndex(e => new { e.RouteId, e.PropertyId }).IsUnique();
-            
+
             // Route ile 1-N ilişki
             entity.HasOne(e => e.Route)
                   .WithMany(r => r.Stops)

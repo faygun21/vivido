@@ -29,6 +29,7 @@ export * from './errors';
 export * from './auth';
 export * from './persona';
 export * from './profile';
+export * from './location';
 export * from './property';
 export * from './score';
 export * from './route';

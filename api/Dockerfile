@@ -23,11 +23,11 @@ RUN dotnet publish src/Vivido.Api/Vivido.Api.csproj -c Release -o /app/publish -
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
-# .NET 10 runtime imajı hazır `app` kullanıcısını APP_UID ile sağlar.
-# Runtime imajına paket/yönetici aracı eklemeden non-root çalıştır.
+COPY --from=build /app/publish .
+
+# Resmî .NET 8+ imajlarının yerleşik non-root kullanıcısı.
 USER $APP_UID
 
-COPY --from=build /app/publish .
 EXPOSE 5000
 ENV ASPNETCORE_URLS=http://+:5000
 

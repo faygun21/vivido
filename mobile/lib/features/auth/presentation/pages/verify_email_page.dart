@@ -8,7 +8,7 @@ import '../widgets/code_field.dart';
 /// E-posta doğrulama ekranı — K-09.
 ///
 /// Buraya iki yoldan gelinir:
-///   · kayıt 202 döndüğünde (AuthPage yönlendirir)
+///   · kayıt 202 döndüğünde (RegisterPage yönlendirir)
 ///   · doğrulanmamış hesapla giriş denendiğinde (403 EMAIL_NOT_VERIFIED)
 ///
 /// Kod doğrulanınca sunucu token DÖNER — kullanıcı ayrıca giriş yapmaz.
@@ -134,7 +134,10 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
                     '${widget.email} adresine 6 haneli bir kod gönderdik. '
                     'Gelmediyse spam klasörüne de bak.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: colors.onSurfaceVariant, height: 1.4),
+                    style: TextStyle(
+                      color: colors.onSurfaceVariant,
+                      height: 1.4,
+                    ),
                   ),
                   const SizedBox(height: 28),
                   CodeField(
