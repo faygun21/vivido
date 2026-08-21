@@ -134,7 +134,10 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
                     '${widget.email} adresine 6 haneli bir kod gönderdik. '
                     'Gelmediyse spam klasörüne de bak.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: colors.onSurfaceVariant, height: 1.4),
+                    style: TextStyle(
+                      color: colors.onSurfaceVariant,
+                      height: 1.4,
+                    ),
                   ),
                   const SizedBox(height: 28),
                   CodeField(

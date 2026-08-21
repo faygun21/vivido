@@ -109,7 +109,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         body: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-            child: _codeStep ? _buildResetStep(context) : _buildEmailStep(context),
+            child: _codeStep
+                ? _buildResetStep(context)
+                : _buildEmailStep(context),
           ),
         ),
       ),
@@ -205,7 +207,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
               ),
             ),
             validator: (value) {
-              if ((value ?? '').length < 8) return 'Parola en az 8 karakter olmalı.';
+              if ((value ?? '').length < 8) {
+                return 'Parola en az 8 karakter olmalı.';
+              }
               return null;
             },
           ),
