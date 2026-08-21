@@ -186,7 +186,7 @@ class _AnchorManagerPageState extends State<AnchorManagerPage> {
                   ? const _EmptyAnchors()
                   : ReorderableListView.builder(
                       itemCount: _anchors.length,
-                      onReorderItem: _reorder,
+                      onReorder: _reorder,
                       buildDefaultDragHandles: false,
                       itemBuilder: (context, index) {
                         final anchor = _anchors[index];

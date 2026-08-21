@@ -1,7 +1,5 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
-
 import '../core/config/app_config.dart';
 import '../core/network/api_client.dart';
 import '../core/storage/token_store.dart';
@@ -10,6 +8,7 @@ import '../features/auth/application/session_controller.dart';
 import '../features/auth/presentation/pages/welcome_page.dart';
 import '../features/home/presentation/pages/home_page.dart';
 import '../features/onboarding/presentation/pages/onboarding_page.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class VividoApp extends StatefulWidget {
   const VividoApp({this.controller, super.key});
@@ -74,23 +73,25 @@ class _LaunchScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF9F6F0), 
       body: Center(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.location_city_rounded,
-              size: 72,
-              color: Theme.of(context).colorScheme.primary,
+            SvgPicture.asset(
+              'assets/images/vivido_logo.svg',
+              width: 150, 
             ),
-            const SizedBox(height: 18),
-            Text(
-              AppConfig.appName,
-              style: Theme.of(context).textTheme.headlineMedium
-                  ?.copyWith(fontWeight: FontWeight.w900),
+            const SizedBox(height: 24),
+            const Text(
+              'hayalinizdeki eve giden yol',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF333333),
+                letterSpacing: 0.5,
+              ),
             ),
-            const SizedBox(height: 20),
-            const CircularProgressIndicator(),
           ],
         ),
       ),

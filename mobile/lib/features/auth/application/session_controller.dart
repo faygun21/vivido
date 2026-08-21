@@ -21,6 +21,7 @@ class SessionController extends ChangeNotifier {
   bool get isAuthenticated => client.session != null;
 
   Future<void> bootstrap() async {
+    await Future.delayed(const Duration(milliseconds: 2500));
     if (phase != SessionPhase.booting) return;
     try {
       final restored = await client.restoreSession();
