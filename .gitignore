@@ -23,8 +23,6 @@ npm-debug.log*
 # ─────────── Expo / React Native ───────────
 .expo/
 .expo-shared/
-android/
-ios/
 *.jks
 *.keystore
 !debug.keystore
@@ -61,3 +59,7 @@ osrm/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Veri ekibinin GeoJSON'larindan uretilir (web/scripts/sync-geo.mjs).
+# Dogruluk kaynagi data/ altindadir; kopyasi git'e girmez.
+web/public/geo/

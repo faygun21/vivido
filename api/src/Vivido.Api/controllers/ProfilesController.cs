@@ -9,7 +9,10 @@ using Vivido.Infrastructure.Data;
 namespace Vivido.Api.Controllers;
 
 [ApiController]
-[Route("api/v1/[controller]")]
+// ⚠️ `[controller]` KULLANMA: sınıf adı ProfilesController olduğu için yol
+// /api/v1/profiles (çoğul) olurdu. Sözleşme (vivido-api-sozlesmesi.md §4),
+// packages/shared tipleri ve web istemcisi TEKİL /profile bekliyor.
+[Route("api/v1/profile")]
 [Authorize] // Sadece giriş yapmış kullanıcılar profil işlemlerini yönetebilir
 public class ProfilesController : ControllerBase
 {
@@ -36,7 +39,7 @@ public class ProfilesController : ControllerBase
         // "kullanıcı onboarding'i henüz tamamlamamış" olarak yorumlayıp 
         // kullanıcıyı /onboarding sayfasına yönlendirebilir.
         if (profile == null)
-            return NotFound(new { message = "Profil bulunamadı, onboarding adımları bekleniyor." });
+            return ApiProblem.ProfileNotFound();
 
         var profileDto = new UserProfileDto(
             profile.Id.ToString(),
@@ -84,6 +87,22 @@ public class ProfilesController : ControllerBase
         }
 
         await _context.SaveChangesAsync();
-        return Ok(new { message = "Profil başarıyla kaydedildi." });
+
+        // Sözleşme: 200 → UserProfile. İstemci kaydettikten sonra ikinci bir
+        // GET atmak zorunda kalmasın diye güncel profili döneriz.
+        var anchors = await _context.Anchors
+            .Where(a => a.ProfileId == profile.Id)
+            .OrderBy(a => a.Priority)
+            .AsNoTracking()
+            .ToListAsync();
+
+        return Ok(new UserProfileDto(
+            profile.Id.ToString(),
+            profile.PersonaCode,
+            profile.MonthlyBudget,
+            anchors.Select(a => new AnchorDto(
+                a.Id.ToString(), a.Label, a.Geom.Y, a.Geom.X, a.Mode, a.Priority
+            )).ToList()
+        ));
     }
 }

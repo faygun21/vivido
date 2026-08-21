@@ -22,6 +22,10 @@ services:
       # İlk açılışta otomatik çalışan betikler (yalnızca boş volume'de).
       - ./db/schema:/docker-entrypoint-initdb.d:ro
       - ./db/checks:/checks:ro
+      # ETL çıktısı (seed.sql). Git'e girmez, 00_fetch_artifacts.sh ile gelir.
+      # Buradan yüklenir:
+      #   docker compose exec -T postgis psql -U vivido -d vivido -f /seed/seed.sql
+      - ./data/artifacts:/seed:ro
       # Sonraki şema değişiklikleri için: db/migrate.sh yalnızca
       # uygulanmamış dosyaları çalıştırır (pnpm db:migrate).
       - ./db:/db:ro

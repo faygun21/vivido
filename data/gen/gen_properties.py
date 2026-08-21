@@ -76,7 +76,20 @@ def main():
 
     inserted = 0
     # Regresyon katsayıları (TÜİK/TCMB kalibrasyonlu)
-    beta0 = 5.2    # Baz kira seviyesi katsayısı
+    #
+    # beta0 KALİBRASYONU — 5.2 iken ₺/m² medyanı ~978 çıkıyordu, yani
+    # 95 m² bir daire ~93.000 ₺/ay. docs/01-PROJE-PLANI.md §6.5'teki dolu
+    # örnek 95 m² için 18.500 ₺ (~195 ₺/m²) ve §13.1'deki öğrenci bütçesi
+    # 20.000 ₺. Aradaki ~5 kat fark bütçe skorunu işlevsiz bırakıyordu:
+    # her ev için r = kira/bütçe > 5 → B(r) ≈ 0, tüm evler aynı puanı alıyor.
+    #
+    # Hedef 95 m² → ~195 ₺/m²:
+    #   ln(195) = 5.273 ;  beta1*ln(95) = 0.35 * 4.554 = 1.594
+    #   beta0 = 5.273 - 1.594 ≈ 3.68
+    #
+    # ⚠️ DQ-02 ve DQ-05 bu hatayı YAKALAYAMAZ — ikisi de göreli kontrol
+    # (mahalle medyanının 0.3–3 katı). Tekdüze ölçek hatası görünmez.
+    beta0 = 3.68   # Baz kira seviyesi katsayısı
     beta1 = 0.35   # m2 katsayısı
     beta2 = -0.01  # bina yaşı cezası
     beta3 = 0.12   # asansör primi

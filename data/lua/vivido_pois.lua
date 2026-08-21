@@ -10,10 +10,19 @@ local data_version = os.getenv("DATA_VERSION") or "osm-2026-08-20"
 
 -- ─── Tablo Tanımları ───
 
+--  ⚠️ ARA (STAGING) TABLOLAR — bilerek `osm_` önekli.
+--  osm2pgsql `define_table` ile verilen adı DÜŞÜRÜP YENİDEN YARATIR. Doğrudan
+--  `pois` / `buildings` yazınca db/schema/001_initial.sql'deki tablolar siliniyor,
+--  `id bigserial PRIMARY KEY`, yabancı anahtarlar ve `idx_poi_cat` kayboluyordu
+--  (K-01'in uyardığı "iki şema kaynağı" durumu). Sonuç: gen_properties.py
+--  `b.id does not exist` ile patlıyordu.
+--  Bu tablolar ham çıktıdır; şemadaki gerçek tablolara
+--  data/scripts/04_merge_osm_into_schema.sql ile aktarılır.
+
 local tables = {}
 
 tables.pois = osm2pgsql.define_table({
-    name = 'pois',
+    name = 'osm_pois',
     ids = { type = 'any', id_column = 'osm_id', type_column = 'osm_type' },
     columns = {
         { column = 'name', type = 'text' },
@@ -24,7 +33,7 @@ tables.pois = osm2pgsql.define_table({
 })
 
 tables.buildings = osm2pgsql.define_table({
-    name = 'buildings',
+    name = 'osm_buildings',
     ids = { type = 'way', id_column = 'osm_id' },
     columns = {
         { column = 'geom', type = 'polygon', projection = 4326, not_null = true },
