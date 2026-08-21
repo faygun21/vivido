@@ -19,6 +19,8 @@
 | [K-06](#k-06) | Konut verisi sentetik, coğrafi veri gerçek OSM | Kabul |
 | [K-07](#k-07) | Mobil dev client bulutta (EAS Build) üretilir | **Değişti** → K-08 |
 | [K-08](#k-08) | Mobil uygulama Flutter ile yazılır, web React kalır | Kabul |
+| [K-09](#k-09) | E-posta doğrulama zorunlu; kayıt token dönmez (202) | Kabul |
+| [K-10](#k-10) | Misafir modu: kayıtsız harita gezintisi, skor kilitli | Kabul |
 
 ---
 
@@ -301,3 +303,135 @@ ekibi mobil tarafı **Flutter** ile yazma kararı aldı. Karar alındığında `
   açılmalı. Açılmazsa karar Hafta 2 içinde yeniden değerlendirilir — Hafta 3'te değil.
 
 Uygulama planı: [`03-HAFTA-2-PLANI.md`](03-HAFTA-2-PLANI.md) §7 FE-3.
+
+---
+
+## K-09
+### E-posta doğrulama zorunlu; kayıt token dönmez, 202 döner
+
+**Durum:** Kabul · 2026-08-21
+
+**Bağlam.** [00-KAPSAM W1](00-KAPSAM.md) kabul kriteri *"kayıt formunu doldurup
+gönderirim → **201 döner ve access + refresh token alırım**"* diyordu. Ürün
+tarafından iki yeni istek geldi: kullanıcı **"Şifremi unuttum"** ile şifresini
+yenileyebilmeli ve e-posta adresinin **gerçekten kendisine ait olduğu**
+doğrulanmalı.
+
+Şifre sıfırlama tek başına e-posta doğrulaması olmadan yazılamaz: doğrulanmamış
+bir adrese sıfırlama kodu göndermek, o adresi yazan herkese hesabı ele geçirme
+imkânı verir. İki iş aynı mekanizmaya (tek kullanımlık kod + e-posta) dayandığı
+için birlikte kararlaştırıldı.
+
+**Karar.**
+
+| Konu | Karar |
+|---|---|
+| Hesap ne zaman oluşur | **Hemen** — `users` satırı doğrulanmamış olarak yazılır |
+| Kayıt yanıtı | **202** + `verification_required` · **token YOK** |
+| Doğrulanmamış hesapla giriş | **403 `EMAIL_NOT_VERIFIED`** |
+| Kod doğrulanınca | **200 + token** — ayrıca giriş yapılmaz |
+| Kod biçimi | 6 hane, 15 dk ömür, 5 yanlış deneme hakkı, 60 sn yeniden gönderme soğuması |
+| Saklama | Ham kod ASLA saklanmaz — `SHA-256(kod + ':' + userId)` |
+| E-posta sağlayıcı | **Gmail SMTP + Uygulama Şifresi** (`System.Net.Mail`), geliştirmede `console` |
+| Anahtar | `Auth:RequireEmailVerification` — kapatılırsa eski davranış (201 + token) aynen sürer |
+
+**Gerekçe.**
+
+1. **Hesap neden hemen oluşuyor?** İki seçenek vardı: (a) `users` satırını hemen
+   yaz, (b) doğrulanana kadar bekleyen-kayıt tablosunda tut. (a) seçildi çünkü
+   `users.email` **UNIQUE** — satır yazılır yazılmaz adres rezerve olur ve
+   "aynı e-postayla iki hesap" sorunu veritabanı seviyesinde kapanır. (b)
+   seçilseydi iki kişi aynı adrese kayıt başlatabilir, ikincisi ancak
+   **doğrulama anında** 409 yerdi — yani hatayı en geç öğrendiği anda.
+2. **Doğrulanmamış kayıt üzerine tekrar kayıt olunabiliyor.** Kodu kaçıran
+   kullanıcıya 409 basmak onu çıkmaza sokardı; bu durumda parola tazelenir ve
+   yeni kod gider. Açık değil: hesabın sahibi olduğunu hâlâ ancak e-postasındaki
+   kodu girerek kanıtlayabiliyor.
+3. **Kod hash'inde `userId` tuz olarak var.** 6 hane = 1.000.000 olasılık;
+   tuzsuz SHA-256 tablosu saniyeler içinde üretilir ve veritabanı sızıntısı
+   doğrudan hesap ele geçirmeye dönerdi.
+4. **Neden Gmail SMTP, Google Cloud + Gmail API değil?** İkisi de aynı sonucu
+   veriyor. SMTP yolu bir NuGet paketi bile eklemiyor (`System.Net.Mail` BCL'de)
+   ve kurulumu ~5 dakika: 2FA aç → Uygulama Şifresi al → `.env`. Gmail API yolu
+   GCP projesi, OAuth consent screen ve refresh token üretimi istiyor —
+   3 haftalık bir stajyer projesinde bu maliyetin karşılığı yok. `IEmailSender`
+   arayüzü sağlayıcıyı soyutladığı için gerekirse geçiş tek sınıf.
+5. **`console` sağlayıcı bilinçli.** Yedi kişilik ekibin hepsinin SMTP kimlik
+   bilgisi olması gerekmesin; `pnpm dev:api` çalıştıran herkes kaydolur, kodu
+   konsoldan okur, akışın tamamını dener.
+
+**Bedeli — açıkça yazıyorum.**
+
+- **Kabul kriteri W1 değişti.** `00-KAPSAM.md` güncellendi; "201 + token"
+  artık yalnızca `RequireEmailVerification=false` iken doğru.
+- **Sözleşme değişti:** `AuthUser` yeni `emailVerified` alanı taşıyor,
+  `POST /auth/register` iki farklı başarılı yanıt verebiliyor. Web ve Flutter
+  istemcilerinin ikisi de durum kodunu okumak zorunda kaldı.
+- **Yeni tablo:** `auth_codes` (`db/schema/004_*.sql`).
+- **Kayıt akışı bir adım uzadı.** Dönüşüm oranını düşüren bir karardır;
+  karşılığında "şifremi unuttum" güvenli hale geldi.
+
+**Sonuçları.**
+
+- Yeni hata kodları: `EMAIL_NOT_VERIFIED` · `INVALID_CODE` · `CODE_EXPIRED` ·
+  `TOO_MANY_ATTEMPTS` · `RESEND_TOO_SOON` · `EMAIL_SEND_FAILED` ·
+  `VALIDATION_ERROR` — `packages/shared/src/errors.ts` ve `ApiProblem`'de.
+- Şifre sıfırlama **tüm refresh token'ları iptal ediyor** (K-03). Şifresini
+  sıfırlayan kişi çoğunlukla hesabının ele geçirildiğinden şüpheleniyor;
+  iptal etmezsek saldırgan 14 gün daha oturumda kalırdı.
+- `POST /auth/forgot-password` hesap var olmasa bile **her zaman 202** döner —
+  aksi halde bu uç nokta "hangi e-postalar kayıtlı?" sorusunu cevaplayan bir
+  tarama aracına dönerdi. `register`'ın 409'u bu bilgiyi zaten sızdırıyor ama
+  o, W1 kabul kriterinin açık gereği.
+- **Açık iş:** `auth_codes` için temizlik işi yok. Süresi geçmiş satırlar
+  birikir; zararsız ama `DELETE FROM auth_codes WHERE expires_at < now()`
+  elle çalıştırılmalı. Zamanlanmış iş `backlog/v2.md`'ye.
+
+---
+
+## K-10
+### Misafir modu — kayıt olmadan harita gezintisi, skor kilitli
+
+**Durum:** Kabul · 2026-08-21
+
+**Bağlam.** [README §1](../README.md) kapsam listesi W1 ile başlıyor: kullanıcı
+önce kaydolur. Uygulamayı ilk açan kişi ne gördüğünü bilmeden bir hesap açmaya
+zorlanıyordu — üstelik K-09 ile araya bir de e-posta doğrulama adımı girdi.
+
+**Karar.** Üçüncü bir giriş yolu: **"Misafir olarak devam et"**.
+
+| Misafir görebilir | Misafir göremez |
+|---|---|
+| Çankaya haritası (sokak, bina, mahalle) | Kişiselleştirilmiş **0–100 skor** |
+| Kiralık konutların **temel bilgileri** | Skorun **gerekçe tablosu** |
+| — | **Persona** seçimi ve bütçe |
+| — | **Anchor** ekleme / sıralama |
+
+Kilitli bir işleme dokunulduğunda kullanıcı **giriş / kayıt ekranına
+yönlendirilir**.
+
+**Gerekçe.**
+
+1. **Skor gizli kalmalı, harita değil.** Ürünün değeri skorda; onu bedava
+   vermek kayıt olmanın sebebini ortadan kaldırırdı. Harita ise "bu uygulama
+   ne yapıyor?" sorusunun tek cümlelik cevabı — onu göstermemek kayıt olmanın
+   önündeki tek engel oluyordu.
+2. **Kilitli özellikler GİZLENMİYOR, gösteriliyor.** Misafir panelinde üçü de
+   listelenip kilit sebebi yazılıyor. "Burada ne kaçırıyorum?" sorusunun cevabı
+   kayıt olmanın tek gerekçesi.
+
+**Uygulama notları — ikisi de sessiz hata kaynağıydı.**
+
+- **Web:** misafirken korumalı uç noktalara istek atılmaz
+  (`useQuery({ enabled: authenticated })`). Atılsaydı `401 → yenileme denemesi →
+  refresh token yok → onSessionExpired → clearSession()` zinciri çalışır ve
+  **misafir kendi kendini kapı dışarı ederdi**.
+- **Misafirlik `sessionStorage`'da**, `localStorage`'da değil. Geçici bir niyet,
+  kalıcı bir tercih değil; sekme kapanınca unutulması doğru davranış.
+- **Mobil:** `SessionPhase` ikiye ayrıldı — `guest` (karşılama ekranı) ve
+  `browsing` (misafir harita). Tek değer kalsaydı kabuk hangisini çizeceğini
+  bilemezdi.
+
+**Kapsam notu.** Konut noktaları `GET /properties` ile gelecek (Hafta 2, BE-3).
+O gün misafir yanıtında **skor alanları dönmemeli** — kilit sunucu tarafında da
+zorlanmalı, yalnızca arayüzde gizlemek yetmez.
