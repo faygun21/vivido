@@ -35,14 +35,16 @@ public class ProfilesController : ControllerBase
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.UserId == userId);
 
-        // Profil yoksa 404 döneriz. Frontend bu 404 cevabını 
-        // "kullanıcı onboarding'i henüz tamamlamamış" olarak yorumlayıp 
+        // Profil yoksa 404 döneriz. Frontend bu 404 cevabını
+        // "kullanıcı onboarding'i henüz tamamlamamış" olarak yorumlayıp
         // kullanıcıyı /onboarding sayfasına yönlendirebilir.
         if (profile == null)
             return ApiProblem.ProfileNotFound();
 
         var profileDto = new UserProfileDto(
             profile.Id.ToString(),
+            profile.FirstName,
+            profile.LastName,
             profile.PersonaCode,
             profile.MonthlyBudget,
             profile.Anchors.Select(a => new AnchorDto(
@@ -74,13 +76,18 @@ public class ProfilesController : ControllerBase
             {
                 Id = Guid.NewGuid(),
                 UserId = userId,
+                FirstName = request.FirstName,
+                LastName = request.LastName,
                 PersonaCode = request.PersonaCode,
                 MonthlyBudget = request.MonthlyBudget
             };
+
             _context.UserProfiles.Add(profile);
         }
         else
         {
+            profile.FirstName = request.FirstName;
+            profile.LastName = request.LastName;
             profile.PersonaCode = request.PersonaCode;
             profile.MonthlyBudget = request.MonthlyBudget;
             profile.UpdatedAt = DateTime.UtcNow;
@@ -98,10 +105,17 @@ public class ProfilesController : ControllerBase
 
         return Ok(new UserProfileDto(
             profile.Id.ToString(),
+            profile.FirstName,
+            profile.LastName,
             profile.PersonaCode,
             profile.MonthlyBudget,
             anchors.Select(a => new AnchorDto(
-                a.Id.ToString(), a.Label, a.Geom.Y, a.Geom.X, a.Mode, a.Priority
+                a.Id.ToString(),
+                a.Label,
+                a.Geom.Y,
+                a.Geom.X,
+                a.Mode,
+                a.Priority
             )).ToList()
         ));
     }
