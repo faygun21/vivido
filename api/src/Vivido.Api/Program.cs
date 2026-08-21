@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Vivido.Api.Services;
+using Vivido.Application.Abstractions;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -49,6 +50,27 @@ builder.Services.AddSwaggerGen(o =>
 });
 // JwtService'i sisteme kaydetme
 builder.Services.AddScoped<JwtService>();
+
+// ─── E-posta doğrulama ve şifre sıfırlama (K-09) ───
+builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
+builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
+
+// Sağlayıcı seçimi açılışta bir kez yapılır. `console` (varsayılan) hiçbir
+// kimlik bilgisi istemez ve kodu API konsoluna basar — ekipteki herkesin
+// SMTP hesabı olmadan akışı denemesi için.
+var emailOptions = builder.Configuration.GetSection(EmailOptions.SectionName).Get<EmailOptions>()
+                   ?? new EmailOptions();
+if (emailOptions.IsSmtp)
+{
+    builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
+}
+else
+{
+    builder.Services.AddScoped<IEmailSender, ConsoleEmailSender>();
+}
+Console.WriteLine($"---> E-posta sağlayıcısı: {(emailOptions.IsSmtp ? $"smtp ({emailOptions.Host})" : "console (e-posta GÖNDERİLMEZ, kod loglara basılır)")}");
+
+builder.Services.AddScoped<AuthCodeService>();
 
 // JWT Doğrulama ayarlarını ekleme
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

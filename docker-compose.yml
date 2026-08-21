@@ -180,6 +180,17 @@ services:
       Routing__FootUrl: http://osrm-foot:5000
       Routing__CarUrl: http://osrm-car:5000
       Tiles__BaseUrl: http://tileserver:8080
+      # E-posta doğrulama / şifre sıfırlama (K-09).
+      # Varsayılan `console`: e-posta gönderilmez, kod konteyner loglarına basılır
+      # (`docker compose logs -f api`). Gerçek gönderim için .env'e Email__* yaz.
+      Auth__RequireEmailVerification: ${Auth__RequireEmailVerification:-true}
+      Email__Provider: ${Email__Provider:-console}
+      Email__Host: ${Email__Host:-smtp.gmail.com}
+      Email__Port: ${Email__Port:-587}
+      Email__User: ${Email__User:-}
+      Email__Password: ${Email__Password:-}
+      Email__FromAddress: ${Email__FromAddress:-}
+      Email__FromName: ${Email__FromName:-Vivido}
     ports:
       - "5000:5000"
     depends_on:

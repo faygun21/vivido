@@ -4,6 +4,18 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+
+    <!--
+      Yerel gizli bilgiler (Gmail uygulama şifresi) için.
+
+      `dotnet run` depo kökündeki `.env` dosyasını OKUMAZ — o dosya yalnızca
+      docker-compose içindir. `appsettings.Development.json` ise git'te takipli,
+      oraya şifre yazılamaz. Kalan doğru yer user-secrets: depo dışında,
+      kullanıcı profilinde durur ve Development ortamında otomatik yüklenir.
+
+      Kullanımı ve Gmail uygulama şifresi adımları: README §2.5.
+    -->
+    <UserSecretsId>vivido-api-local</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
