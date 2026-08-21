@@ -50,15 +50,68 @@ class ApiClient {
     required String password,
   }) => _authenticate('/auth/login', {'email': email, 'password': password});
 
-  Future<AuthSession> register({
+  /// Kayıt olur.
+  ///
+  /// İki başarılı sonuç var (K-09): 202 → doğrulama kodu bekleniyor,
+  /// 201 → doğrulama kapalı, oturum açıldı. Durum kodunu görmek zorunda
+  /// olduğumuz için `_authenticate` yerine ham istek kullanılıyor.
+  Future<RegisterOutcome> register({
     required String email,
     required String password,
     String? displayName,
-  }) => _authenticate('/auth/register', {
+  }) async {
+    final result = await _requestRaw(
+      'POST',
+      '/auth/register',
+      body: {
+        'email': email,
+        'password': password,
+        if (displayName != null && displayName.trim().isNotEmpty)
+          'displayName': displayName.trim(),
+      },
+      authenticated: false,
+      retryOnUnauthorized: false,
+    );
+
+    if (result.status == 202) {
+      return RegisterVerificationRequired.fromJson(
+        result.body as Map<String, dynamic>,
+      );
+    }
+
+    final session = AuthSession.fromJson(result.body as Map<String, dynamic>);
+    await _saveSession(session);
+    return RegisterAuthenticated(session);
+  }
+
+  /// E-postaya gelen 6 haneli kodu doğrular; başarılıysa oturum açar.
+  Future<AuthSession> verifyEmail({
+    required String email,
+    required String code,
+  }) => _authenticate('/auth/verify-email', {'email': email, 'code': code});
+
+  /// Doğrulama kodunu yeniden gönderir. Yanıttaki bilgilendirme metnini döner.
+  Future<String> resendVerification(String email) =>
+      _message('/auth/resend-verification', {'email': email});
+
+  /// "Şifremi unuttum" — sıfırlama kodu gönderir.
+  ///
+  /// Hesap yoksa bile başarılı görünür; sunucu bilerek öyle davranıyor.
+  Future<String> forgotPassword(String email) =>
+      _message('/auth/forgot-password', {'email': email});
+
+  /// Kod + yeni şifre ile sıfırlamayı tamamlar.
+  ///
+  /// Sunucu tüm refresh token'ları iptal ettiği için sonrasında yeniden
+  /// giriş yapmak gerekir — bu yüzden oturum DÖNMEZ.
+  Future<String> resetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) => _message('/auth/reset-password', {
     'email': email,
-    'password': password,
-    if (displayName != null && displayName.trim().isNotEmpty)
-      'displayName': displayName.trim(),
+    'code': code,
+    'newPassword': newPassword,
   });
 
   Future<dynamic> get(String path) => _request('GET', path);
@@ -101,6 +154,21 @@ class ApiClient {
     await tokenStore.write(session);
   }
 
+  /// Yalnızca `{ status, message }` dönen uç noktalar için ortak sarmalayıcı.
+  Future<String> _message(String path, Map<String, dynamic> body) async {
+    final json = await _request(
+      'POST',
+      path,
+      body: body,
+      authenticated: false,
+      retryOnUnauthorized: false,
+    );
+    if (json is Map<String, dynamic>) {
+      return json['message'] as String? ?? 'İşlem tamamlandı.';
+    }
+    return 'İşlem tamamlandı.';
+  }
+
   Future<void> _refresh() async {
     final refreshToken = _session?.refreshToken;
     if (refreshToken == null) {
@@ -127,6 +195,25 @@ class ApiClient {
   }
 
   Future<dynamic> _request(
+    String method,
+    String path, {
+    Object? body,
+    bool authenticated = true,
+    bool retryOnUnauthorized = true,
+  }) async => (await _requestRaw(
+    method,
+    path,
+    body: body,
+    authenticated: authenticated,
+    retryOnUnauthorized: retryOnUnauthorized,
+  )).body;
+
+  /// Gövdeyle birlikte HTTP durum kodunu da döner.
+  ///
+  /// Ayrı bir metot olmasının tek sebebi `POST /auth/register`: aynı uç
+  /// nokta hem 201 (oturum) hem 202 (doğrulama bekleniyor) dönebiliyor ve
+  /// ikisi farklı gövdeler taşıyor (K-09). Diğer her yerde `_request` yeterli.
+  Future<({int status, dynamic body})> _requestRaw(
     String method,
     String path, {
     Object? body,
@@ -169,7 +256,7 @@ class ApiClient {
         retryOnUnauthorized &&
         _session?.refreshToken != null) {
       await _refresh();
-      return _request(
+      return _requestRaw(
         method,
         path,
         body: body,
@@ -190,7 +277,7 @@ class ApiClient {
         code: problem['code'] as String?,
       );
     }
-    return decoded;
+    return (status: response.statusCode, body: decoded);
   }
 
   Uri _resolve(String path) =>

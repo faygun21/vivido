@@ -8,6 +8,7 @@ import '../core/storage/token_store.dart';
 import '../core/theme/app_theme.dart';
 import '../features/auth/application/session_controller.dart';
 import '../features/auth/presentation/pages/welcome_page.dart';
+import '../features/home/presentation/pages/guest_home_page.dart';
 import '../features/home/presentation/pages/home_page.dart';
 import '../features/onboarding/presentation/pages/onboarding_page.dart';
 
@@ -60,6 +61,8 @@ class _VividoAppState extends State<VividoApp> {
         builder: (context, _) => switch (_controller.phase) {
           SessionPhase.booting => const _LaunchScreen(),
           SessionPhase.guest => WelcomePage(controller: _controller),
+          // Misafir gezintisi (W0): harita açık, skor/persona/anchor kilitli.
+          SessionPhase.browsing => GuestHomePage(controller: _controller),
           SessionPhase.onboarding => OnboardingPage(controller: _controller),
           SessionPhase.authenticated => HomePage(controller: _controller),
         },
