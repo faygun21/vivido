@@ -1,5 +1,6 @@
-import { Link, Outlet } from 'react-router-dom';
+import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/features/auth/authStore';
+import { HOME_PATH } from '@/features/auth/authFlow';
 
 /**
  * Uygulama kabuğu — SAHİBİ: Kişi 1
@@ -8,30 +9,70 @@ import { useAuthStore } from '@/features/auth/authStore';
  * persona ve bütçe göstergeleri eklenecek.
  */
 export function RootLayout() {
-  const { status, user, clearSession } = useAuthStore();
+  const navigate = useNavigate();
+  const { status, user, isGuest, clearSession, leaveGuest } = useAuthStore();
+
+  const authenticated = status === 'authenticated';
+
+  /**
+   * Marka bağlantısının hedefi.
+   *
+   * Giriş yapmış kullanıcı için `/` DEĞİL: tanıtım sayfası oradan "Başla →
+   * kayıt ol" diyor ve kullanıcı logoya bastığında oturumunun düştüğünü
+   * sanıyordu. İçerideki kullanıcının "ana menüsü" keşfet ekranıdır.
+   */
+  const brandTarget = authenticated ? HOME_PATH : '/';
+
+  function handleLogout() {
+    clearSession();
+    navigate('/', { replace: true });
+  }
+
+  function handleLeaveGuest(to: string) {
+    leaveGuest();
+    navigate(to);
+  }
 
   return (
     <div className="app-shell">
       <header className="app-header">
-        <Link to="/" className="brand">
+        <Link to={brandTarget} className="brand">
           Vivido
         </Link>
 
         <nav className="app-nav">
-          {status === 'authenticated' ? (
+          {authenticated ? (
             <>
               <Link to="/explore">Keşfet</Link>
               <Link to="/profile">Profil</Link>
               <span className="user-email">{user?.email}</span>
-              <button type="button" onClick={clearSession}>
+              <button type="button" onClick={handleLogout}>
                 Çıkış
               </button>
             </>
           ) : status === 'anonymous' ? (
-            <>
-              <Link to="/auth/login">Giriş</Link>
-              <Link to="/auth/register">Kayıt ol</Link>
-            </>
+            isGuest ? (
+              <>
+                <span className="guest-chip" title="Skorlar ve kişiselleştirme kayıt gerektirir">
+                  Misafir
+                </span>
+                <button type="button" onClick={() => handleLeaveGuest('/auth/login')}>
+                  Giriş
+                </button>
+                <button
+                  type="button"
+                  className="nav-cta"
+                  onClick={() => handleLeaveGuest('/auth/register')}
+                >
+                  Kayıt ol
+                </button>
+              </>
+            ) : (
+              <>
+                <Link to="/auth/login">Giriş</Link>
+                <Link to="/auth/register">Kayıt ol</Link>
+              </>
+            )
           ) : null}
         </nav>
       </header>

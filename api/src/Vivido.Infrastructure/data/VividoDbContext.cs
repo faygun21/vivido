@@ -16,6 +16,9 @@ public class VividoDbContext : DbContext
     public DbSet<UserProfile> UserProfiles { get; set; }
     public DbSet<Anchor> Anchors { get; set; }
 
+    /// <summary>E-posta doğrulama + şifre sıfırlama kodları (K-09).</summary>
+    public DbSet<AuthCode> AuthCodes { get; set; } = null!;
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -31,6 +34,25 @@ public class VividoDbContext : DbContext
         {
             entity.ToTable("refresh_tokens"); 
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
+        });
+
+        builder.Entity<AuthCode>(entity =>
+        {
+            // Tablo adı açıkça yazılıyor — 03-HAFTA-2-PLANI §6 BE-3 kuralı.
+            // Naming convention çoğullaştırma yapmaz, DbSet adına güvenmek
+            // sessizce `auth_code` üretebilir.
+            entity.ToTable("auth_codes");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
+
+            entity.HasOne(e => e.User)
+                  .WithMany()
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            // Doğrulama her zaman "bu kullanıcının bu amaçlı en son kodu"nu
+            // arıyor; indeks db/schema/004 içindekiyle aynı.
+            entity.HasIndex(e => new { e.UserId, e.Purpose, e.CreatedAt });
         });
 
         builder.Entity<Persona>(entity =>

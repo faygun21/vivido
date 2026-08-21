@@ -8,6 +8,15 @@ import { ApiError, NetworkError, api } from '@/shared/api/client';
  */
 
 /**
+ * Giriş yapmış kullanıcının "ana menüsü".
+ *
+ * Logo/marka bağlantısı buraya gider — kullanıcı zaten içerideyken onu
+ * tanıtım sayfasına ve oradan giriş formuna geri atmak, "yeniden giriş
+ * yapmam mı gerekiyor?" hissi yaratıyordu.
+ */
+export const HOME_PATH = '/explore';
+
+/**
  * Kimlik doğrulamadan sonra nereye gidileceğini belirler.
  *
  * K-C: profil ilk `PUT /profile` ile oluşur, o yüzden yeni kullanıcıda
@@ -19,7 +28,7 @@ export async function routeAfterAuth(
 ): Promise<void> {
   try {
     await api.get('/profile');
-    navigate(from ?? '/explore', { replace: true });
+    navigate(from ?? HOME_PATH, { replace: true });
   } catch {
     // 404 → profil yok. Başka bir hata olsa bile onboarding güvenli varış
     // noktası: kullanıcı oradan profilini oluşturabiliyor.
@@ -39,6 +48,18 @@ export function describeAuthError(err: unknown): string {
         return 'E-posta veya şifre hatalı.';
       case 'EMAIL_ALREADY_EXISTS':
         return 'Bu e-posta zaten kayıtlı. Giriş yapmayı deneyin.';
+      case 'EMAIL_NOT_VERIFIED':
+        return 'E-posta adresiniz henüz doğrulanmamış. Size gönderdiğimiz kodu girin.';
+      case 'INVALID_CODE':
+        return 'Kod hatalı. E-postadaki 6 haneli kodu kontrol edip tekrar deneyin.';
+      case 'CODE_EXPIRED':
+        return 'Kodun süresi doldu. "Kodu tekrar gönder" ile yenisini isteyin.';
+      case 'TOO_MANY_ATTEMPTS':
+        return 'Çok fazla hatalı deneme yapıldı. "Kodu tekrar gönder" ile yeni bir kod isteyin.';
+      case 'RESEND_TOO_SOON':
+        return 'Çok sık kod istiyorsunuz. Bir dakika bekleyip tekrar deneyin.';
+      case 'EMAIL_SEND_FAILED':
+        return 'Doğrulama e-postası gönderilemedi. Birkaç dakika sonra tekrar deneyin.';
       default:
         break;
     }
@@ -51,4 +72,9 @@ export function describeAuthError(err: unknown): string {
   }
 
   return 'Beklenmeyen bir hata oluştu.';
+}
+
+/** Hatanın belirli bir sözleşme kodu olup olmadığını sorar. */
+export function hasErrorCode(err: unknown, code: string): boolean {
+  return err instanceof ApiError && err.problem.code === code;
 }

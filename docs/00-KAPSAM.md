@@ -5,14 +5,61 @@
 
 ---
 
-## W1 — Kayıt / giriş
+## W0 — Misafir gezintisi ([K-10](02-KARARLAR.md#k-10))
+
+```gherkin
+Given hiç hesabım yok ve giriş yapmadım
+When  açılış ekranında "Misafir olarak devam et" derim
+Then  Çankaya haritasını görürüm ve gezebilirim
+ And  kiralık konutların temel bilgilerini inceleyebilirim
+ And  hiçbir konutta SKOR görünmez
+When  persona seçmeye ya da anchor eklemeye çalışırım
+Then  giriş / kayıt ekranına yönlendirilirim
+```
+
+> ⚠️ Misafirken korumalı uç noktalara istek ATILMAMALI. `401 → yenileme →
+> oturum düştü` zinciri misafiri kendi kendine kapı dışarı eder.
+
+---
+
+## W1 — Kayıt / giriş / e-posta doğrulama ([K-09](02-KARARLAR.md#k-09))
 
 ```gherkin
 Given kayıtlı olmayan bir e-posta adresim var
 When  kayıt formunu doldurup gönderirim
-Then  201 döner ve access + refresh token alırım
- And  aynı e-postayla ikinci kez kayıt denersem 409 alırım
+Then  202 döner, gövde status="verification_required" içerir
+ And  TOKEN GELMEZ
+ And  e-postama 6 haneli bir kod düşer
+When  parola tekrarı ilk parolayla aynı değilse
+Then  form gönderilmez ve uyarı görürüm
+When  doğrulanmamış hesapla giriş denerim
+Then  403 EMAIL_NOT_VERIFIED alırım
+When  kodu doğru girerim
+Then  200 döner ve access + refresh token alırım
+ And  aynı e-postayla DOĞRULANMIŞ bir hesap varken kayıt denersem 409 alırım
+ And  " Ali@X.com " ile "ali@x.com" AYNI hesaptır (trim + citext)
  And  yanlış şifreyle giriş denersem 401 alırım
+```
+
+> `Auth:RequireEmailVerification=false` iken kayıt eskisi gibi **201 + token**
+> döner ve doğrulama adımı hiç çalışmaz.
+
+---
+
+## W1b — Şifre sıfırlama ([K-09](02-KARARLAR.md#k-09))
+
+```gherkin
+Given şifremi unuttum
+When  "Şifremi unuttum" ile e-posta adresimi gönderirim
+Then  202 döner ve e-postama 6 haneli sıfırlama kodu düşer
+ And  KAYITLI OLMAYAN bir adres göndersem de 202 alırım  ← numaralandırma kapalı
+When  kodu ve yeni şifremi gönderirim
+Then  200 döner
+ And  eski refresh token'larımın HEPSİ iptal edilmiştir
+ And  yeni şifremle giriş yapabilirim
+ And  aynı kodu ikinci kez kullanamam
+When  kodu 5 kez yanlış girerim
+Then  429 TOO_MANY_ATTEMPTS alırım ve yeni kod istemem gerekir
 ```
 
 ---

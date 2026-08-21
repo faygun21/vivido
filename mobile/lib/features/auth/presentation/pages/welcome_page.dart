@@ -103,6 +103,24 @@ class WelcomePage extends StatelessWidget {
                       onPressed: () => _openAuth(context, register: true),
                       child: const Text('Yeni hesap oluştur'),
                     ),
+                    const SizedBox(height: 6),
+                    // W0: kayıt olmadan haritayı gezme. Skor, persona ve
+                    // anchor kilitli kalır; kullanıcı o işlemlere
+                    // dokunduğunda giriş/kayıt ekranına yönlendirilir.
+                    TextButton(
+                      onPressed: controller.continueAsGuest,
+                      child: const Text('Misafir olarak devam et'),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Misafirken haritayı ve konutların temel bilgilerini '
+                      'görebilirsin; kişiselleştirilmiş skor için hesap gerekir.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                        height: 1.35,
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     Text(
                       'Geliştirme API’si: ${AppConfig.apiBaseUrl}',

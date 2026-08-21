@@ -1,21 +1,75 @@
 class AuthUser {
-  const AuthUser({required this.id, required this.email, this.displayName});
+  const AuthUser({
+    required this.id,
+    required this.email,
+    this.displayName,
+    this.emailVerified = true,
+  });
 
   final String id;
   final String email;
   final String? displayName;
 
+  /// E-posta doğrulandı mı (K-09).
+  ///
+  /// Alan yoksa `true` varsayılıyor: oturum ancak doğrulanmış bir hesap
+  /// için (ya da doğrulama kapalıyken) veriliyor. `false` varsaymak,
+  /// güncellenmemiş bir backend'e bağlanan istemcide her kullanıcıyı
+  /// "doğrulanmamış" gösterirdi.
+  final bool emailVerified;
+
   factory AuthUser.fromJson(Map<String, dynamic> json) => AuthUser(
     id: json['id'] as String,
     email: json['email'] as String,
     displayName: json['displayName'] as String?,
+    emailVerified: json['emailVerified'] as bool? ?? true,
   );
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'email': email,
     'displayName': displayName,
+    'emailVerified': emailVerified,
   };
+}
+
+/// `POST /auth/register` sonucu — K-09.
+///
+/// Doğrulama zorunluyken (varsayılan) sunucu 202 döner ve token VERMEZ;
+/// kapalıyken 201 + oturum döner. `sealed` olduğu için `switch` her iki
+/// dalı da ele almaya zorlar — yeni bir dal eklenirse derleyici yakalar.
+sealed class RegisterOutcome {
+  const RegisterOutcome();
+}
+
+class RegisterAuthenticated extends RegisterOutcome {
+  const RegisterAuthenticated(this.session);
+
+  final AuthSession session;
+}
+
+class RegisterVerificationRequired extends RegisterOutcome {
+  const RegisterVerificationRequired({
+    required this.email,
+    required this.expiresInMinutes,
+    required this.message,
+  });
+
+  final String email;
+  final int expiresInMinutes;
+  final String message;
+
+  factory RegisterVerificationRequired.fromJson(Map<String, dynamic> json) {
+    final email = json['email'] as String? ?? '';
+    final minutes = (json['expiresInMinutes'] as num?)?.toInt() ?? 15;
+    return RegisterVerificationRequired(
+      email: email,
+      expiresInMinutes: minutes,
+      message:
+          json['message'] as String? ??
+          '$email adresine 6 haneli bir doğrulama kodu gönderdik.',
+    );
+  }
 }
 
 class AuthSession {
