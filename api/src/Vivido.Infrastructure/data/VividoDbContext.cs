@@ -15,6 +15,7 @@ public class VividoDbContext : DbContext
 
     public DbSet<UserProfile> UserProfiles { get; set; }
     public DbSet<Anchor> Anchors { get; set; }
+    public DbSet<FavoriteProperty> FavoriteProperties { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -73,6 +74,18 @@ public class VividoDbContext : DbContext
             // PostGIS Point geometry alanı tanımı (NTS ile uyumlu)
             entity.Property(e => e.Geom)
                   .HasColumnType("geometry (Point, 4326)");
+        });
+
+        builder.Entity<FavoriteProperty>(entity =>
+        {
+            entity.ToTable("favorite_properties");
+            entity.HasKey(e => new { e.UserId, e.PropertyId }); // Composite key
+
+            // User ile 1-N ilişki
+            entity.HasOne(e => e.User)
+                  .WithMany()
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }
