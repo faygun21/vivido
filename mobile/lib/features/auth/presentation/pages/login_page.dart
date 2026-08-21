@@ -34,7 +34,7 @@ class _LoginPageState extends State<LoginPage> {
     );
 
     // Giriş başarılıysa uygulamanın ana ekranına gidecek
-    if (success && mounted) Navigator.of(context).pop(); 
+    if (success && mounted) Navigator.of(context).pop();
   }
 
   @override
@@ -51,17 +51,26 @@ class _LoginPageState extends State<LoginPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(Icons.lock_open, color: Theme.of(context).colorScheme.primary, size: 52),
+                  Icon(
+                    Icons.lock_open,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 52,
+                  ),
                   const SizedBox(height: 20),
                   Text(
                     'Tekrar hoş geldin',
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   const SizedBox(height: 28),
                   TextFormField(
                     controller: _emailController,
-                    decoration: const InputDecoration(labelText: 'E-posta', prefixIcon: Icon(Icons.alternate_email)),
+                    decoration: const InputDecoration(
+                      labelText: 'E-posta',
+                      prefixIcon: Icon(Icons.alternate_email),
+                    ),
                   ),
                   const SizedBox(height: 14),
                   TextFormField(
@@ -71,8 +80,14 @@ class _LoginPageState extends State<LoginPage> {
                       labelText: 'Parola',
                       prefixIcon: const Icon(Icons.key_outlined),
                       suffixIcon: IconButton(
-                        icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
+                        onPressed: () => setState(
+                          () => _obscurePassword = !_obscurePassword,
+                        ),
                       ),
                     ),
                   ),
@@ -83,7 +98,10 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   TextButton(
                     onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => RegisterPage(controller: widget.controller)),
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            RegisterPage(controller: widget.controller),
+                      ),
                     ),
                     child: const Text('Hesabın yok mu? Kayıt ol'),
                   ),

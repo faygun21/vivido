@@ -95,8 +95,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
         children: [
           Text(
             'Sana en yakın yaşam tarzı hangisi?',
-            style: Theme.of(context).textTheme.headlineSmall
-                ?.copyWith(fontWeight: FontWeight.w800),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           Text(

@@ -14,8 +14,8 @@ class WelcomePage extends StatelessWidget {
     controller.clearError();
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => register 
-            ? RegisterPage(controller: controller) 
+        builder: (_) => register
+            ? RegisterPage(controller: controller)
             : LoginPage(controller: controller),
       ),
     );
@@ -79,8 +79,10 @@ class WelcomePage extends StatelessWidget {
                     const SizedBox(height: 32),
                     Text(
                       'Hayatına uyan evi bul.',
-                      style: Theme.of(context).textTheme.displaySmall
-                          ?.copyWith(fontWeight: FontWeight.w800, height: 1.05),
+                      style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        height: 1.05,
+                      ),
                     ),
                     const SizedBox(height: 14),
                     Text(
@@ -109,8 +111,9 @@ class WelcomePage extends StatelessWidget {
                     Text(
                       'Geliştirme API’si: ${AppConfig.apiBaseUrl}',
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.labelSmall
-                          ?.copyWith(color: colors.outline),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelSmall?.copyWith(color: colors.outline),
                     ),
                   ],
                 ),

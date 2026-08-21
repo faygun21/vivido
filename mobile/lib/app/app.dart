@@ -73,15 +73,12 @@ class _LaunchScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF9F6F0), 
+      backgroundColor: const Color(0xFFF9F6F0),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SvgPicture.asset(
-              'assets/images/vivido_logo.svg',
-              width: 150, 
-            ),
+            SvgPicture.asset('assets/images/vivido_logo.svg', width: 150),
             const SizedBox(height: 24),
             const Text(
               'hayalinizdeki eve giden yol',

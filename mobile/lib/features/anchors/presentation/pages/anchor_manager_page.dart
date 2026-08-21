@@ -123,8 +123,9 @@ class _AnchorManagerPageState extends State<AnchorManagerPage> {
             if (widget.embedded) ...[
               Text(
                 'Önemli konumların',
-                style: Theme.of(context).textTheme.headlineSmall
-                    ?.copyWith(fontWeight: FontWeight.w800),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
@@ -259,8 +260,9 @@ class _AnchorFormSheetState extends State<_AnchorFormSheet> {
         children: [
           Text(
             'Bu konum nedir?',
-            style: Theme.of(context).textTheme.titleLarge
-                ?.copyWith(fontWeight: FontWeight.w800),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 16),
           TextField(

@@ -48,22 +48,34 @@ class _RegisterPageState extends State<RegisterPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Icon(Icons.person_add_alt_1, color: Theme.of(context).colorScheme.primary, size: 52),
+                Icon(
+                  Icons.person_add_alt_1,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 52,
+                ),
                 const SizedBox(height: 20),
                 Text(
                   'Hesabını oluştur',
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 const SizedBox(height: 28),
                 TextFormField(
                   controller: _nameController,
-                  decoration: const InputDecoration(labelText: 'Ad (isteğe bağlı)', prefixIcon: Icon(Icons.person_outline)),
+                  decoration: const InputDecoration(
+                    labelText: 'Ad (isteğe bağlı)',
+                    prefixIcon: Icon(Icons.person_outline),
+                  ),
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _emailController,
-                  decoration: const InputDecoration(labelText: 'E-posta', prefixIcon: Icon(Icons.alternate_email)),
+                  decoration: const InputDecoration(
+                    labelText: 'E-posta',
+                    prefixIcon: Icon(Icons.alternate_email),
+                  ),
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
@@ -73,8 +85,13 @@ class _RegisterPageState extends State<RegisterPage> {
                     labelText: 'Parola',
                     prefixIcon: const Icon(Icons.key_outlined),
                     suffixIcon: IconButton(
-                      icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
                     ),
                   ),
                 ),
