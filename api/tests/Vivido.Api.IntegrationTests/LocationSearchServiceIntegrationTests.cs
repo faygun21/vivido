@@ -3,8 +3,10 @@ using System.Text;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Testcontainers.PostgreSql;
+using Vivido.Application.dtos.location;
 using Vivido.Infrastructure.Data;
 using Vivido.Infrastructure.Services;
 
@@ -54,16 +56,45 @@ public class LocationSearchServiceIntegrationTests
             .Options;
         await using var context = new VividoDbContext(options);
         using var cache = new MemoryCache(new MemoryCacheOptions());
-        var geocoderHandler = new StubGeocoderHandler();
-        using var httpClient = new HttpClient(geocoderHandler)
+        var photonHandler = new StubGeocoderHandler(
+            """{ "error": "temporary unavailable" }""",
+            HttpStatusCode.ServiceUnavailable);
+        var nominatimHandler = new StubGeocoderHandler("""
+            [{
+              "place_id": 123,
+              "osm_type": "way",
+              "osm_id": 456,
+              "lat": "39.9200",
+              "lon": "32.8550",
+              "display_name": "10, Atatürk Bulvarı, Kızılay, Çankaya, Ankara, Türkiye",
+              "type": "house",
+              "addresstype": "house",
+              "boundingbox": ["39.9199", "39.9201", "32.8549", "32.8551"],
+              "address": { "road": "Atatürk Bulvarı", "suburb": "Kızılay" }
+            }]
+            """);
+        using var photonClient = new HttpClient(photonHandler)
         {
-            BaseAddress = new Uri("https://example.test/"),
+            BaseAddress = new Uri("https://photon.example.test/"),
         };
-        var service = new LocationSearchService(context, httpClient, cache);
+        using var nominatimClient = new HttpClient(nominatimHandler)
+        {
+            BaseAddress = new Uri("https://nominatim.example.test/"),
+        };
+        IGeocodingProvider[] providers =
+        [
+            new PhotonGeocodingProvider(photonClient, cache),
+            new NominatimGeocodingProvider(nominatimClient, cache),
+        ];
+        var service = new LocationSearchService(
+            context,
+            providers,
+            NullLogger<LocationSearchService>.Instance);
 
         var byName = await service.SearchAsync("Kavaklidere", 5);
 
-        geocoderHandler.RequestCount.Should().Be(0, "yerel sonuçlar dış servise gitmemelidir");
+        photonHandler.RequestCount.Should().Be(0, "yerel sonuçlar dış servise gitmemelidir");
+        nominatimHandler.RequestCount.Should().Be(0, "yerel sonuçlar dış servise gitmemelidir");
 
         var byAddress = await service.SearchAsync("Atatürk Bulvarı 10", 5);
         var cachedAddress = await service.SearchAsync("Atatürk Bulvarı 10", 5);
@@ -76,13 +107,67 @@ public class LocationSearchServiceIntegrationTests
         byAddress.Items[0].Kind.Should().Be("address");
         byAddress.Items[0].Source.Should().Be("nominatim");
         cachedAddress.Should().BeEquivalentTo(byAddress);
-        geocoderHandler.RequestCount.Should().Be(1, "aynı adres sorgusu cache'den dönmelidir");
-        geocoderHandler.LastRequestUri.Should().Contain("bounded=1");
-        geocoderHandler.LastRequestUri.Should().Contain("countrycodes=tr");
+        photonHandler.RequestCount.Should().Be(2, "Photon hatasında Nominatim zinciri yine çalışmalıdır");
+        nominatimHandler.RequestCount.Should().Be(1, "Nominatim sonucu cache'den dönmelidir");
+        photonHandler.LastRequestUri.Should().Contain("bbox=");
+        photonHandler.LastRequestUri.Should().Contain("countrycode=TR");
+        nominatimHandler.LastRequestUri.Should().Contain("bounded=1");
+        nominatimHandler.LastRequestUri.Should().Contain("countrycodes=tr");
+    }
+
+    [Fact]
+    public async Task PhotonGeoJsonSonucunuOrtakSozlesmeyeDonusturur()
+    {
+        var handler = new StubGeocoderHandler("""
+            {
+              "type": "FeatureCollection",
+              "features": [{
+                "type": "Feature",
+                "geometry": { "type": "Point", "coordinates": [32.805, 39.895] },
+                "properties": {
+                  "name": "1602. Sokak",
+                  "district": "Çankaya",
+                  "city": "Ankara",
+                  "country": "Türkiye",
+                  "osm_key": "highway",
+                  "osm_value": "residential",
+                  "osm_type": "W",
+                  "osm_id": 1602,
+                  "extent": [32.804, 39.896, 32.806, 39.894]
+                }
+              }]
+            }
+            """);
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        using var httpClient = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://photon.example.test/"),
+        };
+        var provider = new PhotonGeocodingProvider(httpClient, cache);
+
+        var results = await provider.SearchAsync("1602. sokak", 5);
+
+        results.Should().ContainSingle();
+        results[0].Source.Should().Be("photon");
+        results[0].Kind.Should().Be("address");
+        results[0].Label.Should().Contain("1602. Sokak");
+        results[0].Bounds.Should().NotBeNull();
+        handler.LastRequestUri.Should().NotContain("lang=");
     }
 
     private sealed class StubGeocoderHandler : HttpMessageHandler
     {
+        private readonly string _responseBody;
+        private readonly HttpStatusCode _statusCode;
+
+        public StubGeocoderHandler(
+            string responseBody,
+            HttpStatusCode statusCode = HttpStatusCode.OK)
+        {
+            _responseBody = responseBody;
+            _statusCode = statusCode;
+        }
+
         public int RequestCount { get; private set; }
         public string? LastRequestUri { get; private set; }
 
@@ -93,23 +178,9 @@ public class LocationSearchServiceIntegrationTests
             RequestCount++;
             LastRequestUri = request.RequestUri?.ToString();
 
-            const string responseBody = """
-                [{
-                  "place_id": 123,
-                  "osm_type": "way",
-                  "osm_id": 456,
-                  "lat": "39.9200",
-                  "lon": "32.8550",
-                  "display_name": "10, Atatürk Bulvarı, Kızılay, Çankaya, Ankara, Türkiye",
-                  "type": "house",
-                  "addresstype": "house",
-                  "boundingbox": ["39.9199", "39.9201", "32.8549", "32.8551"],
-                  "address": { "road": "Atatürk Bulvarı", "suburb": "Kızılay" }
-                }]
-                """;
-            HttpResponseMessage response = new(HttpStatusCode.OK)
+            HttpResponseMessage response = new(_statusCode)
             {
-                Content = new StringContent(responseBody, Encoding.UTF8, "application/json"),
+                Content = new StringContent(_responseBody, Encoding.UTF8, "application/json"),
             };
             return Task.FromResult(response);
         }

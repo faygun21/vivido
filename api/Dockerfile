@@ -23,11 +23,11 @@ RUN dotnet publish src/Vivido.Api/Vivido.Api.csproj -c Release -o /app/publish -
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
-# root olmayan kullanıcı
-RUN adduser --disabled-password --gecos "" --uid 10001 vivido
-USER vivido
-
 COPY --from=build /app/publish .
+
+# Resmî .NET 8+ imajlarının yerleşik non-root kullanıcısı.
+USER $APP_UID
+
 EXPOSE 5000
 ENV ASPNETCORE_URLS=http://+:5000
 

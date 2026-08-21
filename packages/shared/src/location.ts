@@ -17,7 +17,7 @@ export interface LocationSearchResult {
   longitude: number;
   bounds: LocationBounds | null;
   neighborhood: string | null;
-  source: 'local' | 'nominatim';
+  source: 'local' | 'photon' | 'nominatim';
 }
 
 export interface LocationSearchResponse {

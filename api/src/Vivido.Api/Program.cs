@@ -42,9 +42,21 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddMemoryCache();
 
-// R-105: yerel mahallelerden sonra dış sağlayıcı zinciri denenir.
+// R-105: yerel mahallelerden sonra Photon, sonuç/hizmet yoksa Nominatim denenir.
 // Her sağlayıcının adresi yapılandırmadan değiştirilebilir veya kurum içine alınabilir.
 builder.Services.AddScoped<ILocationSearchService, LocationSearchService>();
+builder.Services.AddHttpClient<PhotonGeocodingProvider>(client =>
+{
+    var baseUrl = builder.Configuration["Geocoding:Photon:BaseUrl"]
+        ?? "https://photon.komoot.io/";
+    var userAgent = builder.Configuration["Geocoding:UserAgent"]
+        ?? "Vivido/1.0 (+https://github.com/faygun21/vivido)";
+
+    client.BaseAddress = new Uri(baseUrl);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
+    client.DefaultRequestHeaders.AcceptLanguage.Add(new StringWithQualityHeaderValue("tr"));
+    client.Timeout = TimeSpan.FromSeconds(8);
+});
 builder.Services.AddHttpClient<NominatimGeocodingProvider>(client =>
 {
     var baseUrl = builder.Configuration["Geocoding:Nominatim:BaseUrl"]
@@ -57,6 +69,8 @@ builder.Services.AddHttpClient<NominatimGeocodingProvider>(client =>
     client.DefaultRequestHeaders.AcceptLanguage.Add(new StringWithQualityHeaderValue("tr"));
     client.Timeout = TimeSpan.FromSeconds(8);
 });
+builder.Services.AddScoped<IGeocodingProvider>(services =>
+    services.GetRequiredService<PhotonGeocodingProvider>());
 builder.Services.AddScoped<IGeocodingProvider>(services =>
     services.GetRequiredService<NominatimGeocodingProvider>());
 // ─── SWAGGER AYARLARI ───
