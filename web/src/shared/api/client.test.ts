@@ -24,7 +24,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 const freshAuth: AuthResponse = {
-  user: { id: 'u1', email: 'a@b.com', displayName: null },
+  user: { id: 'u1', email: 'a@b.com', displayName: null, emailVerified: true },
   tokens: { accessToken: 'yeni-access', refreshToken: 'yeni-refresh', expiresIn: 900 },
 };
 

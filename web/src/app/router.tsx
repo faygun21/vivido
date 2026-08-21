@@ -4,6 +4,8 @@ import { ProtectedRoute } from '@/app/ProtectedRoute';
 import { LandingPage } from '@/features/landing/LandingPage';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { RegisterPage } from '@/features/auth/RegisterPage';
+import { VerifyEmailPage } from '@/features/auth/VerifyEmailPage';
+import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage';
 import { OnboardingPage } from '@/features/onboarding/OnboardingPage';
 import { ExplorePage } from '@/features/explore/ExplorePage';
 import { ProfilePage } from '@/features/profile/ProfilePage';
@@ -16,6 +18,10 @@ import { NotFoundPage } from '@/features/NotFoundPage';
  * Kişi 1'e söyle. Dört kişi aynı anda buraya yazarsa çakışır.
  *
  * Hafta 2-3'te eklenecekler: /property/:id · /route/new · /routes
+ *
+ * ⭐ `allowGuest` (K-09 / W0): "misafir olarak devam et" diyen ziyaretçi
+ * yalnızca `/explore`'a girebilir. Persona seçimi (`/onboarding`), profil
+ * ve anchor yönetimi kayıt ister — bu sayfalar misafiri giriş ekranına atar.
  */
 export const router = createBrowserRouter([
   {
@@ -26,6 +32,8 @@ export const router = createBrowserRouter([
 
       { path: 'auth/login', element: <LoginPage /> },
       { path: 'auth/register', element: <RegisterPage /> },
+      { path: 'auth/verify-email', element: <VerifyEmailPage /> },
+      { path: 'auth/forgot-password', element: <ForgotPasswordPage /> },
 
       {
         path: 'onboarding',
@@ -38,7 +46,7 @@ export const router = createBrowserRouter([
       {
         path: 'explore',
         element: (
-          <ProtectedRoute>
+          <ProtectedRoute allowGuest>
             <ExplorePage />
           </ProtectedRoute>
         ),
