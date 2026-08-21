@@ -34,3 +34,4 @@ export * from './property';
 export * from './score';
 export * from './route';
 export * from './utils';
+export * from './favoritesAndRoutes';

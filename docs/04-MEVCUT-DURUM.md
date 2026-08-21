@@ -95,6 +95,10 @@ Anchor eklemek için üst menüden **Profil**.
 | Alan | Durum |
 |---|---|
 | `POST /auth/register` · `login` · `refresh` | Rotasyonlu, `problem+json` |
+| `POST /auth/verify-email` · `resend-verification` | 6 haneli kod, 15 dk, 5 deneme ([K-09](02-KARARLAR.md#k-09)) |
+| `POST /auth/forgot-password` · `reset-password` | Kodla sıfırlama, tüm oturumlar iptal |
+| Web + mobil: **misafir modu** | Kayıtsız harita gezintisi ([K-10](02-KARARLAR.md#k-10)) |
+| Web + mobil: parola tekrar alanı | Uyuşmazlıkta form gönderilmez |
 | `GET /personas` | 4 persona, veritabanından, **korumalı** |
 | `GET/PUT /api/v1/profile` | Upsert, profil yoksa 404 `PROFILE_NOT_FOUND` |
 | `GET/POST/DELETE /profile/anchors` | Maks 3, 4.'sü 422 `ANCHOR_LIMIT_EXCEEDED` |
@@ -251,6 +255,26 @@ onboarding'in `PUT /profile` çağrısı 404 alıyordu.
 
 `[AllowAnonymous]` idi, sözleşme K-F korumalı olmasını söylüyor.
 **Düzeltme:** `[Authorize]`.
+
+### 4.8 🟠 Aynı e-posta ile ikinci hesap açılabiliyordu (boşluk farkıyla)
+
+`users.email` sütunu `citext UNIQUE` olduğu için **büyük/küçük harf** farkı
+zaten engelleniyordu. Ama `AuthController` gelen adresi hiç kırpmıyordu:
+
+```
+" ali@x.com "  →  citext karşılaştırması  →  "ali@x.com" ile EŞLEŞMEZ
+```
+
+Boşluk gerçek bir karakter; iki satır da UNIQUE kısıtını geçiyordu. Kullanıcı
+kopyala-yapıştır yaptığında (adres satırının sonunda boşluk kalması çok yaygın)
+farkında olmadan ikinci bir hesap açıyordu.
+
+İkinci sorun: kontrol `AnyAsync` + `Add` şeklinde **iki ayrı adımdaydı**. İki
+istek aynı anda gelirse ikisi de "kullanıcı yok" görür, ikincisi veritabanı
+UNIQUE ihlaline düşer ve **500** dönerdi — oysa bu tam olarak 409.
+
+**Düzeltme:** `NormalizeEmail` (trim) + `DbUpdateException` içindeki
+`PostgresException.SqlState == "23505"` yakalanıp 409'a çevriliyor.
 
 ---
 

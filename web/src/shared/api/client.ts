@@ -149,6 +149,18 @@ async function send(path: string, options: RequestOptions): Promise<Response> {
 }
 
 /**
+ * Gövdeyle birlikte HTTP durum kodunu da taşıyan sonuç.
+ *
+ * Yalnızca aynı uç noktanın iki farklı BAŞARILI yanıt verdiği yerlerde
+ * gerekiyor: `POST /auth/register` doğrulama zorunluyken 202, kapalıyken
+ * 201 döner ve gövdeler farklı (K-09). Diğer her yerde `api.post` yeterli.
+ */
+export interface ApiResult<T> {
+  status: number;
+  data: T;
+}
+
+/**
  * API çağrısı yapar.
  *
  * @throws {ApiError}     sunucu 4xx/5xx döndüyse
@@ -156,8 +168,18 @@ async function send(path: string, options: RequestOptions): Promise<Response> {
  */
 export async function apiFetch<T>(
   path: string,
+  options?: RequestOptions,
+): Promise<T>;
+export async function apiFetch<T>(
+  path: string,
+  options: RequestOptions,
+  meta: { withStatus: true },
+): Promise<ApiResult<T>>;
+export async function apiFetch<T>(
+  path: string,
   options: RequestOptions = {},
-): Promise<T> {
+  meta?: { withStatus?: boolean },
+): Promise<T | ApiResult<T>> {
   let response = await send(path, options);
 
   // 401 → bir kez yenile, isteği tekrarla.
@@ -179,9 +201,10 @@ export async function apiFetch<T>(
   }
 
   // 204 No Content — gövde yok (ör. DELETE /profile/anchors/{id})
-  if (response.status === 204) return undefined as T;
+  const data =
+    response.status === 204 ? (undefined as T) : ((await response.json()) as T);
 
-  return (await response.json()) as T;
+  return meta?.withStatus ? { status: response.status, data } : data;
 }
 
 export const api = {

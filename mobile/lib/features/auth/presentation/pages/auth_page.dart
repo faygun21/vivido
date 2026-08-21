@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/models/models.dart';
 import '../../application/session_controller.dart';
+import 'forgot_password_page.dart';
+import 'verify_email_page.dart';
 
 class AuthPage extends StatefulWidget {
   const AuthPage({
@@ -21,6 +24,7 @@ class _AuthPageState extends State<AuthPage> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _passwordAgainController = TextEditingController();
   bool _register = false;
   bool _obscurePassword = true;
 
@@ -35,6 +39,7 @@ class _AuthPageState extends State<AuthPage> {
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _passwordAgainController.dispose();
     super.dispose();
   }
 
@@ -43,18 +48,73 @@ class _AuthPageState extends State<AuthPage> {
     widget.controller.clearError();
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
-    final success = _register
-        ? await widget.controller.register(
-            email: _emailController.text,
-            password: _passwordController.text,
-            displayName: _nameController.text,
-          )
-        : await widget.controller.login(
-            email: _emailController.text,
-            password: _passwordController.text,
-          );
+    if (_register) {
+      await _submitRegister();
+      return;
+    }
 
-    if (success && mounted) Navigator.of(context).pop();
+    final success = await widget.controller.login(
+      email: _emailController.text,
+      password: _passwordController.text,
+    );
+
+    if (!mounted) return;
+    if (success) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    // Şifre doğru, sadece doğrulama eksik (403). Kullanıcıyı hata mesajıyla
+    // baş başa bırakmak yerine akışın devamına taşıyoruz (K-09).
+    if (widget.controller.lastErrorCode == 'EMAIL_NOT_VERIFIED') {
+      widget.controller.clearError();
+      await _openVerification(email: _emailController.text.trim());
+    }
+  }
+
+  Future<void> _submitRegister() async {
+    final outcome = await widget.controller.register(
+      email: _emailController.text,
+      password: _passwordController.text,
+      displayName: _nameController.text,
+    );
+
+    if (!mounted || outcome == null) return;
+
+    switch (outcome) {
+      case RegisterVerificationRequired(:final email, :final message):
+        await _openVerification(email: email, message: message);
+      case RegisterAuthenticated():
+        // Doğrulama kapalı (Auth:RequireEmailVerification=false) —
+        // oturum açıldı, kabuk faza göre ana ekrana geçiyor.
+        Navigator.of(context).pop();
+    }
+  }
+
+  Future<void> _openVerification({required String email, String? message}) {
+    return Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => VerifyEmailPage(
+          controller: widget.controller,
+          email: email,
+          initialMessage: message,
+        ),
+      ),
+    );
+  }
+
+  void _openForgotPassword() {
+    widget.controller.clearError();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ForgotPasswordPage(
+          controller: widget.controller,
+          // Yazdığı e-postayı taşıyoruz — ikinci kez yazdırmak,
+          // şifresini unutmuş birine yapılacak son şey.
+          initialEmail: _emailController.text.trim(),
+        ),
+      ),
+    );
   }
 
   void _toggleMode() {
@@ -132,13 +192,19 @@ class _AuthPageState extends State<AuthPage> {
                   TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
-                    textInputAction: TextInputAction.done,
+                    // Kayıtta altta bir alan daha var; "bitti" yerine
+                    // "sonraki" göstermek klavyeyi kapatmadan devam ettirir.
+                    textInputAction: _register
+                        ? TextInputAction.next
+                        : TextInputAction.done,
                     autofillHints: [
                       _register
                           ? AutofillHints.newPassword
                           : AutofillHints.password,
                     ],
-                    onFieldSubmitted: (_) => _submit(),
+                    onFieldSubmitted: (_) {
+                      if (!_register) _submit();
+                    },
                     decoration: InputDecoration(
                       labelText: 'Parola',
                       prefixIcon: const Icon(Icons.key_outlined),
@@ -160,6 +226,35 @@ class _AuthPageState extends State<AuthPage> {
                       return null;
                     },
                   ),
+                  if (_register) ...[
+                    const SizedBox(height: 14),
+                    TextFormField(
+                      controller: _passwordAgainController,
+                      obscureText: _obscurePassword,
+                      textInputAction: TextInputAction.done,
+                      autofillHints: const [AutofillHints.newPassword],
+                      onFieldSubmitted: (_) => _submit(),
+                      decoration: const InputDecoration(
+                        labelText: 'Parola (tekrar)',
+                        prefixIcon: Icon(Icons.key_outlined),
+                      ),
+                      validator: (value) {
+                        if (value != _passwordController.text) {
+                          return 'Parolalar birbiriyle uyuşmuyor.';
+                        }
+                        return null;
+                      },
+                    ),
+                  ] else
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: widget.controller.busy
+                            ? null
+                            : _openForgotPassword,
+                        child: const Text('Şifremi unuttum'),
+                      ),
+                    ),
                   if (widget.controller.errorMessage != null) ...[
                     const SizedBox(height: 16),
                     Text(

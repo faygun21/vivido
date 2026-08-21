@@ -15,6 +15,8 @@ interface MockUser {
   email: string;
   password: string;
   displayName: string | null;
+  /** K-09: false iken giriş 403 EMAIL_NOT_VERIFIED alır. */
+  emailVerified: boolean;
 }
 
 export const mockDb = {
@@ -32,7 +34,12 @@ export function newId(): string {
 }
 
 export function toAuthUser(user: MockUser): AuthUser {
-  return { id: user.id, email: user.email, displayName: user.displayName };
+  return {
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    emailVerified: user.emailVerified,
+  };
 }
 
 /** `Authorization: Bearer <token>` başlığından kullanıcıyı çözer.

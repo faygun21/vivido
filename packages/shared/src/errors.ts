@@ -19,7 +19,18 @@ export type ErrorCode =
   | 'PROFILE_NOT_FOUND'
   | 'ANCHOR_LIMIT_EXCEEDED'
   | 'INVALID_ANCHOR_ORDER'
-  | 'LOCATION_SEARCH_UNAVAILABLE';
+  | 'LOCATION_SEARCH_UNAVAILABLE'
+  // ─── E-posta doğrulama / şifre sıfırlama (K-09) ───
+  | 'VALIDATION_ERROR'
+  /** Şifre doğru ama e-posta doğrulanmamış → kod ekranına yönlendir. */
+  | 'EMAIL_NOT_VERIFIED'
+  | 'INVALID_CODE'
+  | 'CODE_EXPIRED'
+  /** Kod kilitlendi; yeni kod istenmeli. */
+  | 'TOO_MANY_ATTEMPTS'
+  /** Soğuma süresi dolmadan tekrar kod istendi. */
+  | 'RESEND_TOO_SOON'
+  | 'EMAIL_SEND_FAILED';
 
 export interface ProblemDetails {
   type: string;

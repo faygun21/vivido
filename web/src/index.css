@@ -379,3 +379,119 @@ button {
 
 .anchor-body { display: grid; gap: 0.1rem; flex: 1; min-width: 0; }
 .anchor-body span { font-size: 0.82rem; }
+
+/* ═══════════════════════════════════════════════════════════════
+   Misafir modu, e-posta doğrulama ve şifre sıfırlama (K-09 / W0)
+   Var olan token'ları kullanır; ayrı tema tanımı yok.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Form yardımcı metinleri ── */
+.field-hint {
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+  font-weight: 400;
+}
+
+.field-error {
+  font-size: 0.8rem;
+  color: #b3261e;
+  font-weight: 600;
+}
+@media (prefers-color-scheme: dark) {
+  .field-error { color: #ffb4ab; }
+}
+
+.field-ok {
+  font-size: 0.8rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.form-links {
+  margin: 0;
+  font-size: 0.9rem;
+  text-align: right;
+}
+
+/* ── 6 haneli kod alanı ──
+   Rakamlar arasını açmak, kullanıcının kodu e-postadakiyle
+   karakter karakter karşılaştırmasını kolaylaştırıyor. */
+.code-input {
+  font-size: 1.6rem !important;
+  font-weight: 700;
+  letter-spacing: 0.45em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  /* letter-spacing son karakterin de sağına boşluk koyar; metin
+     optik olarak sola kayar. Yarısı kadar sol padding dengeler. */
+  padding-left: 0.45em !important;
+}
+
+/* ── Tanıtım sayfası eylemleri ── */
+.landing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.btn-ghost {
+  padding: 0.55rem 1rem;
+  border: 1px dashed var(--line);
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+.btn-ghost:hover { color: var(--ink); border-style: solid; }
+
+.landing-guest-note {
+  max-width: 46rem;
+  margin-top: 1.25rem;
+  font-size: 0.9rem;
+}
+
+/* ── Üst çubuk: misafir rozeti ── */
+.guest-chip {
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+}
+
+.nav-cta {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: transparent;
+  font-weight: 600;
+}
+
+/* ── Misafir bilgi kartı ── */
+.guest-card {
+  display: grid;
+  gap: 0.7rem;
+  border-color: var(--accent);
+}
+
+.locked-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+}
+
+.locked-list li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  line-height: 1.4;
+}
+
+.locked-list .lock { flex: none; }

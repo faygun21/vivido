@@ -32,6 +32,50 @@ export interface AuthUser {
   id: string;
   email: string;
   displayName: string | null;
+  /** E-posta doğrulandı mı? Doğrulanmamış hesapla giriş yapılamaz (K-09). */
+  emailVerified: boolean;
+}
+
+/** Kayıt sonrası e-postaya gelen 6 haneli kod. */
+export interface VerifyEmailRequest {
+  email: string;
+  code: string;
+}
+
+export interface ResendVerificationRequest {
+  email: string;
+}
+
+/** "Şifremi unuttum" — e-postaya sıfırlama kodu gönderir. */
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  email: string;
+  code: string;
+  newPassword: string;
+}
+
+/**
+ * `POST /auth/register` doğrulama beklerken dönen gövde — **HTTP 202**.
+ *
+ * Aynı uç nokta doğrulama kapalıyken (`Auth:RequireEmailVerification=false`)
+ * 201 + {@link AuthResponse} döner. İstemci ikisini HTTP durum koduyla ayırır:
+ * 202 → önce kod girilecek, 201 → oturum açıldı.
+ */
+export interface PendingVerificationResponse {
+  status: 'verification_required';
+  email: string;
+  /** Kodun geçerlilik süresi, DAKİKA. */
+  expiresInMinutes: number;
+  message: string;
+}
+
+/** Gövdesi olmayan başarı yanıtlarının ortak zarfı. */
+export interface MessageResponse {
+  status: string;
+  message: string;
 }
 
 /**

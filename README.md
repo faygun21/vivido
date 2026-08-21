@@ -119,6 +119,104 @@ Fiziksel cihazda test: telefon ve bilgisayar **aynı Wi-Fi** ağında olmalı.
 `.env` içindeki `EXPO_PUBLIC_API_BASE_URL` değerini bilgisayarının yerel IP'siyle güncelle (`ipconfig` → IPv4).
 Şirket ağı cihaz izolasyonu yapıyorsa: `npx expo start --tunnel`
 
+### 2.5 E-posta doğrulama ve şifre sıfırlama
+
+Kayıt olan kullanıcıya **6 haneli bir kod** gider; kod girilene kadar giriş
+kapalıdır. "Şifremi unuttum" aynı mekanizmayı kullanır. Karar ve gerekçe:
+[`docs/02-KARARLAR.md` K-09](docs/02-KARARLAR.md#k-09).
+
+#### Geliştirme — kimlik bilgisi GEREKMEZ
+
+Varsayılan `Email__Provider=console`: e-posta **gönderilmez**, kod
+`pnpm dev:api` çalıştırdığın terminale basılır.
+
+```
+┌─ E-POSTA (gönderilmedi, Email:Provider=console) ─────────────
+│ Kime : ornek@gmail.com
+│ Konu : Vivido doğrulama kodun: 418305
+├───────────────────────────────────────────────────────────────
+Vivido doğrulama kodun: 418305
+└───────────────────────────────────────────────────────────────
+```
+
+Kodu kopyalayıp forma yapıştır. Ekipteki herkes akışın tamamını böyle deneyebilir.
+
+Doğrulama adımını tamamen kapatmak istersen `.env`:
+
+```
+Auth__RequireEmailVerification=false
+```
+
+#### Gerçek e-posta gönderimi — Gmail Uygulama Şifresi (~5 dakika)
+
+> ### ⚠️ Gmail hesabının NORMAL ŞİFRESİ ÇALIŞMAZ
+> Google 2022'den beri normal şifreyle SMTP girişini reddediyor
+> (`535-5.7.8 Username and Password not accepted`).
+> **16 haneli "Uygulama Şifresi" (App Password)** gerekiyor.
+>
+> Google Cloud projesi, Gmail API veya OAuth **gerekmiyor** — bu yol
+> `System.Net.Mail` ile çalışır, ek NuGet paketi bile yok.
+
+**Adım adım:**
+
+| # | Ne yapacaksın | Nerede |
+|---|---|---|
+| 1 | **2 Adımlı Doğrulama'yı aç** (zorunlu ön koşul; kapalıyken uygulama şifresi menüsü hiç görünmez) | https://myaccount.google.com/signinoptions/twosv |
+| 2 | **Uygulama Şifresi oluştur** — "Uygulama adı" kutusuna `Vivido` yaz, Oluştur'a bas | https://myaccount.google.com/apppasswords |
+| 3 | Çıkan **16 haneli** değeri kopyala (`abcd efgh ijkl mnop`). Bu pencere bir daha açılmaz | — |
+| 4 | Değeri **boşlukları silerek** aşağıdaki gibi tanımla | user-secrets ya da `.env` |
+
+> ### ⚠️ Şifreyi nereye yazacağın, nasıl çalıştırdığına bağlı
+> `dotnet run` depo kökündeki **`.env` dosyasını OKUMAZ** — o dosya yalnızca
+> docker-compose içindir. `appsettings.Development.json` ise **git'te takipli**,
+> oraya şifre yazılamaz.
+
+**A) `pnpm dev:api` ile çalıştırıyorsan → user-secrets** (depo dışında durur):
+
+```powershell
+cd C:\dev\vivido
+dotnet user-secrets --project api/src/Vivido.Api set "Email:Provider"    "smtp"
+dotnet user-secrets --project api/src/Vivido.Api set "Email:User"        "senin.adresin@gmail.com"
+dotnet user-secrets --project api/src/Vivido.Api set "Email:Password"    "abcdefghijklmnop"
+dotnet user-secrets --project api/src/Vivido.Api set "Email:FromAddress" "senin.adresin@gmail.com"
+```
+
+**B) `docker compose --profile full` ile çalıştırıyorsan → `.env`:**
+
+```dotenv
+Email__Provider=smtp
+Email__Host=smtp.gmail.com
+Email__Port=587
+Email__User=senin.adresin@gmail.com
+Email__Password=abcdefghijklmnop        # 16 hane, BOŞLUKSUZ
+Email__FromAddress=senin.adresin@gmail.com
+Email__FromName=Vivido
+```
+
+API'yi yeniden başlat. Açılışta şunu görmelisin:
+
+```
+---> E-posta sağlayıcısı: smtp (smtp.gmail.com)
+```
+
+**Sınırlar ve tuzaklar**
+
+| Sorun | Sebep / çözüm |
+|---|---|
+| `apppasswords` sayfası "kullanılamıyor" diyor | 2FA açık değil (adım 1) ya da hesap bir kurum/okul hesabı ve yönetici kapatmış |
+| `535-5.7.8 Username and Password not accepted` | Normal şifre yazılmış ya da 16 hanenin arasındaki boşluklar silinmemiş |
+| Günde 500 e-posta sonrası gönderim durur | Gmail kotası. Demo için fazlasıyla yeterli; aşılırsa `Email__Provider=console`'a dön |
+| E-posta spam'e düşüyor | Gmail'den gönderilen otomatik postalarda olağan. Kullanıcıya "spam klasörüne de bak" diyoruz |
+
+> ⛔ **Uygulama şifresini `appsettings.json`'a YAZMA** — o dosya git'e giriyor.
+> Yalnızca `.env` (`.gitignore`'da) ya da ortam değişkeni.
+
+**Google Cloud + Gmail API isterseniz:** aynı sonucu verir ama GCP projesi,
+Gmail API etkinleştirme, OAuth consent screen ve refresh token üretimi
+gerektirir. Geçiş yapılacaksa `IEmailSender` arayüzüne yeni bir implementasyon
+yazmak yeterli — çağıran kodun hiçbir yeri değişmez
+([K-09 gerekçe §4](docs/02-KARARLAR.md#k-09)).
+
 ---
 
 ## 3. Proje Yapısı

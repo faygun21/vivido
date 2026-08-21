@@ -79,6 +79,59 @@ void main() {
       expect(store.session?.accessToken, 'renewed');
       expect(store.session?.refreshToken, 'refresh-2');
     });
+
+    // K-09: kayıt artık iki farklı BAŞARILI yanıt verebiliyor. 202 gelince
+    // token saklanmamalı — saklanırsa doğrulanmamış hesap oturum açmış olur.
+    test('kayıt 202 dönerse oturum açılmaz, doğrulama beklenir', () async {
+      final store = MemoryTokenStore();
+      final mock = MockClient((request) async {
+        expect(request.url.path, '/api/v1/auth/register');
+        return _jsonResponse({
+          'status': 'verification_required',
+          'email': 'yeni@vivido.app',
+          'expiresInMinutes': 15,
+          'message': 'Kod gönderildi.',
+        }, statusCode: 202);
+      });
+      final client = ApiClient(
+        baseUrl: 'http://localhost/api/v1',
+        tokenStore: store,
+        httpClient: mock,
+      );
+      addTearDown(client.close);
+
+      final outcome = await client.register(
+        email: 'yeni@vivido.app',
+        password: 'secret123',
+      );
+
+      expect(outcome, isA<RegisterVerificationRequired>());
+      expect((outcome as RegisterVerificationRequired).email, 'yeni@vivido.app');
+      expect(store.session, isNull);
+      expect(client.session, isNull);
+    });
+
+    test('doğrulama kodu kabul edilirse oturum açılır', () async {
+      final store = MemoryTokenStore();
+      final mock = MockClient((request) async {
+        expect(request.url.path, '/api/v1/auth/verify-email');
+        expect(jsonDecode(request.body), {
+          'email': 'yeni@vivido.app',
+          'code': '123456',
+        });
+        return _jsonResponse(_authJson(accessToken: 'access-2'));
+      });
+      final client = ApiClient(
+        baseUrl: 'http://localhost/api/v1',
+        tokenStore: store,
+        httpClient: mock,
+      );
+      addTearDown(client.close);
+
+      await client.verifyEmail(email: 'yeni@vivido.app', code: '123456');
+
+      expect(store.session?.accessToken, 'access-2');
+    });
   });
 }
 

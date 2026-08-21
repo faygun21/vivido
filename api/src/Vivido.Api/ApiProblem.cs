@@ -52,4 +52,61 @@ public static class ApiProblem
         "Konum arama servisi kullanılamıyor",
         "LOCATION_SEARCH_UNAVAILABLE",
         "Lütfen kısa bir süre sonra yeniden deneyin.");
+
+    // ─── Kimlik doğrulama (K-09) ───
+
+    public static ObjectResult EmailAlreadyExists(string email) => Build(
+        409,
+        "Bu e-posta zaten kayıtlı",
+        "EMAIL_ALREADY_EXISTS",
+        $"{email} adresiyle bir hesap mevcut. Giriş yapmayı ya da şifrenizi sıfırlamayı deneyin.");
+
+    public static ObjectResult InvalidCredentials() => Build(
+        401,
+        "E-posta veya şifre hatalı",
+        "INVALID_CREDENTIALS");
+
+    public static ObjectResult EmailNotVerified() => Build(
+        403,
+        "E-posta adresi doğrulanmamış",
+        "EMAIL_NOT_VERIFIED",
+        "Giriş yapabilmek için e-postanıza gönderilen 6 haneli kodu girin.");
+
+    public static ObjectResult InvalidCode() => Build(
+        400,
+        "Kod geçersiz",
+        "INVALID_CODE",
+        "Girdiğiniz kod hatalı. Kodu e-postadan kopyalayıp tekrar deneyin.");
+
+    public static ObjectResult CodeExpired() => Build(
+        400,
+        "Kodun süresi doldu",
+        "CODE_EXPIRED",
+        "Yeni bir kod isteyip tekrar deneyin.");
+
+    public static ObjectResult TooManyAttempts() => Build(
+        429,
+        "Çok fazla hatalı deneme",
+        "TOO_MANY_ATTEMPTS",
+        "Bu kod kilitlendi. Yeni bir kod isteyin.");
+
+    public static ObjectResult ResendTooSoon(int seconds) => Build(
+        429,
+        "Çok sık kod isteniyor",
+        "RESEND_TOO_SOON",
+        $"Yeni bir kod istemeden önce {seconds} saniye bekleyin.");
+
+    public static ObjectResult EmailSendFailed() => Build(
+        502,
+        "Doğrulama e-postası gönderilemedi",
+        "EMAIL_SEND_FAILED",
+        "E-posta servisi şu anda yanıt vermiyor. Birkaç dakika sonra tekrar deneyin.");
+
+    /// <summary>Alan bazlı doğrulama hatası — istemci `errors` sözlüğünü okur.</summary>
+    public static ObjectResult Validation(Dictionary<string, string[]> errors)
+    {
+        var result = Build(400, "Gönderilen bilgiler geçersiz", "VALIDATION_ERROR");
+        ((ProblemDetails)result.Value!).Extensions["errors"] = errors;
+        return result;
+    }
 }
