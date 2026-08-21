@@ -6,16 +6,24 @@ import '../../../auth/application/session_controller.dart';
 import '../../../map/presentation/widgets/cankaya_map.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({required this.controller, super.key});
+  const HomePage({required this.controller, this.initialIndex = 0, super.key})
+    : assert(initialIndex >= 0 && initialIndex < 3);
 
   final SessionController controller;
+  final int initialIndex;
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  int _selectedIndex = 0;
+  late int _selectedIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIndex = widget.initialIndex;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -232,89 +240,155 @@ Future<void> _showProfileEditor(
 ) async {
   final profile = controller.profile;
   if (profile == null) return;
-  final budgetController = TextEditingController(
-    text: profile.monthlyBudget?.toStringAsFixed(0) ?? '',
-  );
-  var selectedPersona = profile.personaCode;
 
-  await showModalBottomSheet<void>(
+  return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (sheetContext) => StatefulBuilder(
-      builder: (context, setSheetState) => Padding(
+    builder: (_) =>
+        _ProfileEditorSheet(controller: controller, initialProfile: profile),
+  );
+}
+
+class _ProfileEditorSheet extends StatefulWidget {
+  const _ProfileEditorSheet({
+    required this.controller,
+    required this.initialProfile,
+  });
+
+  final SessionController controller;
+  final UserProfile initialProfile;
+
+  @override
+  State<_ProfileEditorSheet> createState() => _ProfileEditorSheetState();
+}
+
+class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
+  late final TextEditingController _budgetController;
+  late String _selectedPersona;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _budgetController = TextEditingController(
+      text: widget.initialProfile.monthlyBudget?.toStringAsFixed(0) ?? '',
+    );
+    _selectedPersona = widget.initialProfile.personaCode;
+  }
+
+  @override
+  void dispose() {
+    _budgetController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    FocusScope.of(context).unfocus();
+
+    final rawBudget = _budgetController.text.trim();
+    final budget = rawBudget.isEmpty
+        ? null
+        : double.tryParse(rawBudget.replaceAll(',', '.'));
+    if (rawBudget.isNotEmpty && budget == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Geçerli bir bütçe gir.')));
+      return;
+    }
+
+    setState(() => _saving = true);
+    final saved = await widget.controller.saveProfile(
+      personaCode: _selectedPersona,
+      monthlyBudget: budget,
+    );
+    if (!mounted) return;
+
+    if (saved) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    setState(() => _saving = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          widget.controller.errorMessage ?? 'Profil kaydedilemedi.',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
         padding: EdgeInsets.fromLTRB(
           20,
           4,
           20,
           20 + MediaQuery.viewInsetsOf(context).bottom,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Profil tercihleri',
-              style: Theme.of(context).textTheme.titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              initialValue: selectedPersona,
-              decoration: const InputDecoration(labelText: 'Persona'),
-              items: [
-                for (final persona in controller.personas)
-                  DropdownMenuItem(
-                    value: persona.code,
-                    child: Text(persona.displayNameTr),
-                  ),
-              ],
-              onChanged: (value) {
-                if (value != null) {
-                  setSheetState(() => selectedPersona = value);
-                }
-              },
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: budgetController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Profil tercihleri',
+                style: Theme.of(context).textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w800),
               ),
-              decoration: const InputDecoration(
-                labelText: 'Aylık kira bütçesi',
-                suffixText: '₺',
-              ),
-            ),
-            const SizedBox(height: 18),
-            FilledButton(
-              onPressed: () async {
-                final rawBudget = budgetController.text.trim();
-                final budget = rawBudget.isEmpty
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                initialValue: _selectedPersona,
+                decoration: const InputDecoration(labelText: 'Persona'),
+                items: [
+                  for (final persona in widget.controller.personas)
+                    DropdownMenuItem(
+                      value: persona.code,
+                      child: Text(persona.displayNameTr),
+                    ),
+                ],
+                onChanged: _saving
                     ? null
-                    : double.tryParse(rawBudget.replaceAll(',', '.'));
-                if (rawBudget.isNotEmpty && budget == null) {
-                  ScaffoldMessenger.of(sheetContext).showSnackBar(
-                    const SnackBar(content: Text('Geçerli bir bütçe gir.')),
-                  );
-                  return;
-                }
-                final saved = await controller.saveProfile(
-                  personaCode: selectedPersona,
-                  monthlyBudget: budget,
-                );
-                if (saved && sheetContext.mounted) {
-                  Navigator.of(sheetContext).pop();
-                }
-              },
-              child: const Text('Kaydet'),
-            ),
-          ],
+                    : (value) {
+                        if (value != null) {
+                          setState(() => _selectedPersona = value);
+                        }
+                      },
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _budgetController,
+                enabled: !_saving,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Aylık kira bütçesi',
+                  suffixText: '₺',
+                ),
+              ),
+              const SizedBox(height: 18),
+              FilledButton(
+                onPressed: _saving ? null : _save,
+                child: _saving
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Kaydet'),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
-  budgetController.dispose();
+    );
+  }
 }
 
 IconData _personaIcon(String? code) => switch (code) {
