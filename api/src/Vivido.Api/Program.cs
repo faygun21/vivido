@@ -1,10 +1,13 @@
-using Serilog;
-using Microsoft.EntityFrameworkCore;
-using Vivido.Infrastructure.Data;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
+using System.Net.Http.Headers;
 using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Serilog;
 using Vivido.Api.Services;
+using Vivido.Application.dtos.location;
+using Vivido.Infrastructure.Data;
+using Vivido.Infrastructure.Services;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -37,6 +40,23 @@ builder.Services.AddDbContext<VividoDbContext>(options =>
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddMemoryCache();
+
+// R-105 adres/yer adı araması. BaseUrl yapılandırılabilir; böylece üretimde
+// kamu Nominatim servisi yerine kurum içi veya farklı bir sağlayıcıya kod
+// değişikliği olmadan geçilebilir.
+builder.Services.AddHttpClient<ILocationSearchService, LocationSearchService>(client =>
+{
+    var baseUrl = builder.Configuration["Geocoding:BaseUrl"]
+        ?? "https://nominatim.openstreetmap.org/";
+    var userAgent = builder.Configuration["Geocoding:UserAgent"]
+        ?? "Vivido/1.0 (+https://github.com/faygun21/vivido)";
+
+    client.BaseAddress = new Uri(baseUrl);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
+    client.DefaultRequestHeaders.AcceptLanguage.Add(new StringWithQualityHeaderValue("tr"));
+    client.Timeout = TimeSpan.FromSeconds(8);
+});
 // ─── SWAGGER AYARLARI ───
 builder.Services.AddSwaggerGen(o =>
 {

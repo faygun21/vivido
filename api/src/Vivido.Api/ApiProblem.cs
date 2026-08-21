@@ -46,4 +46,10 @@ public static class ApiProblem
         "Sıralama isteği geçersiz",
         "INVALID_ANCHOR_ORDER",
         detail);
+
+    public static ObjectResult LocationSearchUnavailable() => Build(
+        503,
+        "Konum arama servisi kullanılamıyor",
+        "LOCATION_SEARCH_UNAVAILABLE",
+        "Lütfen kısa bir süre sonra yeniden deneyin.");
 }
