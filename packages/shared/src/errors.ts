@@ -18,7 +18,8 @@ export type ErrorCode =
   | 'TOKEN_REVOKED'
   | 'PROFILE_NOT_FOUND'
   | 'ANCHOR_LIMIT_EXCEEDED'
-  | 'INVALID_ANCHOR_ORDER';
+  | 'INVALID_ANCHOR_ORDER'
+  | 'LOCATION_SEARCH_UNAVAILABLE';
 
 export interface ProblemDetails {
   type: string;

@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import type { UserProfile, Persona } from '@vivido/shared';
+import type { LocationSearchResult, UserProfile, Persona } from '@vivido/shared';
 import { api } from '@/shared/api/client';
-import { CankayaMap, type MapMarker } from '@/shared/map/CankayaMap';
+import { CankayaMap, type MapFocus, type MapMarker } from '@/shared/map/CankayaMap';
+import { LocationSearch } from './LocationSearch';
 
 /**
  * Ana ekran — Çankaya haritası.
@@ -13,6 +15,7 @@ import { CankayaMap, type MapMarker } from '@/shared/map/CankayaMap';
  * üzerine nokta katmanı serilir.
  */
 export function ExplorePage() {
+  const [mapFocus, setMapFocus] = useState<MapFocus | null>(null);
   const { data: profile } = useQuery({
     queryKey: ['profile'],
     queryFn: () => api.get<UserProfile>('/profile'),
@@ -33,6 +36,16 @@ export function ExplorePage() {
     label: a.label,
     priority: a.priority,
   }));
+
+  function focusLocation(location: LocationSearchResult) {
+    setMapFocus({
+      id: location.id,
+      label: location.label,
+      lat: location.latitude,
+      lon: location.longitude,
+      bounds: location.bounds,
+    });
+  }
 
   return (
     <section className="explore">
@@ -80,7 +93,8 @@ export function ExplorePage() {
       </aside>
 
       <div className="explore-map">
-        <CankayaMap markers={markers} />
+        <CankayaMap markers={markers} focus={mapFocus} />
+        <LocationSearch onSelect={focusLocation} onClear={() => setMapFocus(null)} />
       </div>
     </section>
   );
