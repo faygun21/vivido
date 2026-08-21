@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import type { Persona, UserProfile } from '@vivido/shared';
 import { api } from '@/shared/api/client';
 import { AnchorPanel } from '@/features/anchors/AnchorPanel';
+import { FavoritesAndRoutesPanel } from './FavoritesAndRoutesPanel';
 
 /**
  * Profil yönetimi — persona/bütçe özeti + anchor paneli.
@@ -57,6 +58,10 @@ export function ProfilePage() {
       </div>
 
       <AnchorPanel />
+{/* R-97 gereksinimi için yazdığımız favoriler ve rotalar paneli */}
+      <div style={{ marginTop: '2rem' }}>
+        <FavoritesAndRoutesPanel />
+      </div>
     </section>
   );
 }
