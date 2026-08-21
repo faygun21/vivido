@@ -42,12 +42,12 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddMemoryCache();
 
-// R-105 adres/yer adı araması. BaseUrl yapılandırılabilir; böylece üretimde
-// kamu Nominatim servisi yerine kurum içi veya farklı bir sağlayıcıya kod
-// değişikliği olmadan geçilebilir.
-builder.Services.AddHttpClient<ILocationSearchService, LocationSearchService>(client =>
+// R-105: yerel mahallelerden sonra dış sağlayıcı zinciri denenir.
+// Her sağlayıcının adresi yapılandırmadan değiştirilebilir veya kurum içine alınabilir.
+builder.Services.AddScoped<ILocationSearchService, LocationSearchService>();
+builder.Services.AddHttpClient<NominatimGeocodingProvider>(client =>
 {
-    var baseUrl = builder.Configuration["Geocoding:BaseUrl"]
+    var baseUrl = builder.Configuration["Geocoding:Nominatim:BaseUrl"]
         ?? "https://nominatim.openstreetmap.org/";
     var userAgent = builder.Configuration["Geocoding:UserAgent"]
         ?? "Vivido/1.0 (+https://github.com/faygun21/vivido)";
@@ -57,6 +57,8 @@ builder.Services.AddHttpClient<ILocationSearchService, LocationSearchService>(cl
     client.DefaultRequestHeaders.AcceptLanguage.Add(new StringWithQualityHeaderValue("tr"));
     client.Timeout = TimeSpan.FromSeconds(8);
 });
+builder.Services.AddScoped<IGeocodingProvider>(services =>
+    services.GetRequiredService<NominatimGeocodingProvider>());
 // ─── SWAGGER AYARLARI ───
 builder.Services.AddSwaggerGen(o =>
 {
