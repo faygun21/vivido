@@ -31,7 +31,15 @@ public class PersonasController : ControllerBase
                 p.Code,
                 p.DisplayNameTr,
                 p.DescriptionTr,
-                p.Icon
+                p.Icon,
+                _context.PersonaCategoryWeights
+                    .Where(w => w.PersonaCode == p.Code)
+                    .OrderByDescending(w => w.Weight)
+                    .Select(w => new PersonaCategoryWeightDto(
+                        w.CategoryCode,
+                        w.Weight
+                    ))
+                    .ToList()
             ))
             .ToListAsync();
 
