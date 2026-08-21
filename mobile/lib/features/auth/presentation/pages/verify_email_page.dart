@@ -8,7 +8,7 @@ import '../widgets/code_field.dart';
 /// E-posta doğrulama ekranı — K-09.
 ///
 /// Buraya iki yoldan gelinir:
-///   · kayıt 202 döndüğünde (AuthPage yönlendirir)
+///   · kayıt 202 döndüğünde (RegisterPage yönlendirir)
 ///   · doğrulanmamış hesapla giriş denendiğinde (403 EMAIL_NOT_VERIFIED)
 ///
 /// Kod doğrulanınca sunucu token DÖNER — kullanıcı ayrıca giriş yapmaz.

@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../application/session_controller.dart';
-import 'auth_page.dart';
+import 'login_page.dart';
+import 'register_page.dart';
 
 class WelcomePage extends StatelessWidget {
   const WelcomePage({required this.controller, super.key});
@@ -13,8 +14,9 @@ class WelcomePage extends StatelessWidget {
     controller.clearError();
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            AuthPage(controller: controller, initialRegister: register),
+        builder: (_) => register
+            ? RegisterPage(controller: controller)
+            : LoginPage(controller: controller),
       ),
     );
   }

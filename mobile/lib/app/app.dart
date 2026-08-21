@@ -7,6 +7,7 @@ import '../core/network/api_client.dart';
 import '../core/storage/token_store.dart';
 import '../core/theme/app_theme.dart';
 import '../features/auth/application/session_controller.dart';
+import '../features/auth/presentation/pages/splash_page.dart';
 import '../features/auth/presentation/pages/welcome_page.dart';
 import '../features/home/presentation/pages/guest_home_page.dart';
 import '../features/home/presentation/pages/home_page.dart';
@@ -59,43 +60,13 @@ class _VividoAppState extends State<VividoApp> {
       home: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) => switch (_controller.phase) {
-          SessionPhase.booting => const _LaunchScreen(),
+          SessionPhase.booting => const SplashPage(),
           SessionPhase.guest => WelcomePage(controller: _controller),
           // Misafir gezintisi (W0): harita açık, skor/persona/anchor kilitli.
           SessionPhase.browsing => GuestHomePage(controller: _controller),
           SessionPhase.onboarding => OnboardingPage(controller: _controller),
           SessionPhase.authenticated => HomePage(controller: _controller),
         },
-      ),
-    );
-  }
-}
-
-class _LaunchScreen extends StatelessWidget {
-  const _LaunchScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.location_city_rounded,
-              size: 72,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 18),
-            Text(
-              AppConfig.appName,
-              style: Theme.of(context).textTheme.headlineMedium
-                  ?.copyWith(fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 20),
-            const CircularProgressIndicator(),
-          ],
-        ),
       ),
     );
   }
