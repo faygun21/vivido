@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -5,40 +6,111 @@ import 'package:maplibre/maplibre.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/models/models.dart';
+import '../../../location_search/domain/location_search_models.dart';
 
 typedef MapPointCallback = void Function(double lat, double lon);
 
-class CankayaMap extends StatelessWidget {
+class CankayaMap extends StatefulWidget {
   const CankayaMap({
     required this.anchors,
     this.onMapTap,
     this.pendingPoint,
+    this.focus,
     super.key,
   });
 
   final List<Anchor> anchors;
   final MapPointCallback? onMapTap;
   final Geographic? pendingPoint;
+  final LocationSearchResult? focus;
+
+  @override
+  State<CankayaMap> createState() => _CankayaMapState();
+}
+
+class _CankayaMapState extends State<CankayaMap> {
+  MapController? _mapController;
+
+  @override
+  void didUpdateWidget(covariant CankayaMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focus?.id != widget.focus?.id) {
+      _focusOnResult();
+    }
+  }
+
+  void _focusOnResult() {
+    final controller = _mapController;
+    final result = widget.focus;
+    if (controller == null || result == null) return;
+
+    final bounds = result.bounds;
+    if (bounds != null) {
+      unawaited(
+        controller.fitBounds(
+          bounds: LngLatBounds(
+            longitudeWest: bounds.west,
+            longitudeEast: bounds.east,
+            latitudeSouth: bounds.south,
+            latitudeNorth: bounds.north,
+          ),
+          padding: const EdgeInsets.fromLTRB(40, 150, 40, 70),
+          nativeDuration: const Duration(milliseconds: 700),
+          webMaxZoom: 16,
+        ),
+      );
+      return;
+    }
+
+    unawaited(
+      controller.animateCamera(
+        center: Geographic(lon: result.longitude, lat: result.latitude),
+        zoom: 16,
+        nativeDuration: const Duration(milliseconds: 700),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final markers = <Marker>[
-      for (final anchor in anchors)
+      for (final anchor in widget.anchors)
         Marker(
           point: Geographic(lon: anchor.lon, lat: anchor.lat),
           size: const Size(42, 48),
           alignment: Alignment.bottomCenter,
           child: _AnchorPin(priority: anchor.priority),
         ),
-      if (pendingPoint != null)
+      if (widget.pendingPoint != null)
         Marker(
-          point: pendingPoint!,
+          point: widget.pendingPoint!,
           size: const Size(46, 52),
           alignment: Alignment.bottomCenter,
           child: const Icon(
             Icons.add_location_alt,
             size: 46,
             color: Color(0xFFEF4444),
+          ),
+        ),
+      if (widget.focus != null)
+        Marker(
+          point: Geographic(
+            lon: widget.focus!.longitude,
+            lat: widget.focus!.latitude,
+          ),
+          size: const Size(52, 56),
+          alignment: Alignment.bottomCenter,
+          child: const Icon(
+            Icons.location_searching,
+            size: 50,
+            color: Color(0xFFB3261E),
+            shadows: [
+              Shadow(
+                color: Colors.black26,
+                blurRadius: 6,
+                offset: Offset(0, 2),
+              ),
+            ],
           ),
         ),
     ];
@@ -48,6 +120,10 @@ class CankayaMap extends StatelessWidget {
       child: ColoredBox(
         color: const Color(0xFFE8F0ED),
         child: MapLibreMap(
+          onMapCreated: (controller) {
+            _mapController = controller;
+            _focusOnResult();
+          },
           options: MapOptions(
             initStyle: _mapStyle,
             initCenter: Geographic(lon: 32.85, lat: 39.87),
@@ -58,7 +134,7 @@ class CankayaMap extends StatelessWidget {
           ),
           onEvent: (event) {
             if (event case MapEventClick(:final point)) {
-              onMapTap?.call(point.lat, point.lon);
+              widget.onMapTap?.call(point.lat, point.lon);
             }
           },
           children: [
