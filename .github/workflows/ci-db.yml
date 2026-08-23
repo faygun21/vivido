@@ -42,15 +42,31 @@ jobs:
       - name: PostGIS'i başlat
         run: docker compose --profile dev up -d postgis
 
+      # ⚠️ `pg_isready` TEK BAŞINA YETMEZ — bir kez bu yüzden kırıldı.
+      #
+      # Postgres imajı ilk kurulumda GEÇİCİ bir iç sunucu açar (yalnızca
+      # unix soketi), initdb işlerini yapar, sonra onu KAPATIP gerçek
+      # sunucuyu başlatır. `pg_isready` geçici sunucuya da "hazır" der;
+      # hemen ardından gelen komut kapanma anına denk gelip
+      # "connection to server on socket … No such file or directory" alır.
+      #
+      # Bu yarış eskiden görünmüyordu çünkü sonraki adımın kendi tekrar
+      # döngüsü vardı ve onu yutuyordu. Şemayı kuran adım öne alınınca
+      # ortaya çıktı. Çözüm: bağlantının KARARLI olmasını bekle.
       - name: Hazır olmasını bekle
         run: |
-          for i in $(seq 1 30); do
-            if docker compose exec -T postgis pg_isready -U vivido -d vivido; then
-              exit 0
+          for i in $(seq 1 40); do
+            if docker compose exec -T postgis psql -U vivido -d vivido -tAc 'SELECT 1' >/dev/null 2>&1; then
+              sleep 3
+              if docker compose exec -T postgis psql -U vivido -d vivido -tAc 'SELECT 1' >/dev/null 2>&1; then
+                echo "✓ PostGIS hazır ve kararlı."
+                exit 0
+              fi
+              echo "  (geçici init sunucusuydu, gerçek sunucu bekleniyor…)"
             fi
             sleep 2
           done
-          echo "::error::PostGIS 60 saniyede hazır olmadı"
+          echo "::error::PostGIS 80 saniyede hazır olmadı"
           docker compose logs postgis
           exit 1
 
