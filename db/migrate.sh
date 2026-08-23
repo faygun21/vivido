@@ -15,7 +15,9 @@
 #      docker compose exec -T postgis bash /db/migrate.sh
 #
 #  YENİ ŞEMA DEĞİŞİKLİĞİ NASIL EKLENİR:
-#      1. db/schema/003_aciklayici_ad.sql dosyasını oluştur
+#      1. db/schema/00N_aciklayici_ad.sql dosyasını oluştur
+#         → N, mevcut EN BÜYÜK numaradan bir fazla olmalı.
+#           Aynı numarayı ikinci kez kullanma; betik reddeder.
 #      2. Yalnızca DEĞİŞİKLİĞİ yaz (ALTER TABLE …), 001'i düzenleme
 #      3. pnpm db:migrate
 #
@@ -23,9 +25,19 @@
 #    o değişikliği görmez; yalnızca sıfırdan kurulanlar görür — ve iki
 #    makine sessizce farklı şemaya sahip olur. Betik bunu checksum ile
 #    yakalar ve uyarır.
+#
+#  YENİDEN ADLANDIRMA: bir dosyanın adı değişir ama içeriği aynı kalırsa
+#  betik bunu checksum'dan tanır ve defterdeki adı günceller — dosyayı
+#  İKİNCİ KEZ UYGULAMAZ. Numara düzeltmeleri bu sayede tüm makinelerde
+#  kendiliğinden çözülür.
 # ══════════════════════════════════════════════════════════════════════
 
 set -euo pipefail
+
+# `--baseline`: mevcut şemayı "uygulanmış" kabul edip defteri doldurur.
+# İNSAN KARARIDIR, otomatik çalışmaz — sebebi aşağıda.
+BASELINE_ONAY=0
+[ "${1:-}" = "--baseline" ] && BASELINE_ONAY=1
 
 SCHEMA_DIR="${SCHEMA_DIR:-/db/schema}"
 DB_USER="${POSTGRES_USER:-vivido}"
@@ -47,6 +59,27 @@ if [ ${#FILES[@]} -eq 0 ]; then
   exit 1
 fi
 
+# ─── Çakışan numara koruması ───
+#
+# Sıralama ada göre yapılıyor. İki dosya aynı numarayı taşırsa aralarındaki
+# sıra numaraya değil, adın geri kalanına göre belirlenir — yani rastlantısal.
+# Biri diğerinin yarattığı tabloya bağlıysa sıra sessizce yanlış olur ve
+# hata yalnızca SIFIRDAN kurulan makinelerde çıkar. Depoda üç tane 004
+# birikmişti; bu kapı onu tekrarlatmıyor.
+COPYA=$(for f in "${FILES[@]}"; do basename "$f" | grep -oE '^[0-9]+'; done | sort | uniq -d)
+if [ -n "$COPYA" ]; then
+  echo "✗ Aynı numarayı taşıyan birden fazla şema dosyası var:" >&2
+  for n in $COPYA; do
+    echo "    $n →" >&2
+    for f in "${FILES[@]}"; do
+      case "$(basename "$f")" in "$n"_*) echo "        $(basename "$f")" >&2 ;; esac
+    done
+  done
+  echo "  Numaralar benzersiz olmalı. Dosyayı yeniden adlandır;" >&2
+  echo "  içeriği değişmediği sürece betik bunu tanır ve yeniden uygulamaz." >&2
+  exit 2
+fi
+
 # ─── Defter tablosu ───
 LEDGER_VAR=$(psql_v -c "SELECT to_regclass('public.schema_migrations') IS NOT NULL;")
 
@@ -59,17 +92,43 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 COMMENT ON TABLE schema_migrations IS
   'db/schema altindaki hangi dosyalarin uygulandigi. db/migrate.sh yonetir.';"
 
-# ─── İlk kurulum tespiti (baseline) ───
+# ─── Baseline — ARTIK OTOMATİK DEĞİL ───
 #
-# Konteyner ilk açıldığında docker-entrypoint-initdb.d, db/schema
-# içindeki TÜM .sql dosyalarını zaten çalıştırmıştır — ama defter o
-# sırada yoktu. Bu durumda dosyaları yeniden çalıştırmak "tablo zaten
-# var" hatası verir. Onun yerine hepsini "uygulanmış" olarak işaretleriz.
+# ⚠️ BU DAL BİR KEZ VERİ KAYBINA RAMAK KALA BİR HATAYA SEBEP OLDU.
+#
+# Eskiden: defter yoksa ve şema varsa, betik "initdb.d hepsini çalıştırmıştır"
+# varsayıp TÜM dosyaları uygulanmış işaretliyordu. Ama initdb.d yalnızca
+# konteyner İLK AÇILDIĞI ANDA var olan dosyaları çalıştırır. Sonradan eklenen
+# şema dosyaları hiç uygulanmadığı hâlde "uygulandı" diye deftere yazılıyordu.
+#
+# Staging'de tam olarak bu oldu: `004_add_profile_names.sql` ve
+# `005_add_profile_category_order.sql` konteyner açıldıktan SONRA kopyalandı.
+# Baseline ikisini de uygulanmış saydı; veritabanında `first_name`,
+# `last_name` sütunları ve `user_profile_category_order` tablosu YOKTU ama
+# defter "var" diyordu. Profil kodu çalışma anında patlayacaktı ve sebebi
+# hiçbir logda görünmeyecekti — K-01'in uyardığı sessiz şema kayması.
+#
+# Baseline, geçmiş hakkında bir İDDİADIR. Betik bunu bilemez; yalnızca insan
+# doğrulayıp söyleyebilir. O yüzden artık açık bayrak istiyor.
 if [ "$LEDGER_VAR" != "t" ]; then
   SEMA_VAR=$(psql_v -c "SELECT to_regclass('public.properties') IS NOT NULL;")
+  if [ "$SEMA_VAR" = "t" ] && [ "$BASELINE_ONAY" -eq 0 ]; then
+    echo "✗ Şema var ama defter yok." >&2
+    echo >&2
+    echo "  Bu veritabanı migrate.sh'ten önce kurulmuş. Dosyaların GERÇEKTEN" >&2
+    echo "  uygulanıp uygulanmadığını betik bilemez; körü körüne 'uygulandı'" >&2
+    echo "  demek şemayı sessizce eksik bırakır." >&2
+    echo >&2
+    echo "  Şemanın güncel olduğundan EMİNSEN:" >&2
+    echo "      docker compose exec -T postgis bash /db/migrate.sh --baseline" >&2
+    echo >&2
+    echo "  Emin değilsen — en temizi sıfırdan kurmak:" >&2
+    echo "      pnpm infra:reset && pnpm db:migrate      (DİKKAT: veri gider)" >&2
+    exit 3
+  fi
+
   if [ "$SEMA_VAR" = "t" ]; then
-    echo "▸ Mevcut şema bulundu, defter yok → baseline alınıyor."
-    echo "  (initdb.d bu dosyaları zaten çalıştırmış, yeniden çalıştırılmayacak.)"
+    echo "▸ --baseline verildi: mevcut şema uygulanmış kabul ediliyor."
     for f in "${FILES[@]}"; do
       base=$(basename "$f")
       sum=$(md5sum "$f" | cut -d' ' -f1)
@@ -77,7 +136,7 @@ if [ "$LEDGER_VAR" != "t" ]; then
                  VALUES ('$base', '$sum') ON CONFLICT (filename) DO NOTHING;"
       echo "  = $base (baseline)"
     done
-    echo "✓ Baseline tamam — şema güncel."
+    echo "✓ Baseline tamam."
     exit 0
   fi
 fi
@@ -90,6 +149,28 @@ for f in "${FILES[@]}"; do
   base=$(basename "$f")
   sum=$(md5sum "$f" | cut -d' ' -f1)
   kayitli=$(psql_v -c "SELECT checksum FROM schema_migrations WHERE filename = '$base';")
+
+  # ─── Yeniden adlandırma tespiti ───
+  #
+  # Dosya defterde bu adla yok, ama AYNI CHECKSUM başka bir adla kayıtlı →
+  # içerik değişmemiş, yalnızca ad değişmiş. Yeniden uygulamak "tablo zaten
+  # var" ile patlardı; doğru davranış defterdeki adı güncellemek.
+  #
+  # Bu olmadan numara düzeltmesi yapılamazdı: dosya adını değiştirdiğim an
+  # ekipteki 7 makinenin ve staging'in defteri onu "yeni dosya" sanıp
+  # yeniden çalıştırmaya kalkardı. Böylece herkes tek `pnpm db:migrate` ile
+  # kendiliğinden hizalanıyor.
+  if [ -z "$kayitli" ]; then
+    eski_ad=$(psql_v -c "SELECT filename FROM schema_migrations
+                         WHERE checksum = '$sum'
+                           AND filename NOT IN (SELECT filename FROM schema_migrations WHERE filename = '$base')
+                         LIMIT 1;")
+    if [ -n "$eski_ad" ]; then
+      psql_q -c "UPDATE schema_migrations SET filename = '$base' WHERE filename = '$eski_ad';"
+      echo "  ↻ $eski_ad → $base (yeniden adlandırma, tekrar uygulanmadı)"
+      continue
+    fi
+  fi
 
   if [ -n "$kayitli" ]; then
     if [ "$kayitli" != "$sum" ]; then

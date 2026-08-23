@@ -96,9 +96,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD .env icinde tanimli olmali}
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # Şema K-01/K-02 gereği SQL dosyalarından geliyor. İlk açılışta
-      # initdb.d çalışır; sonraki değişiklikler `db/migrate.sh` ile.
-      - ./db/schema:/docker-entrypoint-initdb.d:ro
+      # ⛔ initdb.d mount'u YOK — bkz. kökteki docker-compose.yml'deki not.
+      # Şemanın tek uygulayıcısı `db/migrate.sh`. Deploy sırası:
+      #   şema dosyalarını kopyala → migrate.sh → imajları başlat
       - ./db:/db:ro
       - ./data/artifacts:/seed:ro
     healthcheck:
