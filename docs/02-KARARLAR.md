@@ -12,7 +12,7 @@
 | # | Karar | Durum |
 |---|---|---|
 | [K-01](#k-01) | Şemanın doğruluk kaynağı SQL dosyaları, EF Core migration değil | Kabul |
-| [K-02](#k-02) | Şema değişiklikleri numaralı dosyalar + `db/migrate.sh` ile uygulanır | Kabul |
+| [K-02](#k-02) | Şema değişiklikleri numaralı dosyalar + `db/migrate.sh` ile uygulanır | Kabul · [K-12](#k-12) ile sıkılaştırıldı |
 | [K-03](#k-03) | `refresh_tokens` tablosu eklendi | Kabul |
 | [K-04](#k-04) | Persona ağırlıkları 8 kategoriye yeniden normalize edildi | Kabul |
 | [K-05](#k-05) | ETL araçları host'a değil Docker imajına kurulur | Kabul |
@@ -21,6 +21,8 @@
 | [K-08](#k-08) | Mobil uygulama Flutter ile yazılır, web React kalır | Kabul |
 | [K-09](#k-09) | E-posta doğrulama zorunlu; kayıt token dönmez (202) | Kabul |
 | [K-10](#k-10) | Misafir modu: kayıtsız harita gezintisi, skor kilitli | Kabul |
+| [K-11](#k-11) | Ortak staging ortamı — tek sunucu, tek origin, HTTPS | Kabul |
+| [K-12](#k-12) | Şemanın tek uygulayıcısı `migrate.sh`; initdb.d kaldırıldı | Kabul |
 
 ---
 
@@ -97,17 +99,25 @@ kayıtlı olmayanları** çalıştırır.
 pnpm db:migrate
 ```
 
-**Davranışlar (üçü de test edildi).**
+**Davranışlar.**
 
 | Durum | Davranış |
 |---|---|
-| Defter yok, şema var (initdb.d çalışmış) | Baseline alır, dosyaları yeniden çalıştırmaz |
 | Yeni dosya eklendi | Yalnızca onu uygular, **veriye dokunmaz** |
 | Uygulanmış dosya sonradan değiştirildi | Checksum uyuşmaz → uyarır, **exit 2** |
+| Dosya yeniden adlandırıldı, içerik aynı | Checksum'dan tanır, defterdeki adı günceller ([K-12](#k-12)) |
+| Aynı numarayı taşıyan iki dosya | **exit 2** — sıra rastlantısal olurdu ([K-12](#k-12)) |
+| Defter yok ama şema var | **exit 3** — açık `--baseline` ister ([K-12](#k-12)) |
 
-Son madde önemli: uygulanmış bir dosyayı düzenlersen çalışan veritabanları o
+İkinci madde önemli: uygulanmış bir dosyayı düzenlersen çalışan veritabanları o
 değişikliği görmez, yalnızca sıfırdan kurulanlar görür — iki makine sessizce
 farklı şemaya sahip olur. Betik bunu yakalar.
+
+> ⚠️ **Bu kararın ilk hâli eksikti.** Şema aynı zamanda
+> `docker-entrypoint-initdb.d` ile de uygulanıyordu; iki uygulayıcı olduğu için
+> `migrate.sh` otomatik baseline alıyor ve **hiç uygulanmamış dosyaları
+> "uygulandı" sayabiliyordu.** Staging'de tam olarak bu oldu.
+> Düzeltmesi: [K-12](#k-12).
 
 ---
 
@@ -435,3 +445,135 @@ yönlendirilir**.
 **Kapsam notu.** Konut noktaları `GET /properties` ile gelecek (Hafta 2, BE-3).
 O gün misafir yanıtında **skor alanları dönmemeli** — kilit sunucu tarafında da
 zorlanmalı, yalnızca arayüzde gizlemek yetmez.
+
+---
+
+## K-11
+### Ortak staging ortamı — tek sunucu, tek origin, HTTPS
+
+**Durum:** Kabul · 2026-08-23
+
+**Bağlam.** Yedi kişi kendi makinesinde kendi PostGIS'iyle çalışıyordu. Bunun
+üç somut sonucu vardı:
+
+1. **Bir bilgisayarda açılan hesap diğerinde tanınmıyordu.** Her laptop'ta ayrı
+   bir `users` tablosu vardı; aynı e-posta yedi makinede ayrı ayrı kayıt
+   olabiliyordu.
+2. **M1 ("web ile aynı hesap") mobilde gösterilemiyordu.** Flutter uygulaması
+   birinin `localhost`'una ancak aynı Wi-Fi + elle IP ayarıyla ulaşabiliyordu.
+3. **Entegrasyon hataları yedi ayrı makinede ayrı ayrı keşfediliyordu.**
+
+**Karar.** Tek sunucuda ortak bir **staging** ortamı.
+
+| Konu | Karar |
+|---|---|
+| Sunucu | İlkbyte Cloud II — 3 vCPU / 4 GB / 40 GB, **KVM**, Türkiye (~29 ms) |
+| Adres | `vividoapp.xyz` — Caddy + Let's Encrypt, otomatik yenilenen sertifika |
+| Yönlendirme | **Tek origin**: `/` → web · `/api/*` → api · `/tiles/*` → tileserver |
+| İmajlar | CI/registry'den çekilir; **sunucuda derleme yapılmaz** |
+| Erişim | Ekibin tamamı tarayıcıdan; **SSH yalnızca deploy sorumlusu + 1 yedek** |
+| Geliştirme | Yerelde kalır — staging'de kod yazılmaz |
+
+**Gerekçe.**
+
+1. **Neden ortak dev veritabanı değil, ortak ortam?** Yalnızca DB'yi
+   paylaşmak daha ucuzdu ama [K-01](#k-01) yüzünden tuzaklı: şema SQL
+   dosyalarıyla yönetiliyor, EF migration yok. Biri `008_*.sql` uygulayınca
+   henüz pull etmemiş olanın C# entity'leri şemayla uyuşmaz; derleme geçer,
+   uygulama **çalışma anında 500 döner** ve bu bir kod hatası gibi görünür.
+   Yerel DB'ler izole kalmalı; paylaşılan şey tam bir ortam olmalı.
+2. **Neden tek origin, `api.vividoapp.xyz` değil?** Aynı origin olunca CORS
+   tamamen ortadan kalkıyor. Ayrıca `VITE_API_BASE_URL` göreli (`/api/v1`)
+   kalabildiği için **domain değişince web imajının yeniden derlenmesi
+   gerekmiyor**. İleride refresh token'ı `httpOnly` cookie'ye taşımak
+   isterseniz (K-A'daki bilinen takas) yol da açık kalıyor.
+3. **Neden sunucuda derleme yok?** `api/Dockerfile` `dotnet/sdk` ile derliyor;
+   4 GB'lık makinede Postgres çalışırken bu OOM riski taşıyor. Ayrıca
+   CI'dan geçen imajın **tam olarak aynısı** çalışsın istiyoruz.
+4. **Neden herkese SSH yok?** Staging bir makine değil, bir URL. Yedi
+   stajyere production benzeri bir sunucuda root vermek, birinin
+   `docker compose down -v` yazıp veritabanını silmesinin en kısa yolu.
+   **Yedek kişi ise şart:** anahtar tek kişideyse, o kişi demo gününden bir
+   gün önce hastalandığında kimse deploy edemez.
+
+**Bedeli.**
+
+- Aylık ~$11 sunucu + yılda ~$2 domain.
+- **Kapsam listesinde yok.** W1–W7 / M1–M5'te "deployment" diye bir madde
+  yok. Bunu altyapı borcu sayıyoruz, özellik şişmesi değil — M1 bu olmadan
+  gösterilemiyor ve demo günü tek çalışan ortam gerekiyor. Ama birinin
+  1–2 gününü aldı, bu açıkça kabul edilmeli.
+- **Bayat staging riski.** CI kurulana kadar site elle güncelleniyor;
+  güncellenmezse ekip merge ettiği özelliği sitede bulamaz ve "kodum mu
+  bozuk" diye vakit harcar. **Bayat ortam, ortam olmamaktan kötüdür.**
+
+**Hemen karşılığını verdi.** Staging ilk gününde, `vite build` çıktısında
+**haritanın hiç çalışmadığını** ortaya çıkardı
+([04-MEVCUT-DURUM §5.5](04-MEVCUT-DURUM.md)). Herkes `pnpm dev` kullandığı
+için üretim derlemesi o güne kadar hiç sunulmamıştı; bu hata büyük ihtimalle
+demo günü keşfedilirdi.
+
+**Açık iş.** CI/CD kurulmadı — bkz. [04-MEVCUT-DURUM §8.1](04-MEVCUT-DURUM.md).
+Yedekleme cron'u da yok.
+
+Kurulum, erişim modeli ve sorun giderme: [`deploy/README.md`](../deploy/README.md).
+
+---
+
+## K-12
+### Şemanın tek uygulayıcısı `migrate.sh`; `initdb.d` mount'u kaldırıldı
+
+**Durum:** Kabul · 2026-08-23 · [K-02](#k-02)'yi tamamlar
+
+**Bağlam — sessizce eksik şema üreten bir hata.**
+
+[K-02](#k-02) `migrate.sh` + defter tablosunu getirmişti. Ama şema aynı
+zamanda `docker-entrypoint-initdb.d` mount'uyla da uygulanıyordu; yani
+**iki uygulayıcı** vardı. `migrate.sh` bunu şöyle telafi ediyordu: defter
+tablosu yoksa ve şema varsa, *"initdb.d hepsini çalıştırmıştır"* varsayıp
+tüm dosyaları uygulanmış işaretliyordu (baseline).
+
+Bu varsayım yanlış. `initdb.d` yalnızca konteyner **ilk açıldığı anda** var
+olan dosyaları çalıştırır. Sonradan eklenen şema dosyaları hiç uygulanmadığı
+hâlde deftere "uygulandı" diye yazılıyordu.
+
+Staging kurulumunda tam olarak bu oldu: `add_profile_names` ve
+`add_profile_category_order` konteyner açıldıktan **sonra** kopyalandı.
+Veritabanında `first_name`, `last_name` sütunları ve
+`user_profile_category_order` tablosu **yoktu** ama defter "var" diyordu.
+Profil kodu çalışma anında patlayacaktı ve sebebi hiçbir logda
+görünmeyecekti — [K-01](#k-01)'in uyardığı sessiz şema kaymasının aynısı.
+
+**Karar — dört değişiklik.**
+
+| # | Değişiklik | Neden |
+|---|---|---|
+| 1 | `db/schema:/docker-entrypoint-initdb.d` mount'u **kaldırıldı** | Çift kaynak sorunun kökü. Tek uygulayıcı kalınca hata yapısal olarak imkânsız |
+| 2 | Otomatik baseline kaldırıldı, açık `--baseline` bayrağı istiyor | Baseline geçmiş hakkında bir **iddiadır**. Betik bunu bilemez; yalnızca doğrulayan insan söyleyebilir |
+| 3 | **Çakışan numara koruması** — aynı numaralı iki dosya → `exit 2` | Sıralama ada göre; iki `004` varsa aralarındaki sıra adın geri kalanına göre, yani rastlantısal belirlenir. Biri diğerine bağlıysa sıra sessizce yanlış olur ve hata yalnızca sıfırdan kurulan makinelerde çıkar |
+| 4 | **Yeniden adlandırma tespiti** — checksum eşleşiyorsa defterdeki ad güncellenir | Numara düzeltmesi ancak bununla mümkün. Aksi halde adı değiştirilen dosya "yeni" sanılır ve yeniden uygulanıp "tablo zaten var" ile patlar |
+
+**Sonuçları.**
+
+- **`pnpm db:migrate` artık zorunlu bir kurulum adımı.** `pnpm infra:up`
+  tek başına şemayı kurmuyor. README ve
+  [04-MEVCUT-DURUM §3.3](04-MEVCUT-DURUM.md) güncellendi.
+- 4. madde sayesinde depoda birikmiş **üç adet `004`** güvenle düzeltildi:
+
+  ```
+  004_add_favorites.sql                         (değişmedi)
+  004_add_profile_names.sql            → 005_add_profile_names.sql
+  004_email_dogrulama_ve_sifre_sifirlama.sql
+                                       → 006_email_dogrulama_ve_sifre_sifirlama.sql
+  005_add_profile_category_order.sql   → 007_add_profile_category_order.sql
+  ```
+
+  Uygulanma sırası korundu. Her makine tek `pnpm db:migrate` ile
+  kendiliğinden hizalanıyor; kimsenin elle SQL çalıştırması gerekmiyor.
+  Staging'de doğrulandı: üç satır yeniden adlandırıldı, hiçbir dosya ikinci
+  kez uygulanmadı, veri kaybı olmadı.
+- Şeması olup defteri olmayan eski bir veritabanı artık `exit 3` ile durur ve
+  ne yapılacağını yazar (`--baseline` ya da `pnpm infra:reset`).
+
+**Bedeli.** Sıfırdan kurulum bir komut uzadı. Karşılığında "şema var sanıp
+olmayan sütuna sorgu atma" sınıfı hatalar kapandı.

@@ -90,34 +90,54 @@ git clone https://github.com/faygun21/vivido.git C:\dev\vivido
 cd C:\dev\vivido
 
 copy .env.example .env      # gerekirse şifreleri düzenle
+copy web\.env.example web\.env    # ⚠️ Vite .env'i web/ altından okur
 pnpm install                # workspace bağımlılıkları
 pnpm infra:up               # postgis + redis + pgadmin
 
+pnpm db:migrate             # ⭐ ZORUNLU — şemayı kurar
 pnpm dev:api                # → http://localhost:5000/swagger
 pnpm dev:web                # → http://localhost:5173   (ayrı terminal)
 ```
 
-**Doğrulama:** `curl http://localhost:5000/health/ready` → `{"status":"Healthy"}`
+> ⭐ **`pnpm db:migrate` atlanamaz.** Şema eskiden postgis konteyneri ilk
+> açılışta kendiliğinden kuruluyordu; o mekanizma **kaldırıldı** çünkü
+> sonradan eklenen şema dosyalarını sessizce "uygulandı" sayıp eksik şema
+> üretiyordu ([K-12](docs/02-KARARLAR.md#k-12)).
 
-### 2.4 Mobil uygulama
+**Doğrulama:** `curl http://localhost:5000/health/ready` → `Healthy`
 
-> ### ⚠️ Expo Go ÇALIŞMAZ
-> `@maplibre/maplibre-react-native` bir **native modüldür**. Expo Go uygulamasında harita hiç açılmaz.
-> **Development build** gerekir — bir kişi üretir, ekip aynı APK'yı kurar.
+Konut/POI verisini de istiyorsan: [`docs/04-MEVCUT-DURUM.md §3`](docs/04-MEVCUT-DURUM.md).
+
+### 2.4 Ortak staging ortamı
+
+**🔒 https://vividoapp.xyz** — ekibin tamamı buradan test eder, **SSH gerekmez.**
+
+Tek veritabanı: bir bilgisayarda açılan hesapla başka bir cihazdan giriş
+yapılabilir. Doğrulama e-postaları gerçekten gönderilir. Mobil uygulama da
+buraya bağlanınca M1 ("web ile aynı hesap") gösterilebilir hale gelir.
+
+Geliştirme staging'de yapılmaz — yerel kurulum aynen devam eder.
+Kurulum, erişim modeli, deploy ve sorun giderme:
+[`deploy/README.md`](deploy/README.md) · Karar: [K-11](docs/02-KARARLAR.md#k-11).
+
+### 2.4b Mobil uygulama
+
+Mobil **Flutter** ile yazılıyor ([K-08](docs/02-KARARLAR.md#k-08)) — Expo/React
+Native terk edildi, `Expo Go` / dev client ayrımı gündemden düştü.
 
 ```powershell
-# APK zaten üretilmişse: telefonuna kur, sonra
-pnpm dev:mobile             # → npx expo start --dev-client
-
-# APK'yı sen üretecekesen (Android Studio + SDK gerekli)
-cd mobile
-npx expo prebuild --platform android
-npx expo run:android
+flutter doctor              # yeşil olmalı (Android Studio + SDK gerekli, ~10 GB)
+pnpm dev:mobile             # → cd mobile && flutter run
 ```
 
-Fiziksel cihazda test: telefon ve bilgisayar **aynı Wi-Fi** ağında olmalı.
-`.env` içindeki `EXPO_PUBLIC_API_BASE_URL` değerini bilgisayarının yerel IP'siyle güncelle (`ipconfig` → IPv4).
-Şirket ağı cihaz izolasyonu yapıyorsa: `npx expo start --tunnel`
+Fiziksel cihazda yerel API'ye bağlanacaksan telefon ve bilgisayar **aynı Wi-Fi**
+ağında olmalı ve `mobile/lib/core/config/app_config.dart` içindeki adres
+bilgisayarının yerel IP'si olmalı (`ipconfig` → IPv4). Daha kolayı: uygulamayı
+staging adresine (`https://vividoapp.xyz/api/v1`) bağlamak — aynı ağda olma
+zorunluluğu kalkar.
+
+> ⚠️ Android 9+ düz HTTP'yi varsayılan olarak engelliyor. Release APK yalnızca
+> **HTTPS** adrese bağlanabilir; `http://<IP>` yalnızca debug build'de çalışır.
 
 ### 2.5 E-posta doğrulama ve şifre sıfırlama
 
@@ -232,7 +252,7 @@ vivido/
 │   │   └── Vivido.Scoring/        ★ SAF skorlama motoru — I/O YOK
 │   └── tests/
 ├── web/                      React 18 + TypeScript + Vite + MapLibre GL JS
-├── mobile/                   React Native + Expo + MapLibre
+├── mobile/                   Flutter + maplibre_gl (K-08)
 ├── packages/shared/          Ortak TS tipleri + üretilmiş API istemcisi
 ├── data/
 │   ├── scripts/                   ETL kabuk betikleri
@@ -260,14 +280,27 @@ Girdi `ScoringInput`, çıktı `ScoreResult`. Bu sayede skorlama motoru veritaba
 |---|---|
 | `pnpm dev:api` | API'yi başlatır → `:5000` |
 | `pnpm dev:web` | Web'i başlatır → `:5173` |
-| `pnpm dev:mobile` | Expo dev server (dev client ile) |
+| `pnpm dev:mobile` | Flutter uygulamasını çalıştırır (K-08) |
 | `pnpm infra:up` / `infra:down` | Docker altyapısı |
 | `pnpm infra:reset` | Volume dahil sıfırlar (**veri gider**) |
-| `pnpm db:migrate` | `db/schema` altındaki uygulanmamış SQL dosyalarını uygular |
+| **`pnpm db:migrate`** | **Şemayı kurar/günceller — kurulumda ZORUNLU** (K-12) |
 | `pnpm db:check` | Veri kalitesi (DQ) sorgularını çalıştırır |
 | `pnpm test` | Tüm testler |
-| `pnpm test:golden` | Skorlama altın veri seti (180 vaka) |
+| `pnpm test:golden` | Skorlama altın veri seti (72 vaka) |
 | `pnpm typecheck` | TS tip kontrolü (tüm paketler) |
+
+### Şema değişikliği eklerken
+
+```bash
+# db/schema/008_aciklayici_ad.sql        ← numara mevcut EN BÜYÜKTEN bir fazla
+# Yalnızca DEĞİŞİKLİĞİ yaz (ALTER TABLE …), eski dosyaları DÜZENLEME
+pnpm db:migrate
+```
+
+`migrate.sh` üç şeyi zorluyor: aynı numarayı iki kez kullanamazsın (`exit 2`),
+uygulanmış bir dosyayı düzenleyemezsin (checksum, `exit 2`), şeması olup
+defteri olmayan bir veritabanına sessizce baseline almaz (`exit 3`).
+Dosyayı **yeniden adlandırmak güvenli** — içerik aynıysa checksum'dan tanır.
 
 ---
 
