@@ -6,10 +6,41 @@ import {
   Map as MapLibreMap,
   Marker,
   NavigationControl,
+  setWorkerUrl,
   type MapOptions,
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+// ⚠️ `?worker&url`: Vite worker'ı KENDİ bağımlılıklarıyla paketleyip
+// yayımlanan dosyanın adresini veriyor. `?url` tek başına yetmez —
+// worker içeride `maplibre-gl-shared.mjs`'i import ediyor, ham varlık
+// olarak kopyalansa o import çözülemezdi.
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { GLYPHS_URL, MAP_ATTRIBUTION, TILE_URL, USE_RASTER_BASEMAP } from '@/shared/config';
+
+/**
+ * ⭐ ÜRETİM DERLEMESİNDE HARİTAYI BOŞ ÇİZEN HATANIN DÜZELTMESİ
+ *
+ * MapLibre 6, worker dosyasının adını ÇALIŞMA ANINDA kuruyor:
+ *
+ *     new Worker(new URL(dev ? `…-worker-dev.mjs` : `…-worker.mjs`,
+ *                        import.meta.url), { type: 'module' })
+ *
+ * Ad bir üçlü operatörden geldiği için Vite 8 / Rolldown bunu statik
+ * olarak göremiyor ve worker parçasını çıktıya HİÇ EKLEMİYOR. Sonuç
+ * `dist/` içinde yalnızca `index-*.js` + CSS; worker isteği 404'e düşüyor.
+ *
+ * Belirtisi sinsi: MapLibre GeoJSON ayrıştırmayı ve karo çizimini worker'da
+ * yapar. Worker ölünce HİÇBİR veri katmanı çizilmez — ama arka plan rengi,
+ * +/− kontrolü ve atıf ana iş parçacığında olduğu için çalışmaya devam eder.
+ * Harita "var" görünür, bomboştur ve HATA FIRLATMAZ; konsol tertemiz kalır.
+ *
+ * `docs/04-MEVCUT-DURUM.md` §4.5 aynı belirtiyi geliştirme sunucusu için
+ * kaydetmiş ve "üretim derlemesi etkilenmez" demişti. Etkileniyormuş —
+ * kimse fark etmemişti çünkü `vite build` çıktısı ilk kez staging'de sunuldu.
+ *
+ * Modül kapsamında çağrılıyor: ilk harita oluşturulmadan önce çalışması şart.
+ */
+setWorkerUrl(maplibreWorkerUrl);
 
 /** `StyleSpecification` maplibre-gl tarafından yeniden dışa aktarılmıyor. */
 type MapStyle = NonNullable<MapOptions['style']>;

@@ -1,29 +1,44 @@
 # Mevcut Durum — Çalışır Sistem ve Yapılan Değişiklikler
 
-> **Tarih:** 2026-08-20 · **Branch:** `femre/w2-temel-akis-ve-harita`
+> **Tarih:** 2026-08-23 · **Branch:** `yazilim`
 >
 > Bu doküman projenin bugün **gerçekten** hangi noktada olduğunu anlatır ve
 > yol boyunca bulunan/düzeltilen hataları kaydeder. Plan dokümanlarının
 > iddiası değil, çalıştırılıp doğrulanmış durum yazılıdır.
 >
 > İlgili: [00-KAPSAM](00-KAPSAM.md) · [01-PROJE-PLANI](01-PROJE-PLANI.md) ·
-> [02-KARARLAR](02-KARARLAR.md) · [03-HAFTA-2-PLANI](03-HAFTA-2-PLANI.md)
+> [02-KARARLAR](02-KARARLAR.md) · [03-HAFTA-2-PLANI](03-HAFTA-2-PLANI.md) ·
+> [deploy/README](../deploy/README.md)
 
 ---
 
 ## 1. Tek cümleyle
 
-Kullanıcı kayıt olup giriş yapabiliyor, 4 personadan birini seçip bütçesini
-girebiliyor, **sokaklı/binalı gerçek Çankaya haritasını** gezebiliyor ve harita
-üzerine tıklayarak en fazla 3 anchor ekleyip sürükle-bırakla sıralayabiliyor.
-Veritabanında **6.000 sentetik konut** ve **48.000 satırlık erişim matrisi**
-gerçek OSRM yürüme süreleriyle hazır bekliyor.
+Kullanıcı kayıt olup **e-postasına gelen kodla** hesabını doğrulayabiliyor,
+şifresini sıfırlayabiliyor, **misafir olarak** kayıtsız gezebiliyor, persona
+seçip bütçesini girebiliyor, **sokaklı/binalı gerçek Çankaya haritasını**
+gezebiliyor ve anchor ekleyip sürükle-bırakla sıralayabiliyor — hepsi ekibin
+ortak kullandığı **https://vividoapp.xyz** adresinde canlı.
 
 ---
 
-## 2. Çalıştırma
+## 2. İki ortam
 
-### 2.1 Bir kere: veri artefaktlarını edin
+| | Yerel (herkes, her gün) | Staging (ortak) |
+|---|---|---|
+| Adres | `localhost:5173` | **https://vividoapp.xyz** |
+| Veritabanı | Kendi Docker PostGIS'i | Sunucudaki tek DB |
+| E-posta | `console` — kod terminalde, **kimlik bilgisi gerekmez** | `smtp` — gerçek Gmail |
+| Ne için | Kod yazmak, hızlı döngü | Entegrasyon, demo, mobil (M1) |
+
+**Geliştirme staging'de yapılmaz.** Kurulum, erişim modeli ve deploy adımları:
+[`deploy/README.md`](../deploy/README.md) · Karar: [K-11](02-KARARLAR.md#k-11).
+
+---
+
+## 3. Yerel çalıştırma
+
+### 3.1 Bir kere: veri artefaktlarını edin
 
 Harita karoları, OSRM grafları ve OSM kesiti **git'e girmez** — GitHub Release
 üzerinden dağıtılır (dosya başına 100 MB'lık GitHub limiti ve depo şişmesi).
@@ -33,7 +48,7 @@ cd C:\dev\vivido
 .\data\scripts\00_fetch_artifacts.sh     # data/artifacts/ altına açar
 ```
 
-İndirilenler:
+`data-v1` release'i **yayınlandı**, betik çalışır durumda.
 
 | Dosya | Boyut | Ne işe yarar |
 |---|---|---|
@@ -41,9 +56,9 @@ cd C:\dev\vivido
 | `osrm/foot/` | 38 MB | Yürüme süreleri (skorlamanın temeli) |
 | `osrm/car/` | 28 MB | Araç rotası (Hafta 3, TSP) |
 | `cankaya.osm.pbf` | 4.8 MB | Ham kesit — ETL'i yeniden koşmak isteyen için |
-| `seed.sql` | ~12 MB | POI + bina + mahalle + konut + erişim matrisi |
+| `seed.sql` | ~14 MB | POI + bina + mahalle + konut + erişim matrisi |
 
-### 2.2 Ortam dosyaları
+### 3.2 Ortam dosyaları
 
 ```powershell
 copy .env.example .env
@@ -53,28 +68,31 @@ copy web\.env.example web\.env
 > ⚠️ **Vite `.env` dosyasını `web/` altından okur, depo kökünden DEĞİL.**
 > Kökteki `.env` içindeki `VITE_*` satırları web'e etki etmez. İki dosya da lazım.
 
-### 2.3 Altyapı ve veri
+### 3.3 Altyapı, şema ve veri
 
 ```powershell
 pnpm install
 pnpm infra:up                                   # postgis + redis + pgadmin
 docker compose --profile routing up -d tileserver osrm-foot osrm-car
 
-# Veriyi yükle (şema konteyner ilk açılışta kendiliğinden kuruluyor).
-# /seed → data/artifacts/  (docker-compose.yml'de mount edili)
+pnpm db:migrate                                 # ⭐ ZORUNLU — şemayı kurar
 docker compose exec -T postgis psql -U vivido -d vivido -v ON_ERROR_STOP=1 -f /seed/seed.sql
 
 pnpm db:check                                   # 6/6 PASS görmelisin
 ```
 
-### 2.4 Uygulama
+> ⭐ **`pnpm db:migrate` artık atlanamaz.** Şema eskiden postgis konteyneri ilk
+> açılışta `docker-entrypoint-initdb.d` ile kendiliğinden kuruluyordu; o mount
+> **kaldırıldı** ([K-12](02-KARARLAR.md#k-12)). Sebebi §5.10'da.
+
+### 3.4 Uygulama
 
 ```powershell
 pnpm dev:api      # → http://localhost:5000/swagger
 pnpm dev:web      # → http://localhost:5173
 ```
 
-### 2.5 Doğrulama
+### 3.5 Doğrulama
 
 | Adres | Beklenen |
 |---|---|
@@ -83,12 +101,12 @@ pnpm dev:web      # → http://localhost:5173
 | http://localhost:5001/route/v1/foot/32.85,39.92;32.86,39.93 | `{"code":"Ok",...}` |
 | http://localhost:5173/auth/register | Kayıt formu |
 
-Akış: **kayıt ol → persona seç + bütçe gir → Kaydet → harita** ·
-Anchor eklemek için üst menüden **Profil**.
+Akış: **kayıt ol → e-posta kodu (API terminalinde) → doğrula → persona +
+bütçe → harita**. Anchor eklemek için üst menüden **Profil**.
 
 ---
 
-## 3. Şu an ne çalışıyor, ne çalışmıyor
+## 4. Şu an ne çalışıyor, ne çalışmıyor
 
 ### ✅ Çalışıyor
 
@@ -97,15 +115,17 @@ Anchor eklemek için üst menüden **Profil**.
 | `POST /auth/register` · `login` · `refresh` | Rotasyonlu, `problem+json` |
 | `POST /auth/verify-email` · `resend-verification` | 6 haneli kod, 15 dk, 5 deneme ([K-09](02-KARARLAR.md#k-09)) |
 | `POST /auth/forgot-password` · `reset-password` | Kodla sıfırlama, tüm oturumlar iptal |
-| Web + mobil: **misafir modu** | Kayıtsız harita gezintisi ([K-10](02-KARARLAR.md#k-10)) |
-| Web + mobil: parola tekrar alanı | Uyuşmazlıkta form gönderilmez |
+| Aynı e-postayla ikinci hesap | Engelli — `citext UNIQUE` + trim + `23505` yakalama |
 | `GET /personas` | 4 persona, veritabanından, **korumalı** |
 | `GET/PUT /api/v1/profile` | Upsert, profil yoksa 404 `PROFILE_NOT_FOUND` |
 | `GET/POST/DELETE /profile/anchors` | Maks 3, 4.'sü 422 `ANCHOR_LIMIT_EXCEEDED` |
 | `PUT /profile/anchors/order` | Tek transaction, 4 maddelik doğrulama |
-| Web: giriş / kayıt / onboarding / profil | Gerçek API'ye bağlı (MSW kapalı) |
+| Favoriler · rota iskeleti · konum arama | PR #19, #21, #22 |
+| Web: **misafir modu** | Kayıtsız harita gezintisi ([K-10](02-KARARLAR.md#k-10)) |
+| Web: giriş / kayıt / doğrulama / şifre sıfırlama | Gerçek API'ye bağlı (MSW kapalı) |
 | Web: Çankaya haritası | Sokak, bina, su, yeşil alan, etiketler + 124 mahalle |
 | Web: anchor paneli | Haritaya tıkla → ekle, dnd-kit ile sırala |
+| **Staging** | https://vividoapp.xyz — HTTPS, gerçek e-posta ([K-11](02-KARARLAR.md#k-11)) |
 | Veri: 6.000 konut + 48.000 erişim matrisi | OSRM foot süreleriyle |
 | DQ kapıları | **6/6 PASS** |
 
@@ -117,19 +137,20 @@ Anchor eklemek için üst menüden **Profil**.
 | `GET /properties` · `GET /properties/{id}/score` | BE-3 + BE-4 |
 | `Property` / `PoiCategory` / `Neighborhood` EF entity'leri | BE-3 |
 | Haritada konut noktaları, filtreler, gerekçe tablosu | FE-1 + FE-2 |
-| Rota / TSP / mobil | Hafta 3 |
+| **CI/CD** — staging elle deploy ediliyor | Sıradaki iş (§8.1) |
+| Rota / TSP / mobil navigasyon | Hafta 3 |
 
-> **Önemli:** 6.000 konut veritabanında ama **web'de görünmüyor** — onları
+> **Önemli:** 6.000 konut veritabanında ama **haritada görünmüyor** — onları
 > ekrana getirecek zincir (entity → skor motoru → `GET /properties` → harita
 > katmanı) henüz yazılmadı.
 
 ---
 
-## 4. Bulunan ve düzeltilen hatalar
+## 5. Bulunan ve düzeltilen hatalar
 
 Bunlar plan sapması değil, **gerçek hatalardı**. Hepsi doğrulanarak düzeltildi.
 
-### 4.1 🔴 `Persona` entity'sinin birincil anahtarı yoktu → API tamamen çalışmıyordu
+### 5.1 🔴 `Persona` entity'sinin birincil anahtarı yoktu → API tamamen çalışmıyordu
 
 `personas` tablosunun PK'sı `code` (text). EF'in varsayılan konvansiyonu `Id`
 adlı bir özellik arıyor, bulamayınca **tüm model doğrulaması** patlıyordu:
@@ -139,11 +160,10 @@ The entity type 'Persona' requires a primary key to be defined.
 ```
 
 Bu, veritabanına giden **her** sorguyu 500'e düşürüyordu — `register` dahil.
-Yani `yazilim` branch'inde API hiç çalışmıyordu.
 
 **Düzeltme:** `VividoDbContext`'te `entity.HasKey(e => e.Code)`.
 
-### 4.2 🔴 osm2pgsql şema tablolarını eziyordu
+### 5.2 🔴 osm2pgsql şema tablolarını eziyordu
 
 `data/lua/vivido_pois.lua` doğrudan `pois` ve `buildings` adlarına yazıyordu.
 osm2pgsql'in flex `define_table` çağrısı **verilen addaki tabloyu düşürüp
@@ -153,110 +173,103 @@ yeniden yaratır**, dolayısıyla `001_initial.sql`'deki tanımlar siliniyordu:
 - `category_code` → `poi_categories` yabancı anahtarı → kayboluyor
 - `idx_poi_cat` indeksi → kayboluyor
 
-Sonuç: `gen_properties.py` `column b.id does not exist` ile duruyordu ve
-`properties.building_id` / `property_poi_access.poi_id` FK'ları kurulamıyordu.
-
-Bu, [02-KARARLAR K-01](02-KARARLAR.md)'in açıkça uyardığı *"iki şema kaynağı"*
+Bu, [K-01](02-KARARLAR.md#k-01)'in açıkça uyardığı *"iki şema kaynağı"*
 durumunun ta kendisi.
 
 **Düzeltme:** lua artık `osm_pois` / `osm_buildings` **ara tablolarına** yazıyor;
-yeni [`data/scripts/04_merge_osm_into_schema.sql`](../data/scripts/04_merge_osm_into_schema.sql)
-şemadaki gerçek tabloları kurup dolduruyor. Doğruluk kaynağı `db/schema/*.sql`
-olarak **kalıyor**.
+[`data/scripts/04_merge_osm_into_schema.sql`](../data/scripts/04_merge_osm_into_schema.sql)
+şemadaki gerçek tabloları kurup dolduruyor.
 
 > ⚠️ ETL sırasında osm2pgsql'den **hemen sonra** bu SQL çalıştırılmalı.
 
-### 4.3 🔴 Kira kalibrasyonu ~5 kat yüksekti → bütçe skoru işlevsizdi
+### 5.3 🔴 Kira kalibrasyonu ~5 kat yüksekti → bütçe skoru işlevsizdi
 
 `gen_properties.py` içinde `beta0 = 5.2` idi. Sonuç: medyan **978 ₺/m²**,
 95 m² daire ≈ **93.000 ₺/ay**. Oysa [01-PROJE-PLANI §6.5](01-PROJE-PLANI.md)'teki
-dolu örnek 95 m² için **18.500 ₺** ve §13.1'deki öğrenci bütçesi **20.000 ₺**.
+dolu örnek 95 m² için **18.500 ₺**.
 
 Etkisi kozmetik değil: her ev için `r = kira/bütçe > 5` → `B(r) ≈ 0`. Bütün
-evler aynı bütçe puanını alıyordu, skorlama ayrışmıyordu. 20.000 ₺ bütçeyle
-6.000 evden **2 tanesi** uygundu.
+evler aynı bütçe puanını alıyordu, skorlama ayrışmıyordu.
 
 **Düzeltme:** `beta0 = 3.68`.
-
-```
-hedef: 95 m² → ~195 ₺/m²
-ln(195) = 5.273 ;  beta1·ln(95) = 0.35 × 4.554 = 1.594
-beta0 = 5.273 − 1.594 ≈ 3.68
-```
 
 | | Önce | Sonra |
 |---|---|---|
 | Medyan ₺/m² | 978 | **214** |
 | Medyan aylık kira | ~93.000 ₺ | **20.250 ₺** |
 | 20.000 ₺ ile uygun ev | 2 | **2.953 (%49)** |
-| Tam bütçe puanı alan (`r ≤ 0.70`) | ~0 | **%22** |
 
 > ⚠️ **DQ-02 ve DQ-05 bu hatayı yakalayamaz.** İkisi de *göreli* kontrol
-> (mahalle medyanının 0.3–3 katı); tekdüze ölçek hatası görünmez. DQ-05'in
-> tanımı zaten "gözle kontrol" ve kimse bakmamıştı.
+> (mahalle medyanının 0.3–3 katı); tekdüze ölçek hatası görünmez.
 
-### 4.4 🟠 Erişim matrisi kuş uçuşu hesaplıyordu
+### 5.4 🟠 Erişim matrisi kuş uçuşu hesaplıyordu
 
-`02_build_access_matrix.py` şunu kullanıyordu:
-
-```sql
-ROUND(ST_DistanceSphere(p.geom, poi.geom) / 72.0, 1) AS duration_min
-```
-
-Bu kuş uçuşu mesafe ÷ sabit hız. [§9.8](01-PROJE-PLANI.md) ise OSRM `foot`
-profilinden **gerçek yürüme süresi** istiyor. Ürünün tüm iddiası *"bu ev markete
-4 dakika"* üzerine kurulu; kuş uçuşu binaları, vadileri ve yaya geçidi olmayan
-bulvarları yok sayar. Ayrıca KNN `LIMIT 5` ön-elemesi anlamsızdı — aynı metrikle
-tekrar minimum alınıyordu.
+`02_build_access_matrix.py` `ST_DistanceSphere(...) / 72.0` kullanıyordu —
+kuş uçuşu mesafe ÷ sabit hız. Ürünün tüm iddiası *"bu ev markete 4 dakika"*
+üzerine kurulu; kuş uçuşu binaları, vadileri ve yaya geçidi olmayan
+bulvarları yok sayar.
 
 **Düzeltme:** Script OSRM `/table` kullanacak şekilde yeniden yazıldı. Konut
-başına **tek** `/table` çağrısı (1 kaynak + 8 kategori × 5 aday = 41 koordinat),
-`--max-table-size 200` sınırının çok altında.
+başına tek `/table` çağrısı (1 kaynak + 8 kategori × 5 aday = 41 koordinat).
 
-Ölçülen fark:
+Ölçülen fark ortalama **1.37 kat** — eski yöntem tüm süreleri ~%37 kısa
+gösteriyordu, yani bütün skorlar olduğundan yüksek çıkacaktı.
 
-| Kategori | Kuş uçuşu | OSRM | Oran |
-|---|---|---|---|
-| transit | 3.6 dk | 4.9 dk | 1.36× |
-| market | 6.7 dk | 9.5 dk | 1.42× |
-| pharmacy | 5.8 dk | 8.3 dk | 1.43× |
-| health | 10.8 dk | 13.8 dk | 1.28× |
+### 5.5 🟠 MapLibre worker'ı → harita boş çiziliyordu (iki ayrı hata)
 
-Ortalama **1.37 kat** — eski yöntem tüm süreleri ~%37 kısa gösteriyordu, yani
-bütün skorlar olduğundan yüksek çıkacaktı.
+**Belirti ikisinde de aynı ve sinsi:** MapLibre GeoJSON ayrıştırmayı ve karo
+çizimini bir web worker'da yapar. Worker ölünce **hiçbir veri katmanı
+çizilmez** — ama arka plan rengi, +/− kontrolü ve atıf ana iş parçacığında
+olduğu için çalışmaya devam eder. Harita "var" görünür, bomboştur ve
+**hata fırlatmaz**; tarayıcı konsolu tertemiz kalır.
 
-### 4.5 🟠 Vite, MapLibre'ın web worker'ını bozuyordu → harita boş çiziliyordu
-
-Vite'ın bağımlılık ön-derleyicisi:
+**(a) Geliştirme sunucusunda.** Vite'ın bağımlılık ön-derleyicisi worker
+dosyasını bozuyordu:
 
 ```
 The file does not exist at .../deps/maplibre-gl-worker.mjs
 ```
 
-MapLibre GeoJSON ayrıştırmayı ve karo çizimini worker'da yapar. Worker ölünce
-**veri katmanları sessizce hiç çizilmez** — ama arka plan rengi, +/− kontrolü ve
-atıf ana iş parçacığında olduğu için çalışmaya devam eder. Harita "var" ama boş
-görünür ve **hata fırlatmaz**, bu yüzden `try/catch` de yakalamaz.
-Üretim derlemesi (`vite build`) etkilenmez; sorun yalnızca dev sunucusundadır.
-
 **Düzeltme:** `vite.config.ts` → `optimizeDeps.exclude: ['maplibre-gl']`.
 
-### 4.6 🟡 `/api/v1/profiles` (çoğul) → sözleşme `/profile` (tekil) diyordu
+**(b) Üretim derlemesinde.** Bu notta önceden *"üretim derlemesi
+etkilenmez"* yazıyordu — **yanlıştı.** MapLibre 6, worker dosyasının adını
+çalışma anında kuruyor:
+
+```js
+new Worker(new URL(dev ? '…-worker-dev.mjs' : '…-worker.mjs',
+                   import.meta.url), { type: 'module' })
+```
+
+Ad bir üçlü operatörden geldiği için **Vite 8 / Rolldown bunu statik olarak
+göremiyor** ve worker parçasını çıktıya hiç eklemiyor; `dist/` içinde yalnızca
+`index-*.js` + CSS oluyor.
+
+Kimse fark etmemişti çünkü herkes `pnpm dev` ile çalışıyor — `vite build`
+çıktısı ilk kez staging'de sunulunca ortaya çıktı.
+
+**Düzeltme:** [`CankayaMap.tsx`](../web/src/shared/map/CankayaMap.tsx) — worker
+`?worker&url` ile Vite'a açıkça paketletiliyor ve `setWorkerUrl()` ile
+MapLibre'a veriliyor.
+
+> Bu hata staging olmasaydı büyük ihtimalle demo günü keşfedilirdi.
+
+### 5.6 🟡 `/api/v1/profiles` (çoğul) → sözleşme `/profile` (tekil) diyordu
 
 `ProfilesController` `[Route("api/v1/[controller]")]` kullanıyordu; sınıf adı
-`ProfilesController` olduğu için yol **çoğul** oluyordu. Web istemcisi,
-`packages/shared` tipleri ve `vivido-api-sozlesmesi.md` **tekil** bekliyor —
-onboarding'in `PUT /profile` çağrısı 404 alıyordu.
+çoğul olduğu için yol da çoğul oluyordu. Web istemcisi, `packages/shared`
+tipleri ve `vivido-api-sozlesmesi.md` **tekil** bekliyor — onboarding'in
+`PUT /profile` çağrısı 404 alıyordu.
 
-**Düzeltme:** `[Route("api/v1/profile")]`. `PUT` artık `UserProfile` dönüyor
-(sözleşme gereği). `GET` 404'ü `problem+json` + `PROFILE_NOT_FOUND` oldu.
+**Düzeltme:** `[Route("api/v1/profile")]`. `GET` 404'ü `problem+json` +
+`PROFILE_NOT_FOUND` oldu.
 
-### 4.7 🟡 `GET /personas` korumasızdı
+### 5.7 🟡 `GET /personas` korumasızdı
 
 `[AllowAnonymous]` idi, sözleşme K-F korumalı olmasını söylüyor.
 **Düzeltme:** `[Authorize]`.
 
-### 4.8 🟠 Aynı e-posta ile ikinci hesap açılabiliyordu (boşluk farkıyla)
+### 5.8 🟠 Aynı e-posta ile ikinci hesap açılabiliyordu (boşluk farkıyla)
 
 `users.email` sütunu `citext UNIQUE` olduğu için **büyük/küçük harf** farkı
 zaten engelleniyordu. Ama `AuthController` gelen adresi hiç kırpmıyordu:
@@ -266,19 +279,59 @@ zaten engelleniyordu. Ama `AuthController` gelen adresi hiç kırpmıyordu:
 ```
 
 Boşluk gerçek bir karakter; iki satır da UNIQUE kısıtını geçiyordu. Kullanıcı
-kopyala-yapıştır yaptığında (adres satırının sonunda boşluk kalması çok yaygın)
-farkında olmadan ikinci bir hesap açıyordu.
+kopyala-yapıştır yaptığında farkında olmadan ikinci hesap açıyordu.
 
 İkinci sorun: kontrol `AnyAsync` + `Add` şeklinde **iki ayrı adımdaydı**. İki
-istek aynı anda gelirse ikisi de "kullanıcı yok" görür, ikincisi veritabanı
-UNIQUE ihlaline düşer ve **500** dönerdi — oysa bu tam olarak 409.
+istek aynı anda gelirse ikisi de "kullanıcı yok" görür, ikincisi UNIQUE
+ihlaline düşer ve **500** dönerdi — oysa bu tam olarak 409.
 
 **Düzeltme:** `NormalizeEmail` (trim) + `DbUpdateException` içindeki
 `PostgresException.SqlState == "23505"` yakalanıp 409'a çevriliyor.
 
+### 5.9 🟡 Dev sunucusu 5013'te açılıyordu
+
+`launchSettings.json` `applicationUrl` değeri `http://localhost:5013` idi ve
+bu dosya `ASPNETCORE_URLS`'i **ezer**. Oysa `.env.example`, `web/.env`
+(`VITE_API_BASE_URL`), mobil `AppConfig` ve tüm dokümanlar `:5000` bekliyor.
+
+Sonuç: web "Sunucuya ulaşılamadı" diyor, API ise sorunsuz ayakta — sadece
+başka kapıda. Hiçbir logda görünmediği için teşhisi zor.
+
+**Düzeltme:** `applicationUrl` 5000'e sabitlendi + dosyaya uyarı notu.
+
+### 5.10 🔴 `migrate.sh` uygulanmamış dosyaları "uygulandı" sayıyordu
+
+**Bugüne kadarki en tehlikeli hata** — sessizce eksik şema üretiyordu.
+
+Betik, defter tablosu yoksa ve şema varsa *"initdb.d hepsini çalıştırmıştır"*
+varsayıp **tüm dosyaları uygulanmış işaretliyordu**. Ama `initdb.d` yalnızca
+konteyner **ilk açıldığı anda** var olan dosyaları çalıştırır.
+
+Staging'de tam olarak bu oldu: `add_profile_names` ve
+`add_profile_category_order` konteyner açıldıktan **sonra** kopyalandı.
+Baseline ikisini de uygulanmış saydı; veritabanında `first_name`, `last_name`
+sütunları ve `user_profile_category_order` tablosu **yoktu** ama defter "var"
+diyordu. Profil kodu çalışma anında patlayacaktı ve sebebi hiçbir logda
+görünmeyecekti — [K-01](02-KARARLAR.md#k-01)'in uyardığı sessiz şema kayması.
+
+**Düzeltme** ([K-12](02-KARARLAR.md#k-12)):
+
+1. `docker-entrypoint-initdb.d` mount'u **kaldırıldı** — şemanın tek
+   uygulayıcısı `migrate.sh`. Çift kaynak yok, sorun yapısal olarak kapandı.
+2. Otomatik baseline kaldırıldı; artık açık `--baseline` bayrağı istiyor.
+   Baseline, geçmiş hakkında bir **iddiadır**; betik bunu bilemez, insan bilir.
+3. **Çakışan numara koruması** — aynı numaralı iki dosya varsa `exit 2`.
+4. **Yeniden adlandırma tespiti** — checksum eşleşiyorsa defterdeki ad
+   güncellenir, dosya ikinci kez uygulanmaz.
+
+4. madde sayesinde depoda birikmiş **üç adet `004`** güvenle düzeltilebildi
+(`004_add_favorites` · `005_add_profile_names` ·
+`006_email_dogrulama_ve_sifre_sifirlama` · `007_add_profile_category_order`);
+her makine tek `pnpm db:migrate` ile kendiliğinden hizalanıyor.
+
 ---
 
-## 5. Veri boru hattı — sıfırdan çalıştırma
+## 6. Veri boru hattı — sıfırdan çalıştırma
 
 ETL **tek makinede bir kez** koşulur, çıktılar Release'e yüklenir
 ([§12.2](01-PROJE-PLANI.md)). Yeniden üretmek gerekirse sıra şudur:
@@ -299,7 +352,7 @@ docker compose --profile etl run --rm etl osm2pgsql -O flex \
   -S /work/data/lua/vivido_pois.lua -H postgis -U vivido -d vivido \
   /work/data/artifacts/cankaya.osm.pbf
 
-# 3) ⚠️ ŞART: ara tablolardan şema tablolarına aktar (bkz. §4.2)
+# 3) ⚠️ ŞART: ara tablolardan şema tablolarına aktar (bkz. §5.2)
 docker compose --profile etl run --rm etl psql -v ON_ERROR_STOP=1 \
   -f /work/data/scripts/04_merge_osm_into_schema.sql
 
@@ -338,59 +391,35 @@ pnpm db:check
 
 ---
 
-## 6. Tuzaklar
+## 7. Tuzaklar
 
 | Tuzak | Sonuç | Çözüm |
 |---|---|---|
+| `pnpm infra:up` sonrası `db:migrate`'i unutmak | Şema hiç kurulmaz, her sorgu patlar | initdb.d kaldırıldı ([K-12](02-KARARLAR.md#k-12)); `pnpm db:migrate` **zorunlu adım** |
+| Var olan numarayı tekrar kullanmak (`004_...`) | `migrate.sh` **exit 2** | En büyük numaradan bir fazlasını al |
 | `web/.env` yerine kök `.env`'i düzenlemek | `VITE_*` sessizce etkisiz | Vite `web/` altından okur, iki dosya da lazım |
-| `VITE_TILE_URL=.../data/cankaya.json` | 404, harita altlıksız | Doğrusu **`/data/v3.json`** — tileserver-gl OpenMapTiles şemasını tanıyıp kaynağa `v3` diyor |
-| osm2pgsql sonrası `04_merge...sql`'i atlamak | `b.id does not exist`, FK'lar yok | Adımı atlama (§4.2) |
+| `VITE_TILE_URL=.../data/cankaya.json` | 404, harita altlıksız | Doğrusu **`/data/v3.json`** — tileserver-gl kaynağa `v3` diyor |
+| **Harita boş ama kontroller çalışıyor** | Worker ölmüş | §5.5 — dev'de `optimizeDeps.exclude`, üretimde `setWorkerUrl` |
+| osm2pgsql sonrası `04_merge...sql`'i atlamak | `b.id does not exist`, FK'lar yok | Adımı atlama (§5.2) |
 | `pnpm db:check` sonrası konut sayısı 0 | seed yüklenmemiş | `psql -f /seed/seed.sql` |
-| Git Bash'te `psql: C:/Program Files/Git/seed/... yok` | Git Bash konteyner içi yolları Windows'a çevirir | Komutun başına `MSYS_NO_PATHCONV=1` ya da PowerShell'den çalıştır |
+| Git Bash'te `psql: C:/Program Files/Git/seed/... yok` | Git Bash konteyner içi yolları Windows'a çevirir | `MSYS_NO_PATHCONV=1` ya da PowerShell'den çalıştır |
+| API 5000 yerine başka portta | Web "Sunucuya ulaşılamadı" der, API ayakta | `launchSettings.json` 5000 olmalı (§5.9) |
 | `dotnet ef migrations add` | CI kırılır | Yeni `db/schema/00N_*.sql` + `pnpm db:migrate` |
 | `Vivido.Scoring`'e paket eklemek | Build kırılır | Girdiyi `ScoringInput` içinde taşı |
-| Harita boş ama kontroller çalışıyor | Vite worker sorunu | `.vite` önbelleğini sil, `optimizeDeps.exclude` duruyor mu bak (§4.5) |
 | `data/artifacts/` boş | tileserver ve OSRM başlamaz | `00_fetch_artifacts.sh` |
 
 ---
 
-## 7. Bilinen eksikler ve teknik borç
+## 8. Bilinen eksikler ve teknik borç
 
 | # | Konu | Not |
 |---|---|---|
-| 1 | **6.000 konutun 5.568'i farklı koordinatta** (%7 çakışma) | `gen_properties.py` `random.choices` ile **iadeli** örnekliyor ve her bina sabit `ST_PointOnSurface` merkezine sahip. [§9.6](01-PROJE-PLANI.md) `ST_GeneratePoints(geom, n)` ile bina içine dağıtmayı söylüyor — "20 daireli apartman" kavramı şu an kayıp |
-| 2 | **`web/public/geo/` git'e girmiyor** | `data/*.geojson`'dan `web/scripts/sync-geo.mjs` ile üretilir; `pnpm dev`/`build` bunu otomatik çalıştırır. İki nüsha tutup ayrışmasını önlemek için |
-| 3 | **`@types/geojson` doğrudan bağımlılık değil** | `CankayaMap.tsx` asgari yerel tipler tanımlıyor. pnpm-lock'u değiştirmemek için bilinçli |
-| 4 | **`api/openapi.yaml` yok** | `pnpm gen:api` çalışamaz; sözleşme elle senkron (`packages/shared` + `vivido-api-sozlesmesi.md`) |
-| 5 | **Skor cache yok** | Bilinçli — 3 haftalık plan Redis'i kesti. `IScoreCacheInvalidator` arayüzü bile henüz yok |
-| 6 | **Test kapsamı ~0** | `Category=Golden` / `Invariant` trait'i taşıyan tek test yok; kapılar boşa çalışıyor. Playwright kurulu değil |
-| 7 | **Mobil** | Expo şablonu duruyor; [K-08](02-KARARLAR.md) Flutter'a geçişi kararlaştırdı, kod yazılmadı |
-
----
-
-## 8. Değişen dosyalar
-
-**Backend**
-- `Vivido.Api/ApiProblem.cs` — **yeni**, RFC 7807 üretici
-- `Vivido.Api/controllers/AnchorsController.cs` — **yeni**, 4 endpoint
-- `Vivido.Api/controllers/ProfilesController.cs` — yol tekil, PUT DTO döner
-- `Vivido.Api/controllers/PersonasController.cs` — `[Authorize]`
-- `Vivido.Infrastructure/data/VividoDbContext.cs` — `Persona.HasKey(Code)`
-- `Vivido.Application/dtos/profile/AnchorContracts.cs` — **yeni**
-
-**Web**
-- `features/auth/LoginPage.tsx`, `RegisterPage.tsx`, `authFlow.ts` — gerçek formlar
-- `features/anchors/AnchorPanel.tsx` — harita + dnd-kit sıralama
-- `features/explore/ExplorePage.tsx`, `features/profile/ProfilePage.tsx`
-- `shared/map/CankayaMap.tsx` — **yeni**, ortak harita bileşeni
-- `shared/config.ts` — `TILE_URL`, `GLYPHS_URL`, atıf
-- `vite.config.ts` — `optimizeDeps.exclude`
-- `scripts/sync-geo.mjs` — **yeni**
-- `.env.example` — **yeni**
-
-**Veri**
-- `data/lua/vivido_pois.lua` — ara tablolara yazıyor
-- `data/scripts/04_merge_osm_into_schema.sql` — **yeni**
-- `data/scripts/02_build_access_matrix.py` — OSRM'e geçti
-- `data/gen/gen_properties.py` — `beta0` kalibrasyonu
-- `data/Dockerfile.etl` — `python3-requests`
+| **1** | **CI/CD yok — en öncelikli borç** | Staging **elle** deploy ediliyor: imajlar bir makinede derlenip SSH ile aktarılıyor. Sonuç: `yazilim`'a merge edilen kod siteye **otomatik gitmiyor** ve bunu yapabilen tek makine var (bus factor 1). Bayat staging, staging olmamaktan kötüdür — yanlış bilgi verir |
+| 2 | **6.000 konutun 5.568'i farklı koordinatta** (%7 çakışma) | `gen_properties.py` `random.choices` ile **iadeli** örnekliyor ve her bina sabit `ST_PointOnSurface` merkezine sahip. [§9.6](01-PROJE-PLANI.md) `ST_GeneratePoints(geom, n)` diyor — "20 daireli apartman" kavramı şu an kayıp |
+| 3 | **Staging yedeği yok** | `pg_dump` cron'u kurulmadı. Biri yanlışlıkla `TRUNCATE` çekerse kullanıcı hesapları geri gelmez (konut verisi `seed.sql`'den yüklenebilir) |
+| 4 | **`web/public/geo/` git'e girmiyor** | `data/*.geojson`'dan `web/scripts/sync-geo.mjs` ile üretilir; `pnpm dev`/`build` otomatik çalıştırır. İki nüsha tutup ayrışmasını önlemek için |
+| 5 | **`@types/geojson` doğrudan bağımlılık değil** | `CankayaMap.tsx` asgari yerel tipler tanımlıyor. pnpm-lock'u değiştirmemek için bilinçli |
+| 6 | **`api/openapi.yaml` yok** | `pnpm gen:api` çalışamaz; sözleşme elle senkron (`packages/shared` + `vivido-api-sozlesmesi.md`) |
+| 7 | **Skor cache yok** | Bilinçli — 3 haftalık plan Redis'i kesti. `redis` servisi kökteki compose'da duruyor ama **kod hiç kullanmıyor**; staging'de hiç açılmıyor |
+| 8 | **Test kapsamı düşük** | `Category=Golden` / `Invariant` trait'i taşıyan tek test yok; kapılar boşa çalışıyor. Playwright kurulu değil |
+| 9 | **Mobil derlenmedi** | Flutter geliştirme makinesinde kurulu değil; `flutter analyze` ve `flutter test` **çalıştırılamadı**. Kod yazıldı, doğrulanmadı |
