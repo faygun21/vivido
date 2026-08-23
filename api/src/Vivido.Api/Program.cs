@@ -130,12 +130,37 @@ builder.Services.AddAuthorization();
 builder.Services.AddHealthChecks()
     .AddNpgSql(connectionString!, name: "database");
 
-// Web ve mobil istemciler için CORS.
+// ─── CORS ───
+//
+// İki ayrı politika, çünkü ihtiyaçlar taban tabana zıt:
+//
+//   dev  → her origin serbest. Geliştirici :5173, :4173, telefon IP'si,
+//          Swagger… hepsinden deniyor; kısıtlamak sadece engel olur.
+//   prod → yalnızca AÇIKÇA izin verilen origin'ler. Liste boşsa CORS
+//          hiç açılmaz ve DOĞRU varsayılan budur: staging'de web ile API
+//          aynı origin'den (Caddy, tek domain) servis ediliyor, tarayıcı
+//          CORS'a hiç takılmıyor.
+//
+// ⚠️ Native mobil uygulama CORS'a TABİ DEĞİLDİR — CORS bir tarayıcı
+// mekanizması. Flutter istemcisi için buraya bir şey eklemek gerekmez.
 const string DevCors = "dev";
-builder.Services.AddCors(o => o.AddPolicy(DevCors, p => p
-    .AllowAnyOrigin()
-    .AllowAnyMethod()
-    .AllowAnyHeader()));
+const string ProdCors = "prod";
+
+var allowedOrigins = (builder.Configuration["Cors:AllowedOrigins"] ?? string.Empty)
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+builder.Services.AddCors(o =>
+{
+    o.AddPolicy(DevCors, p => p
+        .AllowAnyOrigin()
+        .AllowAnyMethod()
+        .AllowAnyHeader());
+
+    o.AddPolicy(ProdCors, p => p
+        .WithOrigins(allowedOrigins)
+        .AllowAnyMethod()
+        .AllowAnyHeader());
+});
 
 var app = builder.Build();
 
@@ -145,6 +170,16 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI(o => o.SwaggerEndpoint("/swagger/v1/swagger.json", "Vivido API v1"));
     app.UseCors(DevCors);
+}
+else if (allowedOrigins.Length > 0)
+{
+    // ⚠️ Bu dal ÖNCEDEN YOKTU: CORS tamamen `IsDevelopment()` içindeydi.
+    // Web başka bir origin'den sunulsaydı production'da API'ye hiç
+    // erişemezdi ve hata tarayıcı konsolunda kalırdı — sunucu logunda
+    // görünmeyen türden bir arıza.
+    app.UseCors(ProdCors);
+    app.Logger.LogInformation(
+        "CORS etkin, izinli origin'ler: {Origins}", string.Join(", ", allowedOrigins));
 }
 
 // Kimlik kontrolü her ortamda çalışmalı, if bloğundan çıkarıldı

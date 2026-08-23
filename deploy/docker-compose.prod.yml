@@ -1,0 +1,153 @@
+# Vivido staging — sunucuda çalışan yığın.
+#
+# Kökteki docker-compose.yml GELİŞTİRME içindir; bu dosya onun yerine geçer,
+# üstüne binmez. Sunucuda yalnızca bu dosya bulunur.
+#
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# ── Kökteki dosyadan farkları — hepsi bilinçli ──
+#
+#   · pgadmin YOK          — yönetim arayüzü internete açılmaz
+#   · postgres portu YOK   — 5432 host'a bağlanmıyor, yalnızca iç ağ.
+#                            Açık Postgres, botların dakikalar içinde bulup
+#                            denediği ilk şeydir.
+#   · api/web portu YOK    — dışarıya tek kapı Caddy (80/443)
+#   · imajlar GHCR'den     — sunucuda derleme yapılmıyor. `dotnet publish`
+#                            SDK imajıyla 4 GB'lık makinede OOM ile ölebilir.
+#   · redis YOK            — R-C gereği skor cache'i kesildi, kod hiç kullanmıyor.
+#                            Kullanılmayan servisi ayakta tutmak boşa RAM.
+
+name: vivido
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: vivido-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    environment:
+      # ":80" → ham IP, HTTP.  "vividoapp.xyz" → otomatik HTTPS.
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Sertifikalar burada durur. Bu volume silinirse Caddy her açılışta
+      # yeni sertifika ister ve Let's Encrypt rate limit'ine takılırsınız.
+      - caddy_data:/data
+      - caddy_config:/config
+      - caddy_logs:/var/log/caddy
+    depends_on:
+      - web
+      - api
+
+  web:
+    image: ghcr.io/faygun21/vivido-web:${IMAGE_TAG:-latest}
+    container_name: vivido-web
+    restart: unless-stopped
+    # Port yayınlanmıyor: yalnızca Caddy erişiyor.
+
+  api:
+    image: ghcr.io/faygun21/vivido-api:${IMAGE_TAG:-latest}
+    container_name: vivido-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:5000
+
+      ConnectionStrings__Default: >-
+        Host=postgis;Port=5432;Database=${POSTGRES_DB:-vivido};Username=${POSTGRES_USER:-vivido};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD .env icinde tanimli olmali}
+
+      # ⚠️ Bu anahtarı bilen herkes İSTEDİĞİ kullanıcı adına token üretebilir.
+      # appsettings.Development.json'daki git'te duran anahtar BURAYA GELMEZ.
+      #   openssl rand -base64 48
+      Jwt__Key: ${Jwt__Key:?Jwt__Key .env icinde tanimli olmali - openssl rand -base64 48}
+      Jwt__Issuer: ${Jwt__Issuer:-vivido-api}
+      Jwt__Audience: ${Jwt__Audience:-vivido-web}
+      Jwt__AccessTokenMinutes: ${Jwt__AccessTokenMinutes:-15}
+      Jwt__RefreshTokenDays: ${Jwt__RefreshTokenDays:-14}
+
+      # Tek origin olduğu için tarayıcı CORS'a hiç takılmıyor; bu ayar
+      # yalnızca web başka bir adresten sunulursa gerekir. Boş bırakılırsa
+      # production'da CORS tamamen KAPALI olur — doğru varsayılan budur.
+      # (Native mobil uygulama CORS'a tabi değildir, tarayıcı mekanizması.)
+      Cors__AllowedOrigins: ${Cors__AllowedOrigins:-}
+
+      Auth__RequireEmailVerification: ${Auth__RequireEmailVerification:-true}
+      Email__Provider: ${Email__Provider:-smtp}
+      Email__Host: ${Email__Host:-smtp.gmail.com}
+      Email__Port: ${Email__Port:-587}
+      Email__User: ${Email__User:-}
+      Email__Password: ${Email__Password:-}
+      Email__FromAddress: ${Email__FromAddress:-}
+      Email__FromName: ${Email__FromName:-Vivido}
+    depends_on:
+      postgis:
+        condition: service_healthy
+
+  postgis:
+    image: postgis/postgis:16-3.4
+    container_name: vivido-postgis
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vivido}
+      POSTGRES_USER: ${POSTGRES_USER:-vivido}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD .env icinde tanimli olmali}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Şema K-01/K-02 gereği SQL dosyalarından geliyor. İlk açılışta
+      # initdb.d çalışır; sonraki değişiklikler `db/migrate.sh` ile.
+      - ./db/schema:/docker-entrypoint-initdb.d:ro
+      - ./db:/db:ro
+      - ./data/artifacts:/seed:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vivido} -d ${POSTGRES_DB:-vivido}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # ⛔ ports: YOK. Veritabanı yalnızca iç ağdan erişilebilir.
+
+  tileserver:
+    image: maptiler/tileserver-gl:latest
+    container_name: vivido-tileserver
+    restart: unless-stopped
+    # ⭐ --public_url ŞART. Bu olmadan tileserver TileJSON içine
+    # `/data/{z}/{x}/{y}.pbf` yazar; Caddy `/tiles` ön ekini soyduğu için
+    # dışarıdan doğru adres `/tiles/data/...`. Eşleşmezse harita altlığı
+    # sessizce boş çizilir — hata da vermez.
+    command:
+      - "--mbtiles"
+      - "/data/cankaya.mbtiles"
+      - "--port"
+      - "8080"
+      - "--public_url"
+      - "${PUBLIC_TILE_URL:?PUBLIC_TILE_URL .env icinde tanimli olmali - ornek: https://vividoapp.xyz/tiles/}"
+    volumes:
+      - ./data/artifacts:/data:ro
+
+  # Hafta 3'te rota/TSP devreye girince açılacak.
+  # Şimdiden ayakta tutmak boşa ~300 MB RAM.
+  osrm-foot:
+    image: ghcr.io/project-osrm/osrm-backend:latest
+    container_name: vivido-osrm-foot
+    profiles: ["routing"]
+    restart: unless-stopped
+    command: osrm-routed --algorithm mld --max-table-size 200 /data/cankaya.osrm
+    volumes:
+      - ./data/artifacts/osrm/foot:/data:ro
+
+  osrm-car:
+    image: ghcr.io/project-osrm/osrm-backend:latest
+    container_name: vivido-osrm-car
+    profiles: ["routing"]
+    restart: unless-stopped
+    command: osrm-routed --algorithm mld --max-table-size 200 /data/cankaya.osrm
+    volumes:
+      - ./data/artifacts/osrm/car:/data:ro
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
+  caddy_logs:
