@@ -5,7 +5,13 @@ name: ci-db
 # Neden ayrı bir workflow: db/ klasörü CODEOWNERS'ta veri ekibine ait ve
 # .NET derlemesinden bağımsız doğrulanabilir. Buradaki adımlar, bir
 # geliştiricinin kendi makinesinde yaptığının BİREBİR aynısı —
-# docker compose ile gerçek postgis, gerçek initdb.d akışı.
+# docker compose ile gerçek postgis, gerçek migrate.sh akışı.
+#
+# ⚠️ Bu workflow eskiden `docker-entrypoint-initdb.d` akışını test ediyordu.
+# O mount K-12 ile KALDIRILDI: initdb.d yalnızca konteynerin ilk açılışında
+# var olan dosyaları çalıştırıyor ve defter tutmuyordu; sonradan eklenen
+# şema dosyaları sessizce "uygulandı" sayılıyordu. Artık şemanın tek
+# uygulayıcısı migrate.sh ve CI de tam olarak onu doğruluyor.
 
 on:
   push:
@@ -48,7 +54,12 @@ jobs:
           docker compose logs postgis
           exit 1
 
-      # initdb.d db/schema/*.sql dosyalarını çalıştırmış olmalı.
+      # ⭐ Şemayı KURAN adım. Boş bir veritabanına migrate.sh tüm dosyaları
+      # sırayla uygular ve deftere yazar. Yeni klonlayan biri de tam olarak
+      # bunu çalıştırıyor (pnpm db:migrate).
+      - name: Şemayı kur (migrate.sh)
+        run: docker compose exec -T postgis bash /db/migrate.sh
+
       # Beklenen tabloların hepsi var mı?
       - name: Şema kuruldu mu
         run: |
@@ -92,11 +103,6 @@ jobs:
               END IF;
             END \$\$;"
 
-      # migrate.sh mevcut şemayı görüp baseline almalı, dosyaları
-      # YENİDEN çalıştırmamalı. Çalıştırırsa "tablo zaten var" ile patlar.
-      - name: Şema uygulayıcı (baseline)
-        run: docker compose exec -T postgis bash /db/migrate.sh
-
       # İkinci koşu hiçbir şey yapmamalı — idempotanlık.
       - name: Şema uygulayıcı (idempotans)
         run: |
@@ -125,6 +131,45 @@ jobs:
             exit 1
           fi
           echo "✓ Kapı bozuk veride kapandı."
+
+      # K-12 korumaları. "Kod var" ile "koruma çalışıyor" aynı şey değil —
+      # ikisini de kasten bozup betiğin sıfırdan farklı döndüğünü görüyoruz.
+      # Heredoc kullanılıyor: `bash -c '…'` içinde SQL'in tek tırnakları
+      # dış tırnağı kapatıyor ve kaçış zinciri okunmaz hale geliyor.
+      - name: Çakışan numara koruması (negatif test)
+        run: |
+          docker compose exec -T postgis bash -s <<'SH'
+          set -u
+          mkdir -p /tmp/dup
+          cp /db/schema/001_initial.sql /tmp/dup/
+          echo '-- ayni numara, farkli ad' > /tmp/dup/001_ayni_numara.sql
+          if SCHEMA_DIR=/tmp/dup bash /db/migrate.sh; then
+            echo "::error::Aynı numaralı iki dosya kabul edildi — koruma işlevsiz"
+            exit 1
+          fi
+          echo "✓ Çakışan numara reddedildi."
+          SH
+
+      # Numara düzeltmeleri buna dayanıyor: adı değişen ama içeriği aynı
+      # kalan dosya YENİDEN UYGULANMAMALI, defterdeki adı güncellenmeli.
+      # Çalışmazsa ekipteki her makine "tablo zaten var" ile patlar.
+      - name: Yeniden adlandırma tespiti (pozitif test)
+        run: |
+          docker compose exec -T postgis bash -s <<'SH'
+          set -eu
+          psql -U vivido -d vivido -q -c "UPDATE schema_migrations SET filename = '999_eski_ad.sql' WHERE filename = '004_add_favorites.sql';"
+          CIKTI=$(bash /db/migrate.sh)
+          echo "$CIKTI"
+          if ! echo "$CIKTI" | grep -q '999_eski_ad.sql → 004_add_favorites.sql'; then
+            echo "::error::Yeniden adlandırma tanınmadı"
+            exit 1
+          fi
+          if echo "$CIKTI" | grep -q 'uygulanıyor'; then
+            echo "::error::Dosya İKİNCİ KEZ uygulandı — checksum tespiti çalışmıyor"
+            exit 1
+          fi
+          echo "✓ Yeniden adlandırma tanındı, dosya tekrar uygulanmadı."
+          SH
 
       - name: Loglar (hata durumunda)
         if: failure()
