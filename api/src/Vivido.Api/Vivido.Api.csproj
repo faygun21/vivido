@@ -29,6 +29,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Vivido.Application\Vivido.Application.csproj" />
     <ProjectReference Include="..\Vivido.Infrastructure\Vivido.Infrastructure.csproj" />
+    <ProjectReference Include="..\Vivido.Scoring\Vivido.Scoring.csproj" />
+    <ProjectReference Include="..\Vivido.Domain\Vivido.Domain.csproj" />
   </ItemGroup>
 
 </Project>
