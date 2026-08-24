@@ -5,7 +5,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.13.0
+  sdk: ">=3.7.0 <4.0.0"
 
 dependencies:
   flutter:
@@ -21,12 +21,25 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
 
-# The following section is specific to Flutter packages.
+# Flutter paketleri ve varlıkları yapılandırma
 flutter:
   config:
     enable-swift-package-manager: true
 
   uses-material-design: true
+
+  # Poppins fontu tanımlandı
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Poppins-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Poppins-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Poppins-Bold.ttf
+          weight: 700
 
   assets:
     - assets/images/vivido_logo.svg

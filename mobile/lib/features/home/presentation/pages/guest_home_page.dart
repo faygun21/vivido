@@ -23,9 +23,11 @@ class GuestHomePage extends StatelessWidget {
     controller.clearError();
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => register
-            ? RegisterPage(controller: controller)
-            : LoginPage(controller: controller),
+        builder:
+            (_) =>
+                register
+                    ? RegisterPage(controller: controller)
+                    : LoginPage(controller: controller),
       ),
     );
   }
@@ -98,8 +100,9 @@ class _LockedFeaturesCard extends StatelessWidget {
           children: [
             Text(
               'Misafir olarak geziyorsun',
-              style: Theme.of(context).textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w800),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 6),
             Text(

@@ -46,8 +46,9 @@ void main() {
     );
     addTearDown(client.close);
 
-    final response = await ApiLocationSearchGateway(client)
-        .search('1602. sokak');
+    final response = await ApiLocationSearchGateway(
+      client,
+    ).search('1602. sokak');
 
     expect(response.items, hasLength(1));
     expect(response.items.single.source, 'photon');

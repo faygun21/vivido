@@ -48,9 +48,10 @@ class LocationSearchResult {
       kind: json['kind'] as String,
       latitude: (json['latitude'] as num).toDouble(),
       longitude: (json['longitude'] as num).toDouble(),
-      bounds: rawBounds is Map<String, dynamic>
-          ? LocationBounds.fromJson(rawBounds)
-          : null,
+      bounds:
+          rawBounds is Map<String, dynamic>
+              ? LocationBounds.fromJson(rawBounds)
+              : null,
       neighborhood: json['neighborhood'] as String?,
       source: json['source'] as String,
     );

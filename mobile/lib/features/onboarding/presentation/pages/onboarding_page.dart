@@ -40,9 +40,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
     final persona = _selectedPersona;
     if (persona == null) return;
     final rawBudget = _budgetController.text.trim();
-    final budget = rawBudget.isEmpty
-        ? null
-        : double.tryParse(rawBudget.replaceAll(',', '.'));
+    final budget =
+        rawBudget.isEmpty
+            ? null
+            : double.tryParse(rawBudget.replaceAll(',', '.'));
     if (rawBudget.isNotEmpty && budget == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Bütçe için geçerli bir sayı gir.')),
@@ -61,29 +62,31 @@ class _OnboardingPageState extends State<OnboardingPage> {
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: widget.controller,
-      builder: (context, _) => Scaffold(
-        appBar: AppBar(
-          automaticallyImplyLeading: false,
-          title: const Text('Profilini hazırla'),
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: Center(child: Text('${_step + 1}/2')),
-            ),
-          ],
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(4),
-            child: LinearProgressIndicator(value: (_step + 1) / 2),
-          ),
-        ),
-        body: _step == 0
-            ? _buildProfileStep(context)
-            : AnchorManagerPage(
-                controller: widget.controller,
-                embedded: true,
-                onFinished: widget.controller.completeOnboarding,
+      builder:
+          (context, _) => Scaffold(
+            appBar: AppBar(
+              automaticallyImplyLeading: false,
+              title: const Text('Profilini hazırla'),
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: Center(child: Text('${_step + 1}/2')),
+                ),
+              ],
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(4),
+                child: LinearProgressIndicator(value: (_step + 1) / 2),
               ),
-      ),
+            ),
+            body:
+                _step == 0
+                    ? _buildProfileStep(context)
+                    : AnchorManagerPage(
+                      controller: widget.controller,
+                      embedded: true,
+                      onFinished: widget.controller.completeOnboarding,
+                    ),
+          ),
     );
   }
 
@@ -95,8 +98,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
         children: [
           Text(
             'Sana en yakın yaşam tarzı hangisi?',
-            style: Theme.of(context).textTheme.headlineSmall
-                ?.copyWith(fontWeight: FontWeight.w800),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           Text(
@@ -143,15 +147,17 @@ class _OnboardingPageState extends State<OnboardingPage> {
           ],
           const SizedBox(height: 22),
           FilledButton.icon(
-            onPressed: _selectedPersona == null || widget.controller.busy
-                ? null
-                : _saveProfile,
-            icon: widget.controller.busy
-                ? const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.arrow_forward),
+            onPressed:
+                _selectedPersona == null || widget.controller.busy
+                    ? null
+                    : _saveProfile,
+            icon:
+                widget.controller.busy
+                    ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                    : const Icon(Icons.arrow_forward),
             label: const Text('Kaydet ve konumlara geç'),
           ),
         ],
@@ -192,9 +198,8 @@ class _PersonaCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               CircleAvatar(
-                backgroundColor: selected
-                    ? colors.primary
-                    : colors.surfaceContainerHighest,
+                backgroundColor:
+                    selected ? colors.primary : colors.surfaceContainerHighest,
                 foregroundColor: selected ? colors.onPrimary : colors.primary,
                 child: Icon(_personaIcon(persona.code)),
               ),

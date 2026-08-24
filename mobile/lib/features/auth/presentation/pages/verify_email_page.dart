@@ -107,82 +107,87 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
 
     return AnimatedBuilder(
       animation: widget.controller,
-      builder: (context, _) => Scaffold(
-        appBar: AppBar(title: const Text('E-postanı doğrula')),
-        body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Icon(
-                    Icons.mark_email_read_outlined,
-                    size: 52,
-                    color: colors.primary,
+      builder:
+          (context, _) => Scaffold(
+            appBar: AppBar(title: const Text('E-postanı doğrula')),
+            body: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Icon(
+                        Icons.mark_email_read_outlined,
+                        size: 52,
+                        color: colors.primary,
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Kodu gir',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${widget.email} adresine 6 haneli bir kod gönderdik. '
+                        'Gelmediyse spam klasörüne de bak.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: colors.onSurfaceVariant,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      CodeField(
+                        controller: _codeController,
+                        label: 'Doğrulama kodu',
+                        onSubmitted: (_) => _submit(),
+                      ),
+                      if (_info != null) ...[
+                        const SizedBox(height: 16),
+                        _Banner(message: _info!, tone: _BannerTone.info),
+                      ],
+                      if (widget.controller.errorMessage != null) ...[
+                        const SizedBox(height: 16),
+                        _Banner(
+                          message: widget.controller.errorMessage!,
+                          tone: _BannerTone.error,
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                      FilledButton(
+                        onPressed: widget.controller.busy ? null : _submit,
+                        child:
+                            widget.controller.busy
+                                ? const SizedBox.square(
+                                  dimension: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                                : const Text('Doğrula ve devam et'),
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton(
+                        onPressed:
+                            widget.controller.busy || _secondsLeft > 0
+                                ? null
+                                : _resend,
+                        child: Text(
+                          _secondsLeft > 0
+                              ? 'Kodu tekrar gönder ($_secondsLeft sn)'
+                              : 'Kodu tekrar gönder',
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Kodu gir',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineMedium
-                        ?.copyWith(fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${widget.email} adresine 6 haneli bir kod gönderdik. '
-                    'Gelmediyse spam klasörüne de bak.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: colors.onSurfaceVariant,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  CodeField(
-                    controller: _codeController,
-                    label: 'Doğrulama kodu',
-                    onSubmitted: (_) => _submit(),
-                  ),
-                  if (_info != null) ...[
-                    const SizedBox(height: 16),
-                    _Banner(message: _info!, tone: _BannerTone.info),
-                  ],
-                  if (widget.controller.errorMessage != null) ...[
-                    const SizedBox(height: 16),
-                    _Banner(
-                      message: widget.controller.errorMessage!,
-                      tone: _BannerTone.error,
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  FilledButton(
-                    onPressed: widget.controller.busy ? null : _submit,
-                    child: widget.controller.busy
-                        ? const SizedBox.square(
-                            dimension: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Doğrula ve devam et'),
-                  ),
-                  const SizedBox(height: 10),
-                  OutlinedButton(
-                    onPressed: widget.controller.busy || _secondsLeft > 0
-                        ? null
-                        : _resend,
-                    child: Text(
-                      _secondsLeft > 0
-                          ? 'Kodu tekrar gönder ($_secondsLeft sn)'
-                          : 'Kodu tekrar gönder',
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
     );
   }
 }

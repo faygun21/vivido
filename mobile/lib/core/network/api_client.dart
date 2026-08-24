@@ -200,13 +200,14 @@ class ApiClient {
     Object? body,
     bool authenticated = true,
     bool retryOnUnauthorized = true,
-  }) async => (await _requestRaw(
-    method,
-    path,
-    body: body,
-    authenticated: authenticated,
-    retryOnUnauthorized: retryOnUnauthorized,
-  )).body;
+  }) async =>
+      (await _requestRaw(
+        method,
+        path,
+        body: body,
+        authenticated: authenticated,
+        retryOnUnauthorized: retryOnUnauthorized,
+      )).body;
 
   /// Gövdeyle birlikte HTTP durum kodunu da döner.
   ///
@@ -267,9 +268,8 @@ class ApiClient {
 
     final decoded = _decode(response);
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      final problem = decoded is Map<String, dynamic>
-          ? decoded
-          : const <String, dynamic>{};
+      final problem =
+          decoded is Map<String, dynamic> ? decoded : const <String, dynamic>{};
       throw ApiException(
         statusCode: response.statusCode,
         title: problem['title'] as String? ?? 'İstek tamamlanamadı',
@@ -316,9 +316,10 @@ class VividoRepository {
     double? monthlyBudget,
   }) async => UserProfile.fromJson(
     await client.put('/profile', {
-      'personaCode': personaCode,
-      'monthlyBudget': monthlyBudget,
-    }) as Map<String, dynamic>,
+          'personaCode': personaCode,
+          'monthlyBudget': monthlyBudget,
+        })
+        as Map<String, dynamic>,
   );
 
   Future<List<Anchor>> getAnchors() async {
@@ -336,19 +337,20 @@ class VividoRepository {
     required String mode,
   }) async => Anchor.fromJson(
     await client.post('/profile/anchors', {
-      'label': label,
-      'lat': lat,
-      'lon': lon,
-      'mode': mode,
-    }) as Map<String, dynamic>,
+          'label': label,
+          'lat': lat,
+          'lon': lon,
+          'mode': mode,
+        })
+        as Map<String, dynamic>,
   );
 
   Future<void> deleteAnchor(String id) => client.delete('/profile/anchors/$id');
 
   Future<List<Anchor>> reorderAnchors(List<String> order) async {
-    final json = await client.put('/profile/anchors/order', {
-      'order': order,
-    }) as List<dynamic>;
+    final json =
+        await client.put('/profile/anchors/order', {'order': order})
+            as List<dynamic>;
     return json
         .map((item) => Anchor.fromJson(item as Map<String, dynamic>))
         .toList()
