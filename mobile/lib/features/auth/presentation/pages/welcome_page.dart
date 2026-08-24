@@ -11,6 +11,11 @@ class WelcomePage extends StatelessWidget {
 
   final SessionController controller;
 
+  static const Color backgroundColor = Color(0xFFF9F4ED);
+  static const Color accentOrange = Color(0xFFE27250);
+  static const Color strokeColor = Color(0xFFA79D93);
+  static const Color textPrimaryColor = Color(0xFF333333);
+
   void _openAuth(BuildContext context, {required bool register}) {
     controller.clearError();
     Navigator.of(context).push(
@@ -26,10 +31,6 @@ class WelcomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Tasarımdaki renkler
-    const Color primaryColor = Color(0xFFC06B3E);
-    const Color backgroundColor = Color(0xFFF9F5F0);
-
     return Scaffold(
       backgroundColor: backgroundColor,
       body: SafeArea(
@@ -56,6 +57,15 @@ class WelcomePage extends StatelessWidget {
                           ),
                         ),
 
+                        const SizedBox(height: 12),
+                        Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 40),
+                          child: const Divider(
+                            color: strokeColor,
+                            thickness: 0.8,
+                          ),
+                        ),
+
                         const Spacer(),
 
                         // 2. İllüstrasyon Resmi
@@ -76,7 +86,7 @@ class WelcomePage extends StatelessWidget {
                             fontFamily: 'Poppins',
                             fontSize: 22,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF333333),
+                            color: textPrimaryColor,
                             height: 1.3,
                           ),
                         ),
@@ -95,10 +105,14 @@ class WelcomePage extends StatelessWidget {
                           height: 54,
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: primaryColor,
+                              backgroundColor: accentOrange,
                               elevation: 0,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(12),
+                                side: const BorderSide(
+                                  color: strokeColor,
+                                  width: 0.8,
+                                ),
                               ),
                             ),
                             onPressed:
@@ -109,7 +123,7 @@ class WelcomePage extends StatelessWidget {
                                 fontFamily: 'Poppins',
                                 fontSize: 16,
                                 color: Colors.white,
-                                fontWeight: FontWeight.w500,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
@@ -123,11 +137,11 @@ class WelcomePage extends StatelessWidget {
                           child: OutlinedButton(
                             style: OutlinedButton.styleFrom(
                               side: const BorderSide(
-                                color: Color(0xFFE5E5E5),
+                                color: strokeColor,
                                 width: 1.5,
                               ),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(12),
                               ),
                             ),
                             onPressed: () => _openAuth(context, register: true),
@@ -136,8 +150,8 @@ class WelcomePage extends StatelessWidget {
                               style: TextStyle(
                                 fontFamily: 'Poppins',
                                 fontSize: 16,
-                                color: Color(0xFF555555),
-                                fontWeight: FontWeight.w500,
+                                color: textPrimaryColor,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
@@ -149,7 +163,7 @@ class WelcomePage extends StatelessWidget {
                           onPressed: controller.continueAsGuest,
                           child: const Text(
                             'Misafir olarak devam et',
-                            style: TextStyle(color: Colors.grey),
+                            style: TextStyle(color: strokeColor),
                           ),
                         ),
                         Text(
@@ -163,13 +177,6 @@ class WelcomePage extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 8),
-
-                        //Api'yi gösterme kısmı geliştriciler için eklendi, yorum satırını kaldırarak aktif hale getirebilirsiniz.
-                        //Text(
-                        //  'API: ${AppConfig.apiBaseUrl}',
-                        //  textAlign: TextAlign.center,
-                        //  style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.outline),
-                        //),
                       ],
                     ),
                   ),
@@ -190,12 +197,13 @@ class _InlineError extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.errorContainer,
+      color: Colors.red.shade100,
       borderRadius: BorderRadius.circular(14),
     ),
     child: Text(
       message,
-      style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
+      textAlign: TextAlign.center,
+      style: TextStyle(color: Colors.red.shade900),
     ),
   );
 }
