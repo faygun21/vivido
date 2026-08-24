@@ -1,12 +1,4 @@
-/*
-  Vivido — Temel Stiller (Güncellenmiş Global Tasarım Sistemi)
-  
-  Tüm uygulamanın renk paleti yeni UI tasarımına göre güncellenmiştir.
-  Arkaplan: Bej (#F9F4ED), Vurgu: Kiremit (#C0421D) ve Turuncu (#E27250).
-*/
-
 :root {
-  /* Yeni Renk Paletimiz */
   --bg: #F9F4ED;
   --surface: #FFFFFF;
   --ink: #333333;
@@ -243,202 +235,6 @@ button {
 
 .row-actions { display: flex; gap: 0.5rem; align-items: center; }
 
-<<<<<<< Updated upstream
-/* ── Bilgi kartı ── */
-.info-card {
-  padding: 1rem 1.1rem;
-  border: 1px solid var(--line);
-  border-radius: 0.75rem;
-  background: var(--surface);
-  margin-bottom: 1rem;
-}
-.info-card h2 { margin: 0 0 0.6rem; font-size: 1rem; }
-
-.kv {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.3rem 1rem;
-  margin: 0 0 0.8rem;
-  font-size: 0.92rem;
-}
-.kv dt { color: var(--ink-muted); }
-.kv dd { margin: 0; font-weight: 600; }
-
-.data-badge {
-  display: inline-block;
-  padding: 0.25rem 0.6rem;
-  border-radius: 999px;
-  background: var(--line);
-  color: var(--ink-muted);
-  font-size: 0.78rem;
-}
-
-/* ── Explore düzeni ── */
-.explore {
-  display: grid;
-  grid-template-columns: 22rem 1fr;
-  gap: 1.25rem;
-  align-items: start;
-  min-height: calc(100vh - 12rem);
-}
-.explore-side h1 { margin-top: 0; }
-.explore-map {
-  position: relative;
-  height: calc(100vh - 12rem);
-  min-height: 26rem;
-  border: 1px solid var(--line);
-  border-radius: 0.75rem;
-  overflow: hidden;
-}
-@media (max-width: 900px) {
-  .explore { grid-template-columns: 1fr; }
-  .explore-map { height: 60vh; }
-}
-
-/* ── Harita ── */
-.map-wrap { position: relative; width: 100%; }
-.map-canvas { position: absolute; inset: 0; }
-
-.map-note,
-.map-hover-badge {
-  position: absolute;
-  z-index: 2;
-  padding: 0.35rem 0.7rem;
-  border-radius: 0.4rem;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  font-size: 0.85rem;
-  pointer-events: none;
-}
-.map-note { top: 0.6rem; left: 0.6rem; color: var(--ink-muted); }
-.map-note--error { color: #7f1d1d; border-color: #f5c2c0; pointer-events: auto; }
-.map-hover-badge { bottom: 0.6rem; left: 0.6rem; font-weight: 600; }
-
-/* Anchor pin'i — MapLibre HTML Marker'ı olarak basılır. */
-.map-pin {
-  display: grid;
-  place-items: center;
-  width: 1.6rem;
-  height: 1.6rem;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--accent-ink);
-  border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
-  font-size: 0.8rem;
-  font-weight: 700;
-  cursor: default;
-}
-
-/* ── Anchor listesi ── */
-.anchor-map {
-  height: 320px;
-  border: 1px solid var(--line);
-  border-radius: 0.6rem;
-  overflow: hidden;
-  margin-bottom: 0.5rem;
-}
-.map-hint { font-size: 0.85rem; }
-
-.anchor-form {
-  display: grid;
-  gap: 0.75rem;
-  padding: 0.9rem;
-  border: 1px solid var(--line);
-  border-radius: 0.6rem;
-  background: var(--bg);
-  margin-bottom: 1rem;
-}
-
-.anchor-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
-
-.anchor-item {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  padding: 0.6rem 0.75rem;
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
-  background: var(--bg);
-}
-.anchor-item--dragging { opacity: 0.85; box-shadow: 0 4px 14px rgb(0 0 0 / 0.18); }
-
-.anchor-grip { cursor: grab; color: var(--ink-muted); touch-action: none; user-select: none; }
-.anchor-grip:active { cursor: grabbing; }
-
-.anchor-order {
-  display: grid;
-  place-items: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-size: 0.8rem;
-  font-weight: 700;
-  flex: none;
-}
-
-.anchor-body { display: grid; gap: 0.1rem; flex: 1; min-width: 0; }
-.anchor-body span { font-size: 0.82rem; }
-
-.walking-access-card label {
-  display: block;
-  margin: 0.85rem 0 0.4rem;
-  font-weight: 700;
-}
-
-.walking-access-card select {
-  width: 100%;
-  min-height: 2.75rem;
-  padding: 0.55rem 0.7rem;
-  border: 1px solid var(--border);
-  border-radius: 0.55rem;
-  background: #fff;
-  color: var(--ink);
-  font: inherit;
-}
-
-.walking-access-status {
-  margin: 0.7rem 0 0;
-  color: #92400e;
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.analysis-area-hint {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin: 0.45rem 0 0;
-  color: var(--ink-muted);
-  font-size: 0.82rem;
-}
-
-.area-key {
-  width: 1.1rem;
-  height: 0.65rem;
-  border-radius: 999px;
-  flex: none;
-}
-
-.area-key--analysis {
-  border: 2px dashed #0f766e;
-  background: rgb(15 118 110 / 0.1);
-}
-
-.area-key--walking {
-  border: 2px solid #b45309;
-  background: rgb(245 158 11 / 0.22);
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   Misafir modu, e-posta doğrulama ve şifre sıfırlama (K-09 / W0)
-   Var olan token'ları kullanır; ayrı tema tanımı yok.
-   ═══════════════════════════════════════════════════════════════ */
-
-=======
->>>>>>> Stashed changes
 /* ── Form yardımcı metinleri ── */
 .field-hint {
   font-size: 0.8rem;
@@ -468,7 +264,7 @@ button {
   font-weight: 600;
 }
 
-/* Diğer harita ve anchor bileşenlerinin stillerine dokunulmadı */
+/* Diğer harita ve anchor bileşenlerinin stilleri */
 .info-card { padding: 1rem 1.1rem; border: 1px solid var(--line); border-radius: 1.25rem; background: var(--surface); margin-bottom: 1rem; }
 .info-card h2 { margin: 0 0 0.6rem; font-size: 1rem; }
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 0.3rem 1rem; margin: 0 0 0.8rem; font-size: 0.92rem; }
@@ -503,12 +299,12 @@ button svg,
   max-height: 1.5rem;
 }
 
-/* ─── GİRİŞ EKRANI (LOGIN PAGE) YAN YANA VE SCROLLSUZ DÜZEN ─── */
+/* ─── GİRİŞ EKRANI ─── */
 .login-page-wrapper {
   display: flex;
   flex-direction: row !important; 
   height: 100vh;
-  overflow: hidden; /* Scroll'u Engeller */
+  overflow: hidden;
   width: 100%;
   background-color: var(--bg);
   align-items: stretch;
@@ -518,7 +314,7 @@ button svg,
   flex: 1;
   display: flex;
   background-color: var(--accent-secondary);
-  padding: 2.5rem; /* Orantılı boşluk */
+  padding: 2.5rem;
   align-items: center;
   justify-content: center;
 }
@@ -549,20 +345,20 @@ button svg,
 
 .login-form-container {
   width: 100%;
-  max-width: 380px; /* Genişliği biraz artırdık (360 -> 380) */
+  max-width: 380px;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
 .login-logo {
-  height: 6rem; /* LOGO BELİRGİN ŞEKİLDE BÜYÜTÜLDÜ */
+  height: 6rem;
   width: auto;
   margin-bottom: 0.5rem;
 }
 
 .login-slogan {
-  font-size: 0.95rem; /* Yazı hafif büyüdü */
+  font-size: 0.95rem;
   color: var(--ink);
   font-weight: 500;
   margin: 0 0 0.75rem 0;
@@ -575,7 +371,7 @@ button svg,
 }
 
 .login-title {
-  font-size: 1.8rem; /* Başlık belirginleştirildi */
+  font-size: 1.8rem;
   font-weight: 800;
   color: #000;
   margin-top: 0;
@@ -596,7 +392,7 @@ button svg,
 
 .login-input {
   width: 100%;
-  padding: 1rem 1.25rem; /* Input boyutu ideale getirildi */
+  padding: 1rem 1.25rem;
   background-color: var(--input-bg);
   border: 1px solid var(--line);
   border-radius: 1rem;
@@ -641,7 +437,7 @@ button svg,
 
 .login-submit {
   width: 100%;
-  height: 54px; /* Butonlar daha şık bir yüksekliğe ayarlandı */
+  height: 54px;
   background-color: var(--accent);
   color: var(--accent-ink);
   border: none;
@@ -680,7 +476,7 @@ button svg,
 
 .login-guest-btn {
   width: 100%;
-  height: 54px; /* Misafir butonu da eşitlendi */
+  height: 54px;
   background-color: var(--input-bg);
   color: var(--ink-muted);
   border: 1px solid var(--line);
