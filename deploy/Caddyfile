@@ -1,0 +1,113 @@
+# Vivido staging — ters vekil ve otomatik HTTPS.
+#
+# ⭐ TEK ORIGIN. Web, API ve karolar AYNI adres altında yol bazlı dağıtılıyor:
+#
+#     /            →  web        (nginx, Vite çıktısı)
+#     /api/*       →  api        (.NET, :5000)
+#     /tiles/*     →  tileserver (:8080)
+#
+# Neden api.domain.xyz gibi ayrı alt alan adı değil: aynı origin olunca
+# CORS tamamen ortadan kalkıyor. Şu an `Program.cs` CORS'u yalnızca
+# Development'ta açıyor; ayrı origin seçilseydi production'da web API'ye
+# hiç erişemezdi. Ayrıca ileride refresh token'ı httpOnly cookie'ye taşımak
+# isterseniz (K-A'daki bilinen takas) yol açık kalıyor.
+#
+# ── ADRES: tek satırla IP ↔ domain geçişi ──
+#
+# SITE_ADDRESS ortam değişkeni .env'den geliyor:
+#
+#   :80                → HTTP, ham IP ile erişim. Domain gelmeden test için.
+#   vividoapp.xyz      → Caddy Let's Encrypt sertifikasını KENDİ alır ve
+#                        otomatik yeniler. HTTP'den HTTPS'e yönlendirme de
+#                        kendiliğinden kurulur.
+#
+# ⚠️ Domain moduna geçmeden önce A kaydı sunucuya çözümleniyor OLMALI.
+# Çözümlenmiyorsa Let's Encrypt doğrulaması başarısız olur ve Caddy
+# tekrar tekrar dener (rate limit'e takılabilirsiniz).
+
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	# ─── Sertifika zinciri: uyumluluk tercihi ───
+	#
+	# Let's Encrypt 7 Ocak 2026'da "Generation Y" hiyerarşisine geçti
+	# (Root YE = ECDSA, Root YR = RSA). Bu kökler henüz büyük güven
+	# depolarında yok; istemciler çapraz imzayla eski köke ulaşıyor:
+	#
+	#   varsayılan (ECDSA):  leaf ← YE2 ← Root YE ← ISRG Root X2 ← ISRG Root X1
+	#   rsa2048:             leaf ← YR2 ← Root YR ← ISRG Root X1
+	#
+	# İkincisi bir halka kısa ve `ISRG Root X2`'ye hiç ihtiyaç duymuyor.
+	# X2 (2020) X1'e (2015) göre daha yeni, dolayısıyla eski/güncellenmemiş
+	# güven depolarında bulunmama ihtimali daha yüksek. Demo bir jürinin
+	# bilmediğimiz makinesinde açılacak; en geniş uyumlu zinciri seçiyoruz.
+	#
+	# ⚠️ TARİHSEL NOT — yanlış teşhis kaydı:
+	# Bu blok, Chrome'un NET::ERR_CERT_AUTHORITY_INVALID vermesi üzerine
+	# eklendi. Ölçümde bu ekibin Windows makinesinde `ISRG Root X1` olup
+	# `ISRG Root X2` olmadığı görüldü ve sebep o sanıldı. GERÇEK SEBEP
+	# BAŞKAYDI: hata yalnızca ŞİRKET AĞINDA çıkıyordu; aynı bilgisayar
+	# kişisel bağlantıya alınınca sorunsuz açıldı. Kurumsal güvenlik duvarı
+	# TLS'i araya girip kendi sertifikasıyla yeniden imzalıyor.
+	#
+	# Yani bu ayar o hatayı ÇÖZMEDİ — o hata sunucuyla ilgili değildi.
+	# Yine de zinciri kısalttığı ve uyumluluğu artırdığı için duruyor.
+	# Kaldırmak da güvenli; ama kaldırmak yeni sertifika alımı demek ve
+	# Let's Encrypt haftada aynı alan adı için 5 sertifika sınırı koyuyor.
+	tls {
+		key_type rsa2048
+		issuer acme {
+			preferred_chains {
+				root_common_name "ISRG Root X1"
+			}
+		}
+	}
+
+	# ── Karo sunucusu ──
+	#
+	# `handle_path` ön eki SOYAR: /tiles/data/v3.json → /data/v3.json
+	#
+	# ⚠️ tileserver-gl ürettiği TileJSON'un içine karoların MUTLAK adresini
+	# yazıyor. Ön eki bilmediği için varsayılan olarak `/data/{z}/{x}/{y}.pbf`
+	# üretir — ama dışarıdan doğru adres `/tiles/data/...`. Bu yüzden
+	# docker-compose.prod.yml'de tileserver'a `--public_url` veriliyor.
+	# Harita boş çıkarsa BAKILACAK İLK YER burasıdır.
+	handle_path /tiles/* {
+		reverse_proxy tileserver:8080
+	}
+
+	# ── API ──
+	# Ön ek SOYULMUYOR (`handle`, `handle_path` değil): .NET tarafında
+	# rotalar zaten `api/v1/...` olarak tanımlı.
+	handle /api/* {
+		reverse_proxy api:5000
+	}
+
+	# ── Sağlık kontrolü ──
+	#
+	# ⚠️ `Program.cs` sağlık uçlarını KÖKTE tanımlıyor (`/health/ready`),
+	# controller'lar gibi `api/v1/...` altında DEĞİL. Bu yüzden ayrı bir
+	# handle gerekiyor; `/api/v1/health/ready` denemesi 404 döner.
+	handle /health/* {
+		reverse_proxy api:5000
+	}
+
+	# ── Web (varsayılan) ──
+	handle {
+		reverse_proxy web:80
+	}
+
+	# Sunucu yazılımını ve sürümünü duyurma.
+	header -Server
+
+	# HTTPS aktifken tarayıcıya "bu siteye bir daha HTTP ile gelme" de.
+	# ⚠️ Yalnızca domain modunda anlamlı; :80 modunda tarayıcı yok sayar.
+	header Strict-Transport-Security "max-age=31536000;"
+
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+	}
+}

@@ -21,8 +21,8 @@ void main() {
       httpClient: MockClient((request) async {
         expect(request.method, 'PUT');
         expect(request.url.path, '/api/v1/profile');
-        requestedBudget = (jsonDecode(request.body)['monthlyBudget'] as num)
-            .toDouble();
+        requestedBudget =
+            (jsonDecode(request.body)['monthlyBudget'] as num).toDouble();
         return http.Response(
           jsonEncode({
             'id': 'profile-1',

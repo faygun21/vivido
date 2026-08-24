@@ -33,8 +33,15 @@ function sorted(anchors: Anchor[]): Anchor[] {
 
 function fullProfile(userId: string): UserProfile | null {
   const base = mockDb.profiles.get(userId);
-  if (!base) return null;
-  return { ...base, anchors: sorted(anchorsOf(userId)) };
+
+  if (!base) {
+    return null;
+  }
+
+  return {
+    ...base,
+    anchors: sorted(anchorsOf(userId)),
+  };
 }
 
 /** Her handler'ın başında: token var mı, profil var mı. */
@@ -46,127 +53,300 @@ export const profileHandlers = [
   // ─── GET /profile ───
   http.get(`${API_BASE_URL}/profile`, ({ request }) => {
     const userId = requireUser(request);
-    if (!userId) return problem(401, 'Oturum gerekli', 'TOKEN_EXPIRED');
+
+    if (!userId) {
+      return problem(
+        401,
+        'Oturum gerekli',
+        'TOKEN_EXPIRED',
+      );
+    }
 
     const profile = fullProfile(userId);
+
     if (!profile) {
       // K-C: profil persona seçilmeden var olamaz. Web bu 404'ü
       // "onboarding'e yönlendir" sinyali olarak kullanır.
-      return problem(404, 'Profil henüz oluşturulmamış', 'PROFILE_NOT_FOUND');
+      return problem(
+        404,
+        'Profil henüz oluşturulmamış',
+        'PROFILE_NOT_FOUND',
+      );
     }
+
     return HttpResponse.json(profile);
   }),
 
   // ─── PUT /profile  (upsert) ───
-  http.put(`${API_BASE_URL}/profile`, async ({ request }) => {
-    const userId = requireUser(request);
-    if (!userId) return problem(401, 'Oturum gerekli', 'TOKEN_EXPIRED');
+  http.put(
+    `${API_BASE_URL}/profile`,
+    async ({ request }) => {
+      const userId = requireUser(request);
 
-    const body = (await request.json()) as UpdateProfileRequest;
-    const existing = mockDb.profiles.get(userId);
+      if (!userId) {
+        return problem(
+          401,
+          'Oturum gerekli',
+          'TOKEN_EXPIRED',
+        );
+      }
 
-    mockDb.profiles.set(userId, {
-      id: existing?.id ?? newId(),
-      personaCode: body.personaCode,
-      monthlyBudget: body.monthlyBudget,
-    });
+      const body =
+        (await request.json()) as UpdateProfileRequest;
 
-    return HttpResponse.json(fullProfile(userId));
-  }),
+      if (
+        body.minMonthlyBudget !== null &&
+        body.maxMonthlyBudget !== null &&
+        body.minMonthlyBudget > body.maxMonthlyBudget
+      ) {
+        return problem(
+          422,
+          'Minimum kira, maksimum kiradan büyük olamaz.',
+        );
+      }
+
+      const existing =
+        mockDb.profiles.get(userId);
+
+      mockDb.profiles.set(userId, {
+        id: existing?.id ?? newId(),
+
+        firstName: body.firstName,
+        lastName: body.lastName,
+
+        personaCode: body.personaCode,
+
+        minMonthlyBudget:
+          body.minMonthlyBudget,
+
+        maxMonthlyBudget:
+          body.maxMonthlyBudget,
+
+        /*
+         * Kullanıcının sürükle-bırak ile belirlediği
+         * kişisel kriter sırası.
+         *
+         * Eski bir istemci categoryOrder göndermezse
+         * mevcut sıra korunur; o da yoksa boş liste.
+         */
+        categoryOrder:
+          body.categoryOrder ??
+          existing?.categoryOrder ??
+          [],
+      });
+
+      return HttpResponse.json(
+        fullProfile(userId),
+      );
+    },
+  ),
 
   // ─── GET /profile/anchors ───
-  http.get(`${API_BASE_URL}/profile/anchors`, ({ request }) => {
-    const userId = requireUser(request);
-    if (!userId) return problem(401, 'Oturum gerekli', 'TOKEN_EXPIRED');
-    return HttpResponse.json(sorted(anchorsOf(userId)));
-  }),
+  http.get(
+    `${API_BASE_URL}/profile/anchors`,
+    ({ request }) => {
+      const userId = requireUser(request);
+
+      if (!userId) {
+        return problem(
+          401,
+          'Oturum gerekli',
+          'TOKEN_EXPIRED',
+        );
+      }
+
+      return HttpResponse.json(
+        sorted(anchorsOf(userId)),
+      );
+    },
+  ),
 
   // ─── POST /profile/anchors ───
-  http.post(`${API_BASE_URL}/profile/anchors`, async ({ request }) => {
-    const userId = requireUser(request);
-    if (!userId) return problem(401, 'Oturum gerekli', 'TOKEN_EXPIRED');
+  http.post(
+    `${API_BASE_URL}/profile/anchors`,
+    async ({ request }) => {
+      const userId = requireUser(request);
 
-    if (!mockDb.profiles.has(userId)) {
-      return problem(404, 'Önce persona seçmelisiniz', 'PROFILE_NOT_FOUND');
-    }
+      if (!userId) {
+        return problem(
+          401,
+          'Oturum gerekli',
+          'TOKEN_EXPIRED',
+        );
+      }
 
-    const current = anchorsOf(userId);
-    if (current.length >= MAX_ANCHORS) {
-      return problem(
-        422,
-        `En fazla ${MAX_ANCHORS} yer ekleyebilirsiniz`,
-        'ANCHOR_LIMIT_EXCEEDED',
+      if (!mockDb.profiles.has(userId)) {
+        return problem(
+          404,
+          'Önce persona seçmelisiniz',
+          'PROFILE_NOT_FOUND',
+        );
+      }
+
+      const current = anchorsOf(userId);
+
+      if (current.length >= MAX_ANCHORS) {
+        return problem(
+          422,
+          `En fazla ${MAX_ANCHORS} yer ekleyebilirsiniz`,
+          'ANCHOR_LIMIT_EXCEEDED',
+        );
+      }
+
+      const body =
+        (await request.json()) as CreateAnchorRequest;
+
+      const anchor: Anchor = {
+        id: newId(),
+        label: body.label,
+        lat: body.lat,
+        lon: body.lon,
+        mode: body.mode,
+
+        // K-G: önceliği sunucu atar — boş olan en küçük sıra.
+        priority: current.length + 1,
+      };
+
+      mockDb.anchors.set(
+        userId,
+        [...current, anchor],
       );
-    }
 
-    const body = (await request.json()) as CreateAnchorRequest;
-    const anchor: Anchor = {
-      id: newId(),
-      label: body.label,
-      lat: body.lat,
-      lon: body.lon,
-      mode: body.mode,
-      // K-G: önceliği sunucu atar — boş olan en küçük sıra.
-      priority: current.length + 1,
-    };
-
-    mockDb.anchors.set(userId, [...current, anchor]);
-    return HttpResponse.json(anchor, { status: 201 });
-  }),
+      return HttpResponse.json(
+        anchor,
+        { status: 201 },
+      );
+    },
+  ),
 
   // ─── DELETE /profile/anchors/{id} ───
-  http.delete(`${API_BASE_URL}/profile/anchors/:id`, ({ request, params }) => {
-    const userId = requireUser(request);
-    if (!userId) return problem(401, 'Oturum gerekli', 'TOKEN_EXPIRED');
+  http.delete(
+    `${API_BASE_URL}/profile/anchors/:id`,
+    ({ request, params }) => {
+      const userId = requireUser(request);
 
-    const current = anchorsOf(userId);
-    const remaining = current.filter((a) => a.id !== params.id);
-    if (remaining.length === current.length) {
-      return problem(404, 'Yer bulunamadı');
-    }
+      if (!userId) {
+        return problem(
+          401,
+          'Oturum gerekli',
+          'TOKEN_EXPIRED',
+        );
+      }
 
-    // ⚠️ Öncelikleri SIKIŞTIR. ② silinirse ③ → ② olmalı.
-    // Yoksa `1, 3` boşluğu kalır ve DQ-06 kapısı kırılır.
-    const compacted = sorted(remaining).map((a, i) => ({ ...a, priority: i + 1 }));
-    mockDb.anchors.set(userId, compacted);
+      const current = anchorsOf(userId);
 
-    return new HttpResponse(null, { status: 204 });
-  }),
+      const remaining =
+        current.filter(
+          (a) =>
+            a.id !== params.id,
+        );
 
-  // ─── PUT /profile/anchors/order ───  ⭐ W4'ün kalbi
-  http.put(`${API_BASE_URL}/profile/anchors/order`, async ({ request }) => {
-    const userId = requireUser(request);
-    if (!userId) return problem(401, 'Oturum gerekli', 'TOKEN_EXPIRED');
+      if (
+        remaining.length ===
+        current.length
+      ) {
+        return problem(
+          404,
+          'Yer bulunamadı',
+        );
+      }
 
-    const body = (await request.json()) as ReorderAnchorsRequest;
-    const current = anchorsOf(userId);
-    const order = body.order ?? [];
+      // ⚠️ Öncelikleri SIKIŞTIR.
+      // ② silinirse ③ → ② olmalı.
+      const compacted =
+        sorted(remaining).map(
+          (a, i) => ({
+            ...a,
+            priority: i + 1,
+          }),
+        );
 
-    // Dört maddelik doğrulama — biri bile bozuksa öncelikler boşluklu
-    // kalır ve geometrik ağırlık yanlış hesaplanır.
-    const unique = new Set(order);
-    const known = new Set(current.map((a) => a.id));
-
-    const gecerli =
-      order.length === current.length &&          // eksik yok
-      unique.size === order.length &&             // tekrar yok
-      order.every((id) => known.has(id));         // fazladan/başkasının yok
-
-    if (!gecerli) {
-      return problem(
-        422,
-        'Sıralama listesi geçersiz',
-        'INVALID_ANCHOR_ORDER',
-        'Liste, mevcut yerlerin tamamını tekrarsız içermelidir.',
+      mockDb.anchors.set(
+        userId,
+        compacted,
       );
-    }
 
-    const reordered = order.map((id, i) => ({
-      ...current.find((a) => a.id === id)!,
-      priority: i + 1,
-    }));
-    mockDb.anchors.set(userId, reordered);
+      return new HttpResponse(
+        null,
+        { status: 204 },
+      );
+    },
+  ),
 
-    return HttpResponse.json(reordered);
-  }),
+  // ─── PUT /profile/anchors/order ───
+  http.put(
+    `${API_BASE_URL}/profile/anchors/order`,
+    async ({ request }) => {
+      const userId = requireUser(request);
+
+      if (!userId) {
+        return problem(
+          401,
+          'Oturum gerekli',
+          'TOKEN_EXPIRED',
+        );
+      }
+
+      const body =
+        (await request.json()) as ReorderAnchorsRequest;
+
+      const current =
+        anchorsOf(userId);
+
+      const order =
+        body.order ?? [];
+
+      // Dört maddelik doğrulama —
+      // biri bile bozuksa öncelikler
+      // boşluklu kalır.
+      const unique =
+        new Set(order);
+
+      const known =
+        new Set(
+          current.map(
+            (a) => a.id,
+          ),
+        );
+
+      const gecerli =
+        order.length ===
+          current.length &&
+        unique.size ===
+          order.length &&
+        order.every(
+          (id) =>
+            known.has(id),
+        );
+
+      if (!gecerli) {
+        return problem(
+          422,
+          'Sıralama listesi geçersiz',
+          'INVALID_ANCHOR_ORDER',
+          'Liste, mevcut yerlerin tamamını tekrarsız içermelidir.',
+        );
+      }
+
+      const reordered =
+        order.map(
+          (id, i) => ({
+            ...current.find(
+              (a) =>
+                a.id === id,
+            )!,
+            priority: i + 1,
+          }),
+        );
+
+      mockDb.anchors.set(
+        userId,
+        reordered,
+      );
+
+      return HttpResponse.json(
+        reordered,
+      );
+    },
+  ),
 ];

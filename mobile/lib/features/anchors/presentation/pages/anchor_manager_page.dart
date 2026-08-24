@@ -123,8 +123,9 @@ class _AnchorManagerPageState extends State<AnchorManagerPage> {
             if (widget.embedded) ...[
               Text(
                 'Önemli konumların',
-                style: Theme.of(context).textTheme.headlineSmall
-                    ?.copyWith(fontWeight: FontWeight.w800),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
@@ -182,23 +183,24 @@ class _AnchorManagerPageState extends State<AnchorManagerPage> {
             const SizedBox(height: 12),
             Expanded(
               flex: 4,
-              child: _anchors.isEmpty
-                  ? const _EmptyAnchors()
-                  : ReorderableListView.builder(
-                      itemCount: _anchors.length,
-                      onReorderItem: _reorder,
-                      buildDefaultDragHandles: false,
-                      itemBuilder: (context, index) {
-                        final anchor = _anchors[index];
-                        return _AnchorTile(
-                          key: ValueKey(anchor.id),
-                          anchor: anchor,
-                          weight: _anchorWeights(_anchors.length)[index],
-                          index: index,
-                          onDelete: _busy ? null : () => _delete(anchor),
-                        );
-                      },
-                    ),
+              child:
+                  _anchors.isEmpty
+                      ? const _EmptyAnchors()
+                      : ReorderableListView.builder(
+                        itemCount: _anchors.length,
+                        onReorderItem: _reorder,
+                        buildDefaultDragHandles: false,
+                        itemBuilder: (context, index) {
+                          final anchor = _anchors[index];
+                          return _AnchorTile(
+                            key: ValueKey(anchor.id),
+                            anchor: anchor,
+                            weight: _anchorWeights(_anchors.length)[index],
+                            index: index,
+                            onDelete: _busy ? null : () => _delete(anchor),
+                          );
+                        },
+                      ),
             ),
             if (widget.onFinished != null) ...[
               const SizedBox(height: 10),
@@ -259,8 +261,9 @@ class _AnchorFormSheetState extends State<_AnchorFormSheet> {
         children: [
           Text(
             'Bu konum nedir?',
-            style: Theme.of(context).textTheme.titleLarge
-                ?.copyWith(fontWeight: FontWeight.w800),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 16),
           TextField(

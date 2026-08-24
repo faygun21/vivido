@@ -22,10 +22,6 @@
     <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
   </ItemGroup>
@@ -33,6 +29,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Vivido.Application\Vivido.Application.csproj" />
     <ProjectReference Include="..\Vivido.Infrastructure\Vivido.Infrastructure.csproj" />
+    <ProjectReference Include="..\Vivido.Scoring\Vivido.Scoring.csproj" />
+    <ProjectReference Include="..\Vivido.Domain\Vivido.Domain.csproj" />
   </ItemGroup>
 
 </Project>

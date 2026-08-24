@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 import '../../../../core/models/models.dart';
 import '../../../anchors/presentation/pages/anchor_manager_page.dart';
 import '../../../auth/application/session_controller.dart';
+import '../../../location_search/application/location_search_controller.dart';
+import '../../../location_search/data/api_location_search_gateway.dart';
+import '../../../location_search/domain/location_search_models.dart';
+import '../../../location_search/presentation/widgets/location_search_panel.dart';
 import '../../../map/presentation/widgets/cankaya_map.dart';
 
 class HomePage extends StatefulWidget {
@@ -75,18 +79,42 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-class _MapOverview extends StatelessWidget {
+class _MapOverview extends StatefulWidget {
   const _MapOverview({required this.controller});
 
   final SessionController controller;
 
   @override
+  State<_MapOverview> createState() => _MapOverviewState();
+}
+
+class _MapOverviewState extends State<_MapOverview> {
+  late final LocationSearchController _searchController;
+  LocationSearchResult? _mapFocus;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = LocationSearchController(
+      ApiLocationSearchGateway(widget.controller.client),
+    );
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final controller = widget.controller;
     final profile = controller.profile;
     final anchors = profile?.anchors ?? const <Anchor>[];
-    final persona = controller.personas
-        .where((item) => item.code == profile?.personaCode)
-        .firstOrNull;
+    final persona =
+        controller.personas
+            .where((item) => item.code == profile?.personaCode)
+            .firstOrNull;
 
     return SafeArea(
       child: Padding(
@@ -117,9 +145,10 @@ class _MapOverview extends StatelessWidget {
                           Text(
                             '${persona?.displayNameTr ?? profile?.personaCode ?? 'Persona'} · ${anchors.length}/3 önemli konum',
                             style: TextStyle(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
+                              color:
+                                  Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -130,7 +159,29 @@ class _MapOverview extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            Expanded(child: CankayaMap(anchors: anchors)),
+            Expanded(
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: CankayaMap(anchors: anchors, focus: _mapFocus),
+                  ),
+                  Positioned(
+                    top: 12,
+                    left: 12,
+                    right: 12,
+                    child: LocationSearchPanel(
+                      controller: _searchController,
+                      onSelected: (result) {
+                        setState(() => _mapFocus = result);
+                      },
+                      onCleared: () {
+                        setState(() => _mapFocus = null);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 10),
             Text(
               anchors.isEmpty
@@ -156,9 +207,10 @@ class _ProfileView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final profile = controller.profile;
-    final persona = controller.personas
-        .where((item) => item.code == profile?.personaCode)
-        .firstOrNull;
+    final persona =
+        controller.personas
+            .where((item) => item.code == profile?.personaCode)
+            .firstOrNull;
     final budget = profile?.monthlyBudget;
 
     return SafeArea(
@@ -173,8 +225,9 @@ class _ProfileView extends StatelessWidget {
           Text(
             controller.user?.displayName ?? 'Vivido kullanıcısı',
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleLarge
-                ?.copyWith(fontWeight: FontWeight.w800),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 4),
           Text(
@@ -216,9 +269,10 @@ class _ProfileView extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           FilledButton.tonalIcon(
-            onPressed: controller.busy
-                ? null
-                : () => _showProfileEditor(context, controller),
+            onPressed:
+                controller.busy
+                    ? null
+                    : () => _showProfileEditor(context, controller),
             icon: const Icon(Icons.edit_outlined),
             label: const Text('Persona ve bütçeyi düzenle'),
           ),
@@ -245,8 +299,11 @@ Future<void> _showProfileEditor(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) =>
-        _ProfileEditorSheet(controller: controller, initialProfile: profile),
+    builder:
+        (_) => _ProfileEditorSheet(
+          controller: controller,
+          initialProfile: profile,
+        ),
   );
 }
 
@@ -287,9 +344,10 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
     FocusScope.of(context).unfocus();
 
     final rawBudget = _budgetController.text.trim();
-    final budget = rawBudget.isEmpty
-        ? null
-        : double.tryParse(rawBudget.replaceAll(',', '.'));
+    final budget =
+        rawBudget.isEmpty
+            ? null
+            : double.tryParse(rawBudget.replaceAll(',', '.'));
     if (rawBudget.isNotEmpty && budget == null) {
       ScaffoldMessenger.of(
         context,
@@ -339,8 +397,9 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
             children: [
               Text(
                 'Profil tercihleri',
-                style: Theme.of(context).textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w800),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
@@ -353,13 +412,14 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                       child: Text(persona.displayNameTr),
                     ),
                 ],
-                onChanged: _saving
-                    ? null
-                    : (value) {
-                        if (value != null) {
-                          setState(() => _selectedPersona = value);
-                        }
-                      },
+                onChanged:
+                    _saving
+                        ? null
+                        : (value) {
+                          if (value != null) {
+                            setState(() => _selectedPersona = value);
+                          }
+                        },
               ),
               const SizedBox(height: 14),
               TextField(
@@ -376,12 +436,13 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
               const SizedBox(height: 18),
               FilledButton(
                 onPressed: _saving ? null : _save,
-                child: _saving
-                    ? const SizedBox.square(
-                        dimension: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Kaydet'),
+                child:
+                    _saving
+                        ? const SizedBox.square(
+                          dimension: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : const Text('Kaydet'),
               ),
             ],
           ),

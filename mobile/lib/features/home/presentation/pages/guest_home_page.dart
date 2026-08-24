@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/models/models.dart';
 import '../../../auth/application/session_controller.dart';
-import '../../../auth/presentation/pages/auth_page.dart';
+import '../../../auth/presentation/pages/login_page.dart';
+import '../../../auth/presentation/pages/register_page.dart';
 import '../../../map/presentation/widgets/cankaya_map.dart';
 
 /// Misafir ana ekranı — W0.
@@ -22,8 +23,11 @@ class GuestHomePage extends StatelessWidget {
     controller.clearError();
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            AuthPage(controller: controller, initialRegister: register),
+        builder:
+            (_) =>
+                register
+                    ? RegisterPage(controller: controller)
+                    : LoginPage(controller: controller),
       ),
     );
   }
@@ -34,7 +38,10 @@ class GuestHomePage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Vivido', style: TextStyle(fontWeight: FontWeight.w800)),
+        title: const Text(
+          'Vivido',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8),

@@ -19,6 +19,7 @@ export type ErrorCode =
   | 'PROFILE_NOT_FOUND'
   | 'ANCHOR_LIMIT_EXCEEDED'
   | 'INVALID_ANCHOR_ORDER'
+  | 'LOCATION_SEARCH_UNAVAILABLE'
   // ─── E-posta doğrulama / şifre sıfırlama (K-09) ───
   | 'VALIDATION_ERROR'
   /** Şifre doğru ama e-posta doğrulanmamış → kod ekranına yönlendir. */

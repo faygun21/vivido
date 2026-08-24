@@ -2,7 +2,7 @@ name: ci-api
 
 on:
   push:
-    branches: [main]
+    branches: [yazilim, dev, main]
     paths: ['api/**', '.github/workflows/ci-api.yml']
   pull_request:
     paths: ['api/**', '.github/workflows/ci-api.yml']

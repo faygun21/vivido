@@ -104,15 +104,19 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: widget.controller,
-      builder: (context, _) => Scaffold(
-        appBar: AppBar(title: const Text('Şifremi unuttum')),
-        body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-            child: _codeStep ? _buildResetStep(context) : _buildEmailStep(context),
+      builder:
+          (context, _) => Scaffold(
+            appBar: AppBar(title: const Text('Şifremi unuttum')),
+            body: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+                child:
+                    _codeStep
+                        ? _buildResetStep(context)
+                        : _buildEmailStep(context),
+              ),
+            ),
           ),
-        ),
-      ),
     );
   }
 
@@ -129,8 +133,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           Text(
             'Sıfırlama kodu gönderelim',
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.headlineSmall
-                ?.copyWith(fontWeight: FontWeight.w800),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           Text(
@@ -153,12 +158,13 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           const SizedBox(height: 24),
           FilledButton(
             onPressed: widget.controller.busy ? null : _requestCode,
-            child: widget.controller.busy
-                ? const SizedBox.square(
-                    dimension: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('Sıfırlama kodu gönder'),
+            child:
+                widget.controller.busy
+                    ? const SizedBox.square(
+                      dimension: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                    : const Text('Sıfırlama kodu gönder'),
           ),
         ],
       ),
@@ -176,8 +182,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           Text(
             'Yeni şifreni belirle',
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.headlineSmall
-                ?.copyWith(fontWeight: FontWeight.w800),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           Text(
@@ -205,7 +212,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
               ),
             ),
             validator: (value) {
-              if ((value ?? '').length < 8) return 'Parola en az 8 karakter olmalı.';
+              if ((value ?? '').length < 8) {
+                return 'Parola en az 8 karakter olmalı.';
+              }
               return null;
             },
           ),
@@ -229,12 +238,13 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           const SizedBox(height: 24),
           FilledButton(
             onPressed: widget.controller.busy ? null : _submitNewPassword,
-            child: widget.controller.busy
-                ? const SizedBox.square(
-                    dimension: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('Şifreyi güncelle'),
+            child:
+                widget.controller.busy
+                    ? const SizedBox.square(
+                      dimension: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                    : const Text('Şifreyi güncelle'),
           ),
           const SizedBox(height: 10),
           TextButton(

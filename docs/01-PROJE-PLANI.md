@@ -51,18 +51,19 @@ Isochrone · toplu taşıma / GTFS · bisiklet modu · günlük yaşam senaryola
 | Katman | Seçim | Not |
 |---|---|---|
 | Backend | **.NET 10 · ASP.NET Core Web API** | Başarsoft'un ana yığını |
-| ORM / Geospatial | EF Core 9 + **NetTopologySuite** | `Point`, `LineString` native |
+| ORM / Geospatial | EF Core 10 + **NetTopologySuite** | `Point`, `LineString` native |
 | Veritabanı | **PostgreSQL 16 + PostGIS 3.4** | GiST indeks, `ST_DWithin`, KNN `<->` |
-| Cache | Redis 7 | Skor cache (opsiyonel, H5'te eklenir) |
+| Cache | ~~Redis 7~~ | ⛔ **KESİLDİ** — 3 haftalık plan skor cache'ini çıkardı. Servis compose'da duruyor, kod kullanmıyor |
 | Routing | **OSRM**, 2 profil: `foot` + `car` | `/table` matris · `/route` manevra · `/trip` yedek |
 | TSP çözücü | **Held-Karp** (kendi kodumuz, C#) | n ≤ 8 için kesin optimum, <1 ms |
 | Tile | **Planetiler → mbtiles → tileserver-gl** | Public OSM tile **kullanılmaz** |
 | Web | **React 18 + TS + Vite + MapLibre GL JS** | TanStack Query + Zustand |
-| Mobil | **React Native + Expo + `@maplibre/maplibre-react-native`** | `expo-location`, **dev client zorunlu** (§12.4) |
-| Paylaşılan kod | `packages/shared` — TS tipleri + API istemcisi | Web ve mobil aynı tipleri kullanır |
+| Mobil | **Flutter** (`maplibre_gl`, `dio`, `go_router`) | ⚠️ [K-08](02-KARARLAR.md#k-08) ile değişti — Expo/RN terk edildi |
+| Paylaşılan kod | `packages/shared` — TS tipleri | Doğruluk kaynağı; Dart modelleri onu **yansıtır** (K-08) |
 | Veri | OpenStreetMap (Geofabrik) + **sentetik kiralık konut** | Pilot: Ankara **Çankaya'nın tamamı** |
 | Test | xUnit + Testcontainers · Vitest · Playwright | Skorlama için altın veri seti |
-| CI | GitHub Actions | — |
+| CI | GitHub Actions | 4 workflow. **Deploy otomasyonu henüz yok** |
+| Dağıtım | Docker Compose + **Caddy** (otomatik HTTPS), tek sunucu | [K-11](02-KARARLAR.md#k-11) · [`deploy/README.md`](../deploy/README.md) |
 
 ---
 
@@ -72,7 +73,7 @@ Isochrone · toplu taşıma / GTFS · bisiklet modu · günlük yaşam senaryola
 
 ```
                  ┌──────────────────┐        ┌──────────────────┐
-                 │   WEB (React)    │        │ MOBİL (RN+Expo)  │
+                 │   WEB (React)    │        │ MOBİL (Flutter)  │
                  │  ev bul · skorla │        │ rota gez · naviga│
                  │  rota oluştur    │        │  syon            │
                  └────────┬─────────┘        └────────┬─────────┘
@@ -111,7 +112,7 @@ basarsoft/
 │       ├── Vivido.Infrastructure/   → EF Core, OsrmClient, Redis
 │       └── Vivido.Scoring/          → ★ SAF skorlama motoru (I/O YOK)
 ├── web/                           → React + Vite
-├── mobile/                        → React Native + Expo
+├── mobile/                        → Flutter (K-08)
 ├── packages/shared/               → TS tipleri + üretilmiş API istemcisi
 ├── data/
 │   ├── scripts/                   → 01_download.sh … 06_seed_db.sh
@@ -1055,14 +1056,14 @@ Vector tile (MVT) **gerekmez** — 6.000 nokta bunu haklı çıkarmaz. Bu, ilk p
 
 | Araç | Sürüm | Not |
 |---|---|---|
-| .NET SDK | **9.0** | `dotnet --version` |
-| Node.js | **20 LTS** | `node -v` |
-| pnpm | **9.x** | `npm i -g pnpm` |
+| .NET SDK | **10.0** | `dotnet --list-sdks` |
+| Node.js | **22 LTS** veya 24 | `node -v` |
+| pnpm | **11.x** | `corepack enable` |
 | Docker Desktop | güncel | Windows'ta **WSL2 backend** açık olmalı |
 | Java | **21** (Temurin) | Yalnızca Planetiler için |
 | osmium-tool | 1.16+ | WSL/Ubuntu: `sudo apt install osmium-tool` |
-| Expo CLI | — | `npx expo` (global kurulum gerekmez) |
-| Android Studio | güncel | Emülatör için (opsiyonel — fiziksel cihaz da olur) |
+| Flutter SDK | güncel stable | `flutter doctor` — mobil için (K-08) |
+| Android Studio + SDK | güncel | Flutter APK derlemesi için zorunlu (~10 GB) |
 
 ### 12.2 Donanım
 
@@ -1087,9 +1088,8 @@ cp .env.example .env
 docker compose --profile dev up -d postgis redis osrm-foot osrm-car tileserver
 
 # 3) Şema + seed
-#    Şema, postgis konteyneri İLK açıldığında db/schema/*.sql ile
-#    kendiliğinden kurulur — ayrı komut gerekmez.
-#    Sonradan eklenen şema dosyaları için (veri kaybı olmadan):
+#    ⭐ ŞEMAYI SADECE migrate.sh KURAR. `docker-entrypoint-initdb.d`
+#    mount'u kaldırıldı (K-12) — bu adım ATLANAMAZ.
 pnpm db:migrate
 
 #    ETL çıktısı — yalnızca VERİ içerir (pg_dump --data-only),
@@ -1103,36 +1103,50 @@ dotnet run --project api/src/Vivido.Api          # → http://localhost:5000/swa
 pnpm install && pnpm --filter web dev          # → http://localhost:5173
 
 # 6) Mobil (ayrı terminal)
-pnpm --filter mobile start                     # Expo dev server
+cd mobile && flutter run                       # K-08: Flutter
 ```
 
 **Sağlık kontrolü:**
 ```bash
 curl http://localhost:5000/health/ready        # {"db":"ok","osrm":"ok","tiles":"ok"}
 curl "http://localhost:5001/route/v1/foot/32.85,39.92;32.86,39.93"   # OSRM foot
-curl http://localhost:8080/data/cankaya.json   # tileserver
+curl http://localhost:8080/data/v3.json        # tileserver — YOL 'v3', 'cankaya' DEĞİL
 ```
 
-### 12.4 ⚠️ Mobil kurulumun en büyük tuzağı
+### 12.4 ⚠️ ~~Mobil kurulumun en büyük tuzağı~~ — GEÇERSİZ
 
-**`@maplibre/maplibre-react-native` native bir modüldür — Expo Go içinde ÇALIŞMAZ.**
-"QR kodu okut, çalışsın" beklentisi burada kırılır. Doğru yol **development build**:
+> **Bu bölüm [K-08](02-KARARLAR.md#k-08) ile geçersiz kaldı.** Mobil taraf
+> Expo/React Native'den **Flutter**'a geçti; `@maplibre/maplibre-react-native`,
+> Expo Go / dev client ayrımı ve EAS Build akışı gündemden düştü.
+> Flutter native modülleri doğrudan APK'ya derler.
+>
+> Bedeli açıkça yazılmıştı: **Android SDK yerel kurulum zorunlu (~10 GB)** —
+> K-07'nin kaçındığı maliyet artık ödeniyor.
+>
+> Güncel mobil kurulum: `flutter doctor` yeşil olmalı, sonra
+> `cd mobile && flutter run`.
 
-```bash
-pnpm --filter mobile add expo-dev-client @maplibre/maplibre-react-native expo-location
+### 12.4b ⚠️ Üretim derlemesinin en büyük tuzağı — harita boş çiziliyor
 
-# Seçenek A — bulutta derle (Android APK, hesap gerekir, ~15 dk)
-npx eas build --profile development --platform android
+**Bu, K-08'in yerini aldığı tuzaktan daha sinsi ve HÂLÂ GEÇERLİ.**
 
-# Seçenek B — yerelde derle (Android Studio + SDK gerekir, ilk sefer ~20 dk)
-npx expo prebuild --platform android
-npx expo run:android
-```
-Bir kez kurulan dev client APK'sı sonra sadece `npx expo start --dev-client` ile kullanılır; JS değişiklikleri anında yansır.
+MapLibre GeoJSON ayrıştırmayı ve karo çizimini bir web worker'da yapar.
+Worker yüklenemezse **hiçbir veri katmanı çizilmez** — ama arka plan rengi,
++/− kontrolü ve atıf ana iş parçacığında olduğu için çalışmaya devam eder.
+Harita "var" görünür, bomboştur ve **hata fırlatmaz**; konsol tertemiz kalır.
 
-> **Bunu Hafta 1'de yapın.** Mobil ekip Hafta 5'te bunu keşfederse iki gün kaybedilir.
+İki ayrı sebebi var, ikisi de yaşandı:
 
-**Fiziksel cihazda test:** telefon ve bilgisayar **aynı Wi-Fi ağında** olmalı. Şirket ağı cihaz izolasyonu yapıyorsa: `npx expo start --tunnel`.
+| Nerede | Sebep | Düzeltme |
+|---|---|---|
+| `pnpm dev` | Vite'ın bağımlılık ön-derleyicisi worker'ı bozuyor | `vite.config.ts` → `optimizeDeps.exclude: ['maplibre-gl']` |
+| `vite build` | MapLibre 6 worker adını çalışma anında kuruyor; Vite 8/Rolldown statik olarak göremiyor ve parçayı çıktıya hiç eklemiyor | `CankayaMap.tsx` → `?worker&url` + `setWorkerUrl()` |
+
+Ayrıntı: [04-MEVCUT-DURUM §5.5](04-MEVCUT-DURUM.md).
+
+> **Ders:** üretim derlemesi (`vite build`) en az bir kez gerçekten
+> sunulmadan "web çalışıyor" denemez. Bu hata haftalarca fark edilmedi
+> çünkü herkes yalnızca `pnpm dev` kullanıyordu.
 
 ### 12.5 Yaygın kurulum hataları
 
@@ -1141,11 +1155,13 @@ Bir kez kurulan dev client APK'sı sonra sadece `npx expo start --dev-client` il
 | `osrm-extract` "Killed" | RAM yetersiz | ETL'i 16 GB makinede yap; `.wslconfig` içinde `memory=12GB` |
 | `docker compose` yavaş / disk dolu | WSL2 disk büyümesi | `wsl --shutdown` + `diskpart` compact; Docker "Clean up" |
 | `ERROR: extension "postgis" is not available` | Yanlış imaj | `postgis/postgis:16-3.4` kullanın, `postgres:16` değil |
-| MapLibre haritası mobilde boş | Expo Go kullanılıyor | §12.4 — dev client şart |
+| MapLibre haritası boş, kontroller çalışıyor | Worker yüklenmemiş | §12.4b — dev'de `optimizeDeps.exclude`, üretimde `setWorkerUrl` |
 | `Location request timed out` | Emülatörde GPS yok | Android Studio → Extended Controls → Location → GPX iz yükleyin |
 | Türkçe karakterli yol hatası | `Masaüstü` klasörü | Depoyu `C:\dev\vivido` gibi ASCII bir yola klonlayın |
 | OSRM `/table` "too many locations" | `--max-table-size` düşük | `--max-table-size 200` ile başlatın |
-| Yeni tablo/kolon DB'de yok | Şema dosyası eklendi ama uygulanmadı | `pnpm db:migrate` (bkz. [02-KARARLAR.md](02-KARARLAR.md) K-01) |
+| Yeni tablo/kolon DB'de yok | `pnpm db:migrate` çalıştırılmadı | Şemayı **yalnızca** migrate.sh kurar ([K-12](02-KARARLAR.md#k-12)) |
+| `migrate.sh` exit 2 — aynı numaralı dosyalar | İki şema dosyası aynı öneki taşıyor | En büyük numaradan bir fazlasını al; yeniden adlandırma güvenli (K-12) |
+| `migrate.sh` exit 3 — defter yok | DB migrate.sh'ten önce kurulmuş | Şema güncelse `bash /db/migrate.sh --baseline`, değilse `pnpm infra:reset` |
 | `migrate.sh: bad interpreter` | Dosya CRLF ile kaydedilmiş | `.gitattributes` `*.sh`'ı LF'e zorlar — dosyayı LF olarak yeniden kaydedin |
 | Git Bash'te `C:/Program Files/Git/db/migrate.sh: No such file` | Git Bash konteyner içi mutlak yolları Windows yoluna çevirir | `MSYS_NO_PATHCONV=1` verin, ya da PowerShell'den `pnpm db:migrate` çalıştırın |
 
@@ -1312,7 +1328,8 @@ Then  PATCH /routes/{id}/stops/{seq} çağrılır
 
 | # | Risk | Ol./Etki | Erken uyarı | Azaltma |
 |---|---|---|---|---|
-| **R1** | **MapLibre RN Expo Go'da çalışmıyor** → mobil ekip haftalarca "kurulum" ile boğuşur | Yüksek / Yüksek | Hafta 2'de mobilde harita hâlâ boş | **Hafta 1'de dev client kurulur** (§12.4). Kurulum bir kişi tarafından yapılıp APK ekiple paylaşılır. Bu risk bilinirse maliyeti 2 saat, bilinmezse 3 gün |
+| ~~**R1**~~ | ~~MapLibre RN Expo Go'da çalışmıyor~~ → **KAPANDI**: [K-08](02-KARARLAR.md#k-08) ile Flutter'a geçildi, dev client kavramı kalmadı | — | — | Yerine gelen risk R1b |
+| **R1b** | **Üretim derlemesinde harita boş çiziliyor** — worker parçası çıktıya girmiyor, hata da fırlatmıyor | Orta / Yüksek | `vite build` çıktısı sunulunca harita boş | **GERÇEKLEŞTİ ve düzeltildi** (§12.4b). Ders: üretim derlemesi en az bir kez gerçekten sunulmadan "web çalışıyor" denmez |
 | **R2** | **Skorlama "sihirli sayı çorbası"na döner**, kimse 71'i açıklayamaz | Yüksek / Kritik | Hafta 4'te "skorlar yanlış hissettiriyor" | Tüm parametreler **DB'de** (`poi_categories`, `persona_category_weights`), kodda sabit yok · **altın veri seti** Hafta 4'ten itibaren kilit · `Σ contribution == total` değişmezlik testi · gerekçe tablosu Hafta 4'te zorunlu |
 | **R3** | **Sentetik kira verisi inandırıcı değil**; sunumda "bu fiyatlar saçma" eleştirisi | Orta / Yüksek | Hafta 3 demosunda ₺/m² dağılımı sapıyor | `ST_Within` %100 DQ kuralı · `β0` TÜİK/TCMB ile ±%15 kalibre · mahalle kira endeksi ekip dışı birine "makul mü" diye gösterilir · her yerde **"Sentetik veri" rozeti** |
 | **R4** | **Anchor sıralaması skoru anlamlı değiştirmiyor** → W4 demoda etkisiz kalır | Orta / Yüksek | Hafta 4'te sırayı değiştirince skor 1-2 puan oynuyor | Geometrik ağırlık (0.5ⁱ⁻¹) seçildi — ters sıradan çok daha keskin · **I5 değişmezlik testi** bunu koruma altına alır · demo için sıralamaya duyarlı "vitrin evleri" önceden seçilir |

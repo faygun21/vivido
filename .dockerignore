@@ -1,0 +1,44 @@
+# Depo kökü build bağlamı için — `docker build -f web/Dockerfile .`
+#
+# ⚠️ `node_modules` satırı ZORUNLU, sadece hız için değil.
+#
+# Dockerfile önce manifest'leri kopyalayıp `pnpm install` çalıştırıyor,
+# SONRA `COPY web web` ile kaynağı getiriyor. Host'un `web/node_modules`
+# klasörü bağlama dahil olursa, imajda kurulmuş olanın ÜZERİNE yazılır.
+# Üstelik pnpm'in sembolik linkleri Windows host'undan geldiği için
+# konteynerde hiçbir yere işaret etmez ve derleme
+# "Cannot find module 'vite'" ile ölür. (Bu tam olarak yaşandı.)
+**/node_modules
+.pnpm-store
+
+# .NET derleme çıktıları
+**/bin
+**/obj
+**/TestResults
+
+# Ön yüz derleme çıktıları
+**/dist
+**/.vite
+**/*.tsbuildinfo
+
+# data/*.geojson LAZIM (sync-geo.mjs okuyor), ama artefaktlar yüzlerce MB
+data/artifacts
+data/sources
+data/tmp
+
+# Web imajıyla ilgisi yok
+mobile
+.git
+.github
+docs
+backlog
+*.md
+
+# Gizli bilgiler build bağlamına ASLA girmez
+.env
+.env.local
+**/.env
+
+# `web/public/geo/` derleme sırasında sync-geo.mjs tarafından üretiliyor;
+# host'taki kopyanın taşınmasına gerek yok.
+web/public/geo

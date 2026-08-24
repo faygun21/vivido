@@ -1,11 +1,15 @@
-using Serilog;
-using Microsoft.EntityFrameworkCore;
-using Vivido.Infrastructure.Data;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
+using System.Net.Http.Headers;
 using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Serilog;
 using Vivido.Api.Services;
 using Vivido.Application.Abstractions;
+using Vivido.Application.dtos.location;
+using Vivido.Infrastructure.Data;
+using Vivido.Infrastructure.Services;
+using Vivido.Api.services;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -38,6 +42,40 @@ builder.Services.AddDbContext<VividoDbContext>(options =>
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddMemoryCache();
+// Scoring servisini Scoped olarak kaydediyoruz (Her HTTP isteğinde bir kez üretilir)
+builder.Services.AddScoped<PropertyScoringService>();
+// R-105: yerel mahallelerden sonra Photon, sonuç/hizmet yoksa Nominatim denenir.
+// Her sağlayıcının adresi yapılandırmadan değiştirilebilir veya kurum içine alınabilir.
+builder.Services.AddScoped<ILocationSearchService, LocationSearchService>();
+builder.Services.AddHttpClient<PhotonGeocodingProvider>(client =>
+{
+    var baseUrl = builder.Configuration["Geocoding:Photon:BaseUrl"]
+        ?? "https://photon.komoot.io/";
+    var userAgent = builder.Configuration["Geocoding:UserAgent"]
+        ?? "Vivido/1.0 (+https://github.com/faygun21/vivido)";
+
+    client.BaseAddress = new Uri(baseUrl);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
+    client.DefaultRequestHeaders.AcceptLanguage.Add(new StringWithQualityHeaderValue("tr"));
+    client.Timeout = TimeSpan.FromSeconds(8);
+});
+builder.Services.AddHttpClient<NominatimGeocodingProvider>(client =>
+{
+    var baseUrl = builder.Configuration["Geocoding:Nominatim:BaseUrl"]
+        ?? "https://nominatim.openstreetmap.org/";
+    var userAgent = builder.Configuration["Geocoding:UserAgent"]
+        ?? "Vivido/1.0 (+https://github.com/faygun21/vivido)";
+
+    client.BaseAddress = new Uri(baseUrl);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
+    client.DefaultRequestHeaders.AcceptLanguage.Add(new StringWithQualityHeaderValue("tr"));
+    client.Timeout = TimeSpan.FromSeconds(8);
+});
+builder.Services.AddScoped<IGeocodingProvider>(services =>
+    services.GetRequiredService<PhotonGeocodingProvider>());
+builder.Services.AddScoped<IGeocodingProvider>(services =>
+    services.GetRequiredService<NominatimGeocodingProvider>());
 // ─── SWAGGER AYARLARI ───
 builder.Services.AddSwaggerGen(o =>
 {
@@ -94,12 +132,37 @@ builder.Services.AddAuthorization();
 builder.Services.AddHealthChecks()
     .AddNpgSql(connectionString!, name: "database");
 
-// Web ve mobil istemciler için CORS.
+// ─── CORS ───
+//
+// İki ayrı politika, çünkü ihtiyaçlar taban tabana zıt:
+//
+//   dev  → her origin serbest. Geliştirici :5173, :4173, telefon IP'si,
+//          Swagger… hepsinden deniyor; kısıtlamak sadece engel olur.
+//   prod → yalnızca AÇIKÇA izin verilen origin'ler. Liste boşsa CORS
+//          hiç açılmaz ve DOĞRU varsayılan budur: staging'de web ile API
+//          aynı origin'den (Caddy, tek domain) servis ediliyor, tarayıcı
+//          CORS'a hiç takılmıyor.
+//
+// ⚠️ Native mobil uygulama CORS'a TABİ DEĞİLDİR — CORS bir tarayıcı
+// mekanizması. Flutter istemcisi için buraya bir şey eklemek gerekmez.
 const string DevCors = "dev";
-builder.Services.AddCors(o => o.AddPolicy(DevCors, p => p
-    .AllowAnyOrigin()
-    .AllowAnyMethod()
-    .AllowAnyHeader()));
+const string ProdCors = "prod";
+
+var allowedOrigins = (builder.Configuration["Cors:AllowedOrigins"] ?? string.Empty)
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+builder.Services.AddCors(o =>
+{
+    o.AddPolicy(DevCors, p => p
+        .AllowAnyOrigin()
+        .AllowAnyMethod()
+        .AllowAnyHeader());
+
+    o.AddPolicy(ProdCors, p => p
+        .WithOrigins(allowedOrigins)
+        .AllowAnyMethod()
+        .AllowAnyHeader());
+});
 
 var app = builder.Build();
 
@@ -109,6 +172,16 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI(o => o.SwaggerEndpoint("/swagger/v1/swagger.json", "Vivido API v1"));
     app.UseCors(DevCors);
+}
+else if (allowedOrigins.Length > 0)
+{
+    // ⚠️ Bu dal ÖNCEDEN YOKTU: CORS tamamen `IsDevelopment()` içindeydi.
+    // Web başka bir origin'den sunulsaydı production'da API'ye hiç
+    // erişemezdi ve hata tarayıcı konsolunda kalırdı — sunucu logunda
+    // görünmeyen türden bir arıza.
+    app.UseCors(ProdCors);
+    app.Logger.LogInformation(
+        "CORS etkin, izinli origin'ler: {Origins}", string.Join(", ", allowedOrigins));
 }
 
 // Kimlik kontrolü her ortamda çalışmalı, if bloğundan çıkarıldı

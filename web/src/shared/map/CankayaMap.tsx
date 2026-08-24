@@ -6,12 +6,41 @@ import {
   Map as MapLibreMap,
   Marker,
   NavigationControl,
-  type GeoJSONSource,
+  setWorkerUrl,
   type MapOptions,
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { circleAround } from '@vivido/shared';
+// ⚠️ `?worker&url`: Vite worker'ı KENDİ bağımlılıklarıyla paketleyip
+// yayımlanan dosyanın adresini veriyor. `?url` tek başına yetmez —
+// worker içeride `maplibre-gl-shared.mjs`'i import ediyor, ham varlık
+// olarak kopyalansa o import çözülemezdi.
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { GLYPHS_URL, MAP_ATTRIBUTION, TILE_URL, USE_RASTER_BASEMAP } from '@/shared/config';
+
+/**
+ * ⭐ ÜRETİM DERLEMESİNDE HARİTAYI BOŞ ÇİZEN HATANIN DÜZELTMESİ
+ *
+ * MapLibre 6, worker dosyasının adını ÇALIŞMA ANINDA kuruyor:
+ *
+ *     new Worker(new URL(dev ? `…-worker-dev.mjs` : `…-worker.mjs`,
+ *                        import.meta.url), { type: 'module' })
+ *
+ * Ad bir üçlü operatörden geldiği için Vite 8 / Rolldown bunu statik
+ * olarak göremiyor ve worker parçasını çıktıya HİÇ EKLEMİYOR. Sonuç
+ * `dist/` içinde yalnızca `index-*.js` + CSS; worker isteği 404'e düşüyor.
+ *
+ * Belirtisi sinsi: MapLibre GeoJSON ayrıştırmayı ve karo çizimini worker'da
+ * yapar. Worker ölünce HİÇBİR veri katmanı çizilmez — ama arka plan rengi,
+ * +/− kontrolü ve atıf ana iş parçacığında olduğu için çalışmaya devam eder.
+ * Harita "var" görünür, bomboştur ve HATA FIRLATMAZ; konsol tertemiz kalır.
+ *
+ * `docs/04-MEVCUT-DURUM.md` §4.5 aynı belirtiyi geliştirme sunucusu için
+ * kaydetmiş ve "üretim derlemesi etkilenmez" demişti. Etkileniyormuş —
+ * kimse fark etmemişti çünkü `vite build` çıktısı ilk kez staging'de sunuldu.
+ *
+ * Modül kapsamında çağrılıyor: ilk harita oluşturulmadan önce çalışması şart.
+ */
+setWorkerUrl(maplibreWorkerUrl);
 
 /** `StyleSpecification` maplibre-gl tarafından yeniden dışa aktarılmıyor. */
 type MapStyle = NonNullable<MapOptions['style']>;
@@ -32,12 +61,6 @@ interface GeoCollection {
   type: 'FeatureCollection';
   features: GeoFeature[];
 }
-
-/** MapLibre GeoJSON kaynaklarının `setData` kabul ettiği veri türü. */
-type GeoSourceData = Parameters<GeoJSONSource['setData']>[0];
-
-/** Boş katman verisi — analiz alanı kapalıyken kaynaklar bu hale döner. */
-const EMPTY_GEO: GeoSourceData = { type: 'FeatureCollection', features: [] };
 
 /**
  * Çankaya haritası — ortak bileşen.
@@ -73,18 +96,18 @@ export interface MapMarker extends MapPoint {
   priority?: number;
 }
 
-/** R-106 — analiz alanı: merkez nokta + km cinsinden yarıçap (buffer). */
-export interface AnalysisArea {
-  center: MapPoint;
-  radiusKm: number;
+export interface MapFocus extends MapPoint {
+  id: string;
+  label: string;
+  bounds?: { south: number; west: number; north: number; east: number } | null;
 }
 
 interface CankayaMapProps {
   /** Verilirse haritaya tıklanabilir hale gelir (anchor ekleme akışı). */
   onMapClick?: (point: MapPoint) => void;
   markers?: MapMarker[];
-  /** Verilirse merkez çevresinde buffer çizilir; yarıçap isteğe göre değişir (R-106). */
-  analysisArea?: AnalysisArea | null;
+  /** Arama sonucu değiştiğinde haritayı bu konuma taşır. */
+  focus?: MapFocus | null;
   /** Harita kabının yüksekliği (CSS değeri). */
   height?: string;
 }
@@ -200,9 +223,6 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
     ilce: { type: 'geojson', data: district },
     // feature-state ile hover boyaması yapabilmek için id şart.
     mahalleler: { type: 'geojson', data: neighbourhoods, generateId: true },
-    // Analiz alanı (R-106) — verisi ayrı bir useEffect ile güncellenir.
-    analizAlani: { type: 'geojson', data: EMPTY_GEO },
-    analizMerkez: { type: 'geojson', data: EMPTY_GEO },
   };
 
   const layers: unknown[] = [
@@ -268,39 +288,6 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
     },
   );
 
-  // Analiz alanı (R-106): buffer dolgu + kesikli çizgi + merkez noktası.
-  // Mahallelerin üstünde, etiketlerin altında kalacak şekilde buraya konur.
-  layers.push(
-    {
-      id: 'analiz-alani-dolgu',
-      type: 'fill',
-      source: 'analizAlani',
-      paint: { 'fill-color': '#0b6e60', 'fill-opacity': 0.14 },
-    },
-    {
-      id: 'analiz-alani-cizgi',
-      type: 'line',
-      source: 'analizAlani',
-      paint: {
-        'line-color': '#0b6e60',
-        'line-width': 2,
-        'line-opacity': 0.9,
-        'line-dasharray': [3, 2],
-      },
-    },
-    {
-      id: 'analiz-merkez-nokta',
-      type: 'circle',
-      source: 'analizMerkez',
-      paint: {
-        'circle-radius': 6,
-        'circle-color': '#0b6e60',
-        'circle-stroke-color': '#ffffff',
-        'circle-stroke-width': 2,
-      },
-    },
-  );
-
   // Etiketler her şeyin üstünde kalmalı.
   if (hasVectorTiles) layers.push(...vectorLabelLayers());
 
@@ -339,12 +326,7 @@ function boundsOf(geojson: GeoCollection): LngLatBounds {
   return bounds;
 }
 
-export function CankayaMap({
-  onMapClick,
-  markers = [],
-  analysisArea = null,
-  height = '100%',
-}: CankayaMapProps) {
+export function CankayaMap({ onMapClick, markers = [], focus, height = '100%' }: CankayaMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerObjectsRef = useRef<Marker[]>([]);
@@ -474,62 +456,37 @@ export function CankayaMap({
         new Marker({ element: el }).setLngLat([marker.lon, marker.lat]).addTo(map),
       );
     }
+
+    if (focus) {
+      const el = document.createElement('div');
+      el.className = 'map-pin map-pin--search';
+      el.textContent = '⌖';
+      el.title = focus.label;
+      markerObjectsRef.current.push(
+        new Marker({ element: el }).setLngLat([focus.lon, focus.lat]).addTo(map),
+      );
+    }
     // `status` bağımlılığı şart: harita asenkron kurulduğu için ilk render'da
     // mapRef henüz boş olabiliyor, hazır olunca işaretçiler yeniden basılır.
-  }, [markers, status]);
+  }, [markers, focus, status]);
 
-  // ─── Analiz alanı (buffer) — R-106 ───
+  // ─── Konum arama sonucu ───
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || status !== 'hazir' || !focus) return;
 
-    // Stil asenkron yüklenir; `getSource` erken çağrılırsa fırlatabilir.
-    // Harita henüz hazır değilse `load` olayına erteliyoruz.
-    //
-    // ⚠️ `getSource` dönüş tipi ayrışık bir birleşim değil (`Source`); ama bu
-    // iki kaynağı `buildStyle` içinde kendimiz `type: 'geojson'` olarak
-    // tanımlıyoruz — cast güvenli.
-    const render = () => {
-      const alanKaynak = map.getSource('analizAlani') as GeoJSONSource | undefined;
-      const merkezKaynak = map.getSource('analizMerkez') as GeoJSONSource | undefined;
-      if (!alanKaynak || !merkezKaynak) return;
-
-      // Alan yoksa kaynakları boşalt — eski buffer ekranda kalmasın.
-      if (!analysisArea) {
-        alanKaynak.setData(EMPTY_GEO);
-        merkezKaynak.setData(EMPTY_GEO);
-        return;
-      }
-
-      const { center, radiusKm } = analysisArea;
-      const ring = circleAround({ lat: center.lat, lon: center.lon }, radiusKm);
-
-      alanKaynak.setData({
-        type: 'FeatureCollection',
-        features: [
-          {
-            type: 'Feature',
-            properties: { radiusKm },
-            geometry: { type: 'Polygon', coordinates: [ring] },
-          },
+    if (focus.bounds) {
+      map.fitBounds(
+        [
+          [focus.bounds.west, focus.bounds.south],
+          [focus.bounds.east, focus.bounds.north],
         ],
-      });
-
-      merkezKaynak.setData({
-        type: 'FeatureCollection',
-        features: [
-          {
-            type: 'Feature',
-            properties: null,
-            geometry: { type: 'Point', coordinates: [center.lon, center.lat] },
-          },
-        ],
-      });
-    };
-
-    if (map.isStyleLoaded()) render();
-    else map.once('load', render);
-  }, [analysisArea, status]);
+        { padding: 56, maxZoom: 16, duration: 700 },
+      );
+    } else {
+      map.flyTo({ center: [focus.lon, focus.lat], zoom: 16, duration: 700 });
+    }
+  }, [focus, status]);
 
   // İmleci tıklanabilirlik durumuna göre değiştir.
   useEffect(() => {

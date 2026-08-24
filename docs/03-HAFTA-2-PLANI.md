@@ -8,6 +8,16 @@
 >
 > Not: `habi` yazan dosyalar eski isimden kalma. Uygulamanın adı **Vivido**.
 
+> ### ⚠️ Bu bir PLAN dokümanıdır, durum raporu değil
+> Aşağıdaki "boş / yazılmadı" ifadeleri **plan yazıldığı andaki** (Gün 6)
+> durumu anlatır. Bugün gerçekten nerede olduğumuz için tek doğru kaynak:
+> **[04-MEVCUT-DURUM.md](04-MEVCUT-DURUM.md)**.
+>
+> Plandan sonra eklenen ve burada geçmeyen işler: e-posta doğrulama +
+> şifre sıfırlama ([K-09](02-KARARLAR.md#k-09)), misafir modu
+> ([K-10](02-KARARLAR.md#k-10)), staging ortamı
+> ([K-11](02-KARARLAR.md#k-11)), favoriler, konum arama.
+
 ---
 
 ## 1. Hafta 2 milestone'u
@@ -54,8 +64,8 @@ gerçek durumdur — plan dokümanlarının iddiası değil.
 | EF entity'leri | 16 tablodan sadece 2'sinin (`users`, `refresh_tokens`) entity'si var |
 | Test trait'leri | `Category=Golden` / `Category=Invariant` **hiçbir teste konmamış** — kapılar bugün boşa çalışıyor |
 | Playwright | **Kurulu değil.** `web/package.json`'da `test:e2e` script'i yok |
-| `data/lua/`, `data/gen/`, `data/artifacts/` | **Hepsi boş.** OSRM ve tileserver başlayamıyor |
-| Mobil | Expo boilerplate → **Flutter'a geçiyor** |
+| ~~`data/lua/`, `data/gen/`, `data/artifacts/`~~ | ✅ **TAMAMLANDI** — ETL koştu, `data-v1` release'i yayında |
+| Mobil | ✅ Flutter'a geçildi (K-08); kod yazıldı ama **derlenip test edilmedi** |
 
 ---
 
@@ -711,10 +721,12 @@ ETL tek makinede koşuyor (kurulumlar yapıldı). Yazılım tarafı için **krit
 | 9 | Planetiler → `cankaya.mbtiles` → tileserver ayakta | FE-1 (harita altlığı) |
 | 10 | `data-v1` GitHub release yayınla + "vitrin evleri" seç | Tüm ekip |
 
-`data/scripts/00_fetch_artifacts.sh` bu release'i bekliyor — bugün **404 veriyor**, çalıştırmayın.
+✅ **`data-v1` release'i yayınlandı**, `data/scripts/00_fetch_artifacts.sh` çalışır durumda.
 
-> **Not:** `data/lua/vivido_pois.lua` ve `data/gen/gen_properties.py` **henüz yazılmamış**
-> (klasörler boş). Hafta 1'in veri işleri geride kaldıysa bu takvim kayar.
+> ✅ **Not (2026-08-23):** Bu bölümdeki veri teslimlerinin tamamı bitti —
+> `vivido_pois.lua`, `gen_properties.py`, OSRM grafları, `cankaya.mbtiles` ve
+> `seed.sql` üretildi, `data-v1` olarak yayınlandı. Doğrulanmış çıktılar:
+> 6.239 POI · 40.706 bina · 124 mahalle · 6.000 konut · 48.000 erişim satırı.
 
 ### Çarşamba (Gün 8) sonu kapısı — yedek plan
 
@@ -743,7 +755,7 @@ ETL tek makinede koşuyor (kurulumlar yapıldı). Yazılım tarafı için **krit
 | `anchorWeights()`'i TS veya Dart'ta yeniden yazmak | `packages/shared/src/utils.ts`'te yazılı | Import et / birebir port et |
 | Anchor sıralamasında döngü içinde `SaveChanges()` | `DEFERRABLE` avantajı kaybolur, kısıt ihlali | Tek `SaveChanges()` |
 | MSW fixture'ında alan adı uydurmak | Gerçek API'ye geçince sessizce kırılır | `packages/shared` tiplerini import et |
-| `00_fetch_artifacts.sh` çalıştırmak | Release henüz yayınlanmadı, 404 | Gün 10'da |
+| ~~`00_fetch_artifacts.sh` çalıştırmak~~ | ✅ Release yayınlandı, betik çalışıyor | — |
 | Başkasının dosyasını açmak | Çakışma | Sahibine söyle (§3) |
 
 ---

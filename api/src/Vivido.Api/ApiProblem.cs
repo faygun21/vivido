@@ -47,6 +47,12 @@ public static class ApiProblem
         "INVALID_ANCHOR_ORDER",
         detail);
 
+    public static ObjectResult LocationSearchUnavailable() => Build(
+        503,
+        "Konum arama servisi kullanılamıyor",
+        "LOCATION_SEARCH_UNAVAILABLE",
+        "Lütfen kısa bir süre sonra yeniden deneyin.");
+
     // ─── Kimlik doğrulama (K-09) ───
 
     public static ObjectResult EmailAlreadyExists(string email) => Build(

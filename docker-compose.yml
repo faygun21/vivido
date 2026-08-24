@@ -19,8 +19,19 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # İlk açılışta otomatik çalışan betikler (yalnızca boş volume'de).
-      - ./db/schema:/docker-entrypoint-initdb.d:ro
+      # ⛔ `./db/schema:/docker-entrypoint-initdb.d` MOUNT'U KALDIRILDI.
+      #
+      # initdb.d yalnızca konteyner İLK AÇILDIĞI ANDA var olan dosyaları
+      # çalıştırır ve defter tutmaz. Sonradan eklenen şema dosyaları hiç
+      # uygulanmadığı hâlde migrate.sh'in baseline'ı onları "uygulandı"
+      # sayıyordu — staging'de `first_name`, `last_name` sütunları ve
+      # `user_profile_category_order` tablosu böyle eksik kaldı.
+      #
+      # Artık ŞEMANIN TEK UYGULAYICISI migrate.sh. Boş bir volume'de bile
+      # tüm dosyaları sırayla uygular ve deftere yazar:
+      #
+      #     pnpm infra:up
+      #     pnpm db:migrate      ← artık zorunlu adım
       - ./db/checks:/checks:ro
       # ETL çıktısı (seed.sql). Git'e girmez, 00_fetch_artifacts.sh ile gelir.
       # Buradan yüklenir:

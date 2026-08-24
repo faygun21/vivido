@@ -13,7 +13,7 @@ namespace Vivido.Api.Controllers;
 // /api/v1/profiles (çoğul) olurdu. Sözleşme (vivido-api-sozlesmesi.md §4),
 // packages/shared tipleri ve web istemcisi TEKİL /profile bekliyor.
 [Route("api/v1/profile")]
-[Authorize] // Sadece giriş yapmış kullanıcılar profil işlemlerini yönetebilir
+[Authorize]
 public class ProfilesController : ControllerBase
 {
     private readonly VividoDbContext _context;
@@ -27,6 +27,7 @@ public class ProfilesController : ControllerBase
     public async Task<ActionResult<UserProfileDto>> GetProfile()
     {
         var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
         if (!Guid.TryParse(userIdString, out var userId))
             return Unauthorized();
 
@@ -35,35 +36,69 @@ public class ProfilesController : ControllerBase
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.UserId == userId);
 
-        // Profil yoksa 404 döneriz. Frontend bu 404 cevabını 
-        // "kullanıcı onboarding'i henüz tamamlamamış" olarak yorumlayıp 
-        // kullanıcıyı /onboarding sayfasına yönlendirebilir.
         if (profile == null)
             return ApiProblem.ProfileNotFound();
 
+        var categoryOrder = await _context.UserProfileCategoryOrders
+            .Where(x => x.ProfileId == profile.Id)
+            .OrderBy(x => x.Priority)
+            .Select(x => x.CategoryCode)
+            .AsNoTracking()
+            .ToListAsync();
+
         var profileDto = new UserProfileDto(
             profile.Id.ToString(),
+            profile.FirstName,
+            profile.LastName,
             profile.PersonaCode,
-            profile.MonthlyBudget,
-            profile.Anchors.Select(a => new AnchorDto(
-                a.Id.ToString(),
-                a.Label,
-                a.Geom.Y, // Lat
-                a.Geom.X, // Lon
-                a.Mode,
-                a.Priority
-            )).ToList()
+            profile.MinMonthlyBudget,
+            profile.MaxMonthlyBudget,
+            categoryOrder,
+            profile.Anchors
+                .OrderBy(a => a.Priority)
+                .Select(a => new AnchorDto(
+                    a.Id.ToString(),
+                    a.Label,
+                    a.Geom.Y,
+                    a.Geom.X,
+                    a.Mode,
+                    a.Priority
+                ))
+                .ToList()
         );
 
         return Ok(profileDto);
     }
 
-    [HttpPut]
-    public async Task<IActionResult> UpsertProfile([FromBody] UpdateProfileRequest request)
+   [HttpPut]
+    public async Task<IActionResult> UpsertProfile(
+        [FromBody] UpdateProfileRequest request
+    )
     {
         var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
         if (!Guid.TryParse(userIdString, out var userId))
             return Unauthorized();
+
+        /*
+         * Kira aralığı kontrolü.
+         *
+         * İki değer de girilmişse minimum kira,
+         * maksimum kiradan büyük olamaz.
+         */
+        if (
+            request.MinMonthlyBudget is not null &&
+            request.MaxMonthlyBudget is not null &&
+            request.MinMonthlyBudget > request.MaxMonthlyBudget
+        )
+        {
+            ModelState.AddModelError(
+                nameof(request.MinMonthlyBudget),
+                "Minimum kira, maksimum kiradan büyük olamaz."
+            );
+
+            return ValidationProblem(ModelState);
+        }
 
         var profile = await _context.UserProfiles
             .FirstOrDefaultAsync(p => p.UserId == userId);
@@ -74,35 +109,169 @@ public class ProfilesController : ControllerBase
             {
                 Id = Guid.NewGuid(),
                 UserId = userId,
+                FirstName = request.FirstName,
+                LastName = request.LastName,
                 PersonaCode = request.PersonaCode,
-                MonthlyBudget = request.MonthlyBudget
+                MinMonthlyBudget = request.MinMonthlyBudget,
+                MaxMonthlyBudget = request.MaxMonthlyBudget
             };
+
             _context.UserProfiles.Add(profile);
         }
         else
         {
+            profile.FirstName = request.FirstName;
+            profile.LastName = request.LastName;
             profile.PersonaCode = request.PersonaCode;
-            profile.MonthlyBudget = request.MonthlyBudget;
+            profile.MinMonthlyBudget = request.MinMonthlyBudget;
+            profile.MaxMonthlyBudget = request.MaxMonthlyBudget;
             profile.UpdatedAt = DateTime.UtcNow;
         }
 
+        /*
+         * Önce profili kaydediyoruz.
+         *
+         * Yeni profilse profile.Id'nin DB tarafında
+         * ilişkiler için kullanılabilir olması gerekiyor.
+         */
         await _context.SaveChangesAsync();
 
-        // Sözleşme: 200 → UserProfile. İstemci kaydettikten sonra ikinci bir
-        // GET atmak zorunda kalmasın diye güncel profili döneriz.
+        /*
+         * Kullanıcı kriter sırasını gönderdiyse
+         * kişisel sıralamayı yeniliyoruz.
+         */
+        if (request.CategoryOrder is not null)
+        {
+            var categoryOrder = request.CategoryOrder;
+
+            /*
+             * Aynı kategori iki kez gönderilemez.
+             */
+            if (
+                categoryOrder.Distinct().Count()
+                != categoryOrder.Count
+            )
+            {
+                ModelState.AddModelError(
+                    nameof(request.CategoryOrder),
+                    "Kriter listesinde tekrar eden kategori olamaz."
+                );
+
+                return ValidationProblem(ModelState);
+            }
+
+            /*
+             * Frontend'den gelen kategorilerin gerçekten
+             * geçerli POI kategorileri olduğunu doğrula.
+             */
+            var validCategories = await _context.PersonaCategoryWeights
+                .Where(x => x.PersonaCode == request.PersonaCode)
+                .Select(x => x.CategoryCode)
+                .ToListAsync();
+
+            var validSet = validCategories.ToHashSet();
+
+            if (!categoryOrder.All(validSet.Contains))
+            {
+                ModelState.AddModelError(
+                    nameof(request.CategoryOrder),
+                    "Geçersiz yaşam kriteri gönderildi."
+                );
+
+                return ValidationProblem(ModelState);
+            }
+
+            /*
+             * Persona için tanımlı bütün kriterler gönderilmeli.
+             * Eksik liste kaydetmiyoruz.
+             */
+            if (categoryOrder.Count != validCategories.Count)
+            {
+                ModelState.AddModelError(
+                    nameof(request.CategoryOrder),
+                    "Yaşam kriterlerinin tamamı gönderilmelidir."
+                );
+
+                return ValidationProblem(ModelState);
+            }
+
+            /*
+             * Önce kullanıcının eski kişisel sırasını sil.
+             */
+            var existingOrder = await _context.UserProfileCategoryOrders
+                .Where(x => x.ProfileId == profile.Id)
+                .ToListAsync();
+
+            _context.UserProfileCategoryOrders
+                .RemoveRange(existingOrder);
+
+            /*
+             * Yeni sırayı 1, 2, 3... olarak kaydet.
+             */
+            for (var i = 0; i < categoryOrder.Count; i++)
+            {
+                _context.UserProfileCategoryOrders.Add(
+                    new UserProfileCategoryOrder
+                    {
+                        ProfileId = profile.Id,
+                        CategoryCode = categoryOrder[i],
+                        Priority = (short)(i + 1)
+                    }
+                );
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
+        /* 
+         * =========================================================================
+         * YENİ EKLENEN KISIM: Cache Invalidation (Önbellek Temizliği)
+         * Kullanıcının tercihleri / sıralaması güncellendiğinde, bu profile ait
+         * daha önce hesaplanmış eski mülk skoru cache'lerini siliyoruz ki
+         * yeni tercihlerle yeniden hesaplama yapılabilsin.
+         * =========================================================================
+         */
+        var existingCaches = await _context.ScoreCaches
+            .Where(sc => sc.ProfileId == profile.Id)
+            .ToListAsync();
+
+        if (existingCaches.Any())
+        {
+            _context.ScoreCaches.RemoveRange(existingCaches);
+            await _context.SaveChangesAsync();
+        }
+
         var anchors = await _context.Anchors
             .Where(a => a.ProfileId == profile.Id)
             .OrderBy(a => a.Priority)
             .AsNoTracking()
             .ToListAsync();
 
-        return Ok(new UserProfileDto(
-            profile.Id.ToString(),
-            profile.PersonaCode,
-            profile.MonthlyBudget,
-            anchors.Select(a => new AnchorDto(
-                a.Id.ToString(), a.Label, a.Geom.Y, a.Geom.X, a.Mode, a.Priority
-            )).ToList()
-        ));
+        var savedCategoryOrder = await _context.UserProfileCategoryOrders
+            .Where(x => x.ProfileId == profile.Id)
+            .OrderBy(x => x.Priority)
+            .Select(x => x.CategoryCode)
+            .AsNoTracking()
+            .ToListAsync();
+
+        return Ok(
+            new UserProfileDto(
+                profile.Id.ToString(),
+                profile.FirstName,
+                profile.LastName,
+                profile.PersonaCode,
+                profile.MinMonthlyBudget,
+                profile.MaxMonthlyBudget,
+                savedCategoryOrder,
+                anchors.Select(a => new AnchorDto(
+                    a.Id.ToString(),
+                    a.Label,
+                    a.Geom.Y,
+                    a.Geom.X,
+                    a.Mode,
+                    a.Priority
+                )).ToList()
+            )
+        );
     }
 }

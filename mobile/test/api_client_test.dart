@@ -106,7 +106,10 @@ void main() {
       );
 
       expect(outcome, isA<RegisterVerificationRequired>());
-      expect((outcome as RegisterVerificationRequired).email, 'yeni@vivido.app');
+      expect(
+        (outcome as RegisterVerificationRequired).email,
+        'yeni@vivido.app',
+      );
       expect(store.session, isNull);
       expect(client.session, isNull);
     });
