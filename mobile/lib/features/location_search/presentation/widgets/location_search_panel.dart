@@ -91,17 +91,19 @@ class _LocationSearchPanelState extends State<LocationSearchPanel> {
                         ),
                       IconButton.filled(
                         tooltip: 'Ara',
-                        onPressed: state.loading
-                            ? null
-                            : () => state.search(_textController.text),
-                        icon: state.loading
-                            ? const SizedBox.square(
-                                dimension: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.arrow_forward),
+                        onPressed:
+                            state.loading
+                                ? null
+                                : () => state.search(_textController.text),
+                        icon:
+                            state.loading
+                                ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                                : const Icon(Icons.arrow_forward),
                       ),
                       const SizedBox(width: 8),
                     ],

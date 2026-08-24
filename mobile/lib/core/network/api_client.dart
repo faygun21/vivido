@@ -200,13 +200,14 @@ class ApiClient {
     Object? body,
     bool authenticated = true,
     bool retryOnUnauthorized = true,
-  }) async => (await _requestRaw(
-    method,
-    path,
-    body: body,
-    authenticated: authenticated,
-    retryOnUnauthorized: retryOnUnauthorized,
-  )).body;
+  }) async =>
+      (await _requestRaw(
+        method,
+        path,
+        body: body,
+        authenticated: authenticated,
+        retryOnUnauthorized: retryOnUnauthorized,
+      )).body;
 
   /// Gövdeyle birlikte HTTP durum kodunu da döner.
   ///
@@ -267,9 +268,8 @@ class ApiClient {
 
     final decoded = _decode(response);
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      final problem = decoded is Map<String, dynamic>
-          ? decoded
-          : const <String, dynamic>{};
+      final problem =
+          decoded is Map<String, dynamic> ? decoded : const <String, dynamic>{};
       throw ApiException(
         statusCode: response.statusCode,
         title: problem['title'] as String? ?? 'İstek tamamlanamadı',

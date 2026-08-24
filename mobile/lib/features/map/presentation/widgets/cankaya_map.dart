@@ -137,10 +137,7 @@ class _CankayaMapState extends State<CankayaMap> {
               widget.onMapTap?.call(point.lat, point.lon);
             }
           },
-          children: [
-            WidgetLayer(markers: markers),
-            const SourceAttribution(),
-          ],
+          children: [WidgetLayer(markers: markers), const SourceAttribution()],
         ),
       ),
     );

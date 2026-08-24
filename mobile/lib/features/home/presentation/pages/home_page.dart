@@ -111,9 +111,10 @@ class _MapOverviewState extends State<_MapOverview> {
     final controller = widget.controller;
     final profile = controller.profile;
     final anchors = profile?.anchors ?? const <Anchor>[];
-    final persona = controller.personas
-        .where((item) => item.code == profile?.personaCode)
-        .firstOrNull;
+    final persona =
+        controller.personas
+            .where((item) => item.code == profile?.personaCode)
+            .firstOrNull;
 
     return SafeArea(
       child: Padding(
@@ -144,9 +145,10 @@ class _MapOverviewState extends State<_MapOverview> {
                           Text(
                             '${persona?.displayNameTr ?? profile?.personaCode ?? 'Persona'} · ${anchors.length}/3 önemli konum',
                             style: TextStyle(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
+                              color:
+                                  Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -205,9 +207,10 @@ class _ProfileView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final profile = controller.profile;
-    final persona = controller.personas
-        .where((item) => item.code == profile?.personaCode)
-        .firstOrNull;
+    final persona =
+        controller.personas
+            .where((item) => item.code == profile?.personaCode)
+            .firstOrNull;
     final budget = profile?.monthlyBudget;
 
     return SafeArea(
@@ -266,9 +269,10 @@ class _ProfileView extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           FilledButton.tonalIcon(
-            onPressed: controller.busy
-                ? null
-                : () => _showProfileEditor(context, controller),
+            onPressed:
+                controller.busy
+                    ? null
+                    : () => _showProfileEditor(context, controller),
             icon: const Icon(Icons.edit_outlined),
             label: const Text('Persona ve bütçeyi düzenle'),
           ),
@@ -295,8 +299,11 @@ Future<void> _showProfileEditor(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) =>
-        _ProfileEditorSheet(controller: controller, initialProfile: profile),
+    builder:
+        (_) => _ProfileEditorSheet(
+          controller: controller,
+          initialProfile: profile,
+        ),
   );
 }
 
@@ -337,9 +344,10 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
     FocusScope.of(context).unfocus();
 
     final rawBudget = _budgetController.text.trim();
-    final budget = rawBudget.isEmpty
-        ? null
-        : double.tryParse(rawBudget.replaceAll(',', '.'));
+    final budget =
+        rawBudget.isEmpty
+            ? null
+            : double.tryParse(rawBudget.replaceAll(',', '.'));
     if (rawBudget.isNotEmpty && budget == null) {
       ScaffoldMessenger.of(
         context,
@@ -404,13 +412,14 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                       child: Text(persona.displayNameTr),
                     ),
                 ],
-                onChanged: _saving
-                    ? null
-                    : (value) {
-                        if (value != null) {
-                          setState(() => _selectedPersona = value);
-                        }
-                      },
+                onChanged:
+                    _saving
+                        ? null
+                        : (value) {
+                          if (value != null) {
+                            setState(() => _selectedPersona = value);
+                          }
+                        },
               ),
               const SizedBox(height: 14),
               TextField(
@@ -427,12 +436,13 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
               const SizedBox(height: 18),
               FilledButton(
                 onPressed: _saving ? null : _save,
-                child: _saving
-                    ? const SizedBox.square(
-                        dimension: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Kaydet'),
+                child:
+                    _saving
+                        ? const SizedBox.square(
+                          dimension: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : const Text('Kaydet'),
               ),
             ],
           ),

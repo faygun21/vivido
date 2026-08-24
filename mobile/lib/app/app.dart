@@ -59,14 +59,17 @@ class _VividoAppState extends State<VividoApp> {
       theme: AppTheme.light,
       home: AnimatedBuilder(
         animation: _controller,
-        builder: (context, _) => switch (_controller.phase) {
-          SessionPhase.booting => const SplashPage(),
-          SessionPhase.guest => WelcomePage(controller: _controller),
-          // Misafir gezintisi (W0): harita açık, skor/persona/anchor kilitli.
-          SessionPhase.browsing => GuestHomePage(controller: _controller),
-          SessionPhase.onboarding => OnboardingPage(controller: _controller),
-          SessionPhase.authenticated => HomePage(controller: _controller),
-        },
+        builder:
+            (context, _) => switch (_controller.phase) {
+              SessionPhase.booting => const SplashPage(),
+              SessionPhase.guest => WelcomePage(controller: _controller),
+              // Misafir gezintisi (W0): harita açık, skor/persona/anchor kilitli.
+              SessionPhase.browsing => GuestHomePage(controller: _controller),
+              SessionPhase.onboarding => OnboardingPage(
+                controller: _controller,
+              ),
+              SessionPhase.authenticated => HomePage(controller: _controller),
+            },
       ),
     );
   }

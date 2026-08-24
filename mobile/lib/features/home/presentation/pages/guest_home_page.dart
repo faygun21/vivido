@@ -23,9 +23,11 @@ class GuestHomePage extends StatelessWidget {
     controller.clearError();
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => register
-            ? RegisterPage(controller: controller)
-            : LoginPage(controller: controller),
+        builder:
+            (_) =>
+                register
+                    ? RegisterPage(controller: controller)
+                    : LoginPage(controller: controller),
       ),
     );
   }
