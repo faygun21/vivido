@@ -7,6 +7,7 @@ import {
   Marker,
   NavigationControl,
   setWorkerUrl,
+  type GeoJSONSource,
   type MapOptions,
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -16,6 +17,15 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 // olarak kopyalansa o import çözülemezdi.
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { GLYPHS_URL, MAP_ATTRIBUTION, TILE_URL, USE_RASTER_BASEMAP } from '@/shared/config';
+import {
+  createWalkingAccessibilityPolygon,
+  type WalkingLocation,
+  type WalkingMinutes,
+} from './walkingAccessibility';
+import {
+  createAnalysisAreaPolygon,
+  type AnalysisRadiusKm,
+} from './analysisArea';
 
 /**
  * ⭐ ÜRETİM DERLEMESİNDE HARİTAYI BOŞ ÇİZEN HATANIN DÜZELTMESİ
@@ -110,6 +120,9 @@ interface CankayaMapProps {
   focus?: MapFocus | null;
   /** Harita kabının yüksekliği (CSS değeri). */
   height?: string;
+  selectedLocation?: WalkingLocation | null;
+  walkingMinutes?: WalkingMinutes;
+  analysisRadiusKm?: AnalysisRadiusKm;
 }
 
 const GEO_DISTRICT = '/geo/cankaya.geojson';
@@ -223,6 +236,18 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
     ilce: { type: 'geojson', data: district },
     // feature-state ile hover boyaması yapabilmek için id şart.
     mahalleler: { type: 'geojson', data: neighbourhoods, generateId: true },
+    'yurume-alani': {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+    },
+    'analiz-alani': {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+    },
+    'yurume-merkezi': {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+    },
   };
 
   const layers: unknown[] = [
@@ -255,6 +280,45 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
   }
 
   layers.push(
+    {
+      id: 'analiz-alani-dolgu',
+      type: 'fill',
+      source: 'analiz-alani',
+      paint: { 'fill-color': '#0f766e', 'fill-opacity': 0.1 },
+    },
+    {
+      id: 'analiz-alani-cizgi',
+      type: 'line',
+      source: 'analiz-alani',
+      paint: {
+        'line-color': '#0f766e',
+        'line-width': 2,
+        'line-dasharray': [2, 2],
+      },
+    },
+    {
+      id: 'yurume-alani-dolgu',
+      type: 'fill',
+      source: 'yurume-alani',
+      paint: { 'fill-color': '#f59e0b', 'fill-opacity': 0.22 },
+    },
+    {
+      id: 'yurume-alani-cizgi',
+      type: 'line',
+      source: 'yurume-alani',
+      paint: { 'line-color': '#b45309', 'line-width': 2.5 },
+    },
+    {
+      id: 'yurume-merkezi-nokta',
+      type: 'circle',
+      source: 'yurume-merkezi',
+      paint: {
+        'circle-radius': 7,
+        'circle-color': '#f59e0b',
+        'circle-stroke-color': '#7c2d12',
+        'circle-stroke-width': 2,
+      },
+    },
     {
       id: 'mahalle-dolgu',
       type: 'fill',
@@ -326,7 +390,15 @@ function boundsOf(geojson: GeoCollection): LngLatBounds {
   return bounds;
 }
 
-export function CankayaMap({ onMapClick, markers = [], focus, height = '100%' }: CankayaMapProps) {
+export function CankayaMap({
+  onMapClick,
+  markers = [],
+  focus,
+  height = '100%',
+  selectedLocation = null,
+  walkingMinutes = 15,
+  analysisRadiusKm = 2,
+}: CankayaMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerObjectsRef = useRef<Marker[]>([]);
@@ -493,6 +565,39 @@ export function CankayaMap({ onMapClick, markers = [], focus, height = '100%' }:
     const canvas = mapRef.current?.getCanvas();
     if (canvas) canvas.style.cursor = onMapClick ? 'crosshair' : '';
   }, [onMapClick, status]);
+
+  useEffect(() => {
+    const source = mapRef.current?.getSource('yurume-alani') as GeoJSONSource | undefined;
+    const analysisSource = mapRef.current?.getSource('analiz-alani') as GeoJSONSource | undefined;
+    const centreSource = mapRef.current?.getSource('yurume-merkezi') as GeoJSONSource | undefined;
+    if (!source || !analysisSource || !centreSource) return;
+
+    source.setData({
+      type: 'FeatureCollection',
+      features: selectedLocation
+        ? [createWalkingAccessibilityPolygon(selectedLocation, walkingMinutes)]
+        : [],
+    });
+    analysisSource.setData({
+      type: 'FeatureCollection',
+      features: selectedLocation
+        ? [createAnalysisAreaPolygon(selectedLocation, analysisRadiusKm)]
+        : [],
+    });
+    centreSource.setData({
+      type: 'FeatureCollection',
+      features: selectedLocation
+        ? [{
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'Point',
+              coordinates: [selectedLocation.lon, selectedLocation.lat],
+            },
+          }]
+        : [],
+    });
+  }, [analysisRadiusKm, selectedLocation, walkingMinutes, status]);
 
   return (
     <div className="map-wrap" style={{ height }}>

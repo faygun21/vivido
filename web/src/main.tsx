@@ -16,6 +16,20 @@ async function main() {
   if (import.meta.env.DEV && import.meta.env.VITE_USE_MOCKS !== 'false') {
     const { startMockWorker } = await import('@/mocks/browser')
     await startMockWorker()
+  } else if (import.meta.env.DEV && 'serviceWorker' in navigator) {
+    // Daha önce MSW ile çalıştırılmış tarayıcılarda kalan worker gerçek API
+    // isteklerini yakalamaya devam edebilir. Mock kapalıyken yalnızca MSW
+    // worker'ını kaldır; uygulamaya ait başka worker'lara dokunma.
+    const registrations = await navigator.serviceWorker.getRegistrations()
+    await Promise.all(
+      registrations
+        .filter(({ active, installing, waiting }) =>
+          [active, installing, waiting].some((worker) =>
+            worker?.scriptURL.endsWith('/mockServiceWorker.js'),
+          ),
+        )
+        .map((registration) => registration.unregister()),
+    )
   }
 
   createRoot(document.getElementById('root')!).render(

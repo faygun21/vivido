@@ -1,4 +1,6 @@
 import { fileURLToPath, URL } from 'node:url'
+import { copyFileSync, mkdirSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -8,7 +10,24 @@ import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: 'copy-maplibre-worker',
+      closeBundle() {
+        const assetsDir = resolve(import.meta.dirname, 'dist/assets')
+        mkdirSync(assetsDir, { recursive: true })
+        copyFileSync(
+          resolve(import.meta.dirname, 'node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs'),
+          resolve(assetsDir, 'maplibre-gl-worker.mjs'),
+        )
+        copyFileSync(
+          resolve(import.meta.dirname, 'node_modules/maplibre-gl/dist/maplibre-gl-shared.mjs'),
+          resolve(assetsDir, 'maplibre-gl-shared.mjs'),
+        )
+      },
+    },
+  ],
 
   optimizeDeps: {
     // MapLibre GeoJSON ayrıştırmayı ve karo çizimini bir Web Worker'da yapar.

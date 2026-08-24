@@ -6,6 +6,19 @@ import { api } from '@/shared/api/client';
 import { useAuthStore } from '@/features/auth/authStore';
 import { CankayaMap, type MapFocus, type MapMarker } from '@/shared/map/CankayaMap';
 import { LocationSearch } from './LocationSearch';
+import {
+  DEFAULT_WALKING_MINUTES,
+  WALKING_MINUTE_OPTIONS,
+  isWalkingMinutes,
+  type WalkingLocation,
+  type WalkingMinutes,
+} from '@/shared/map/walkingAccessibility';
+import {
+  ANALYSIS_RADIUS_OPTIONS_KM,
+  DEFAULT_ANALYSIS_RADIUS_KM,
+  isAnalysisRadiusKm,
+  type AnalysisRadiusKm,
+} from '@/shared/map/analysisArea';
 
 /**
  * Ana ekran — Çankaya haritası.
@@ -21,6 +34,11 @@ import { LocationSearch } from './LocationSearch';
  */
 export function ExplorePage() {
   const [mapFocus, setMapFocus] = useState<MapFocus | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<WalkingLocation | null>(null);
+  const [walkingMinutes, setWalkingMinutes] = useState<WalkingMinutes>(DEFAULT_WALKING_MINUTES);
+  const [analysisRadiusKm, setAnalysisRadiusKm] = useState<AnalysisRadiusKm>(
+    DEFAULT_ANALYSIS_RADIUS_KM,
+  );
   const isGuest = useAuthStore((s) => s.isGuest);
   const status = useAuthStore((s) => s.status);
   const authenticated = status === 'authenticated';
@@ -60,6 +78,7 @@ export function ExplorePage() {
       lon: location.longitude,
       bounds: location.bounds,
     });
+    setSelectedLocation({ lat: location.latitude, lon: location.longitude });
   }
 
   function formatBudgetRange(
@@ -137,11 +156,72 @@ export function ExplorePage() {
           </p>
         </div>
 
+        <div className="info-card walking-access-card">
+          <h2>Konum analizi</h2>
+          <p className="muted">
+            Haritada bir konum seç veya konum araması yap. Analiz çevresini ve
+            yaklaşık yürüme erişimini birlikte gösterelim.
+          </p>
+          <label htmlFor="analysis-radius">Analiz mesafesi</label>
+          <select
+            id="analysis-radius"
+            value={analysisRadiusKm}
+            onChange={(event) => {
+              const value = Number(event.target.value);
+              if (isAnalysisRadiusKm(value)) setAnalysisRadiusKm(value);
+            }}
+          >
+            {ANALYSIS_RADIUS_OPTIONS_KM.map((radiusKm) => (
+              <option key={radiusKm} value={radiusKm}>{radiusKm} km</option>
+            ))}
+          </select>
+          <p className="analysis-area-hint">
+            <span className="area-key area-key--analysis" />
+            {analysisRadiusKm} km analiz alanı
+          </p>
+          <label htmlFor="walking-minutes">Yürüme süresi</label>
+          <select
+            id="walking-minutes"
+            value={walkingMinutes}
+            onChange={(event) => {
+              const value = Number(event.target.value);
+              if (isWalkingMinutes(value)) setWalkingMinutes(value);
+            }}
+          >
+            {WALKING_MINUTE_OPTIONS.map((minutes) => (
+              <option key={minutes} value={minutes}>{minutes} dakika</option>
+            ))}
+          </select>
+          <p className="analysis-area-hint">
+            <span className="area-key area-key--walking" />
+            {walkingMinutes} dakika yürüme alanı
+          </p>
+          <p className="walking-access-status" aria-live="polite">
+            {selectedLocation
+              ? walkingMinutes >= 15
+                ? 'Arabayla gitmeniz tavsiye edilir.'
+                : `${walkingMinutes} dakikalık yürüme alanı gösteriliyor.`
+              : 'Alanı görmek için haritaya tıkla.'}
+          </p>
+          {selectedLocation && (
+            <button className="btn-secondary" type="button" onClick={() => setSelectedLocation(null)}>
+              Seçimi temizle
+            </button>
+          )}
+        </div>
+
         <p className="data-badge">Konut verisi sentetiktir</p>
       </aside>
 
       <div className="explore-map">
-        <CankayaMap markers={markers} focus={mapFocus} />
+        <CankayaMap
+          markers={markers}
+          focus={mapFocus}
+          onMapClick={setSelectedLocation}
+          selectedLocation={selectedLocation}
+          walkingMinutes={walkingMinutes}
+          analysisRadiusKm={analysisRadiusKm}
+        />
 
         {authenticated && (
           <LocationSearch

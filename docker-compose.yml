@@ -16,7 +16,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-vivido}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vivido}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       # ⛔ `./db/schema:/docker-entrypoint-initdb.d` MOUNT'U KALDIRILDI.
@@ -52,10 +52,10 @@ services:
     container_name: vivido-redis
     profiles: ["dev", "full"]
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_HOST_PORT:-6380}:6379"
     command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
     volumes:
-      - redisdata:/data
+      - vivido-redisdata:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -70,12 +70,12 @@ services:
     environment:
       # DİKKAT: pgAdmin .local / .test gibi ayrılmış alan adlarını reddeder
       # ve konteyner sonsuz yeniden başlama döngüsüne girer.
-      PGADMIN_DEFAULT_EMAIL: dev@vivido.dev
-      PGADMIN_DEFAULT_PASSWORD: vivido
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-dev@vivido.dev}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-vivido}
       PGADMIN_CONFIG_SERVER_MODE: "False"
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
     ports:
-      - "5050:80"
+      - "${PGADMIN_HOST_PORT:-5051}:80"
     depends_on:
       postgis:
         condition: service_healthy
@@ -97,7 +97,7 @@ services:
     volumes:
       - ./data/artifacts/osrm/foot:/data:ro
     ports:
-      - "5001:5000"
+      - "${OSRM_FOOT_HOST_PORT:-5101}:5000"
     restart: unless-stopped
 
   osrm-car:
@@ -111,7 +111,7 @@ services:
     volumes:
       - ./data/artifacts/osrm/car:/data:ro
     ports:
-      - "5002:5000"
+      - "${OSRM_CAR_HOST_PORT:-5102}:5000"
     restart: unless-stopped
 
   tileserver:
@@ -122,7 +122,7 @@ services:
     volumes:
       - ./data/artifacts:/data:ro
     ports:
-      - "8080:8080"
+      - "${TILESERVER_HOST_PORT:-8081}:8080"
     restart: unless-stopped
 
   # ══════════════════════════════════════════════════
@@ -142,6 +142,7 @@ services:
       context: ./data
       dockerfile: Dockerfile.etl
     image: vivido-etl:local
+    container_name: vivido-etl
     profiles: ["etl"]
     environment:
       # psql / osm2pgsql bu değişkenleri kendiliğinden okur — her komutta
@@ -166,6 +167,7 @@ services:
   #     --output=/data/artifacts/cankaya.mbtiles --force
   planetiler:
     image: ghcr.io/onthegomap/planetiler:latest
+    container_name: vivido-planetiler
     profiles: ["etl"]
     environment:
       JAVA_TOOL_OPTIONS: "-Xmx4g"
@@ -183,6 +185,8 @@ services:
       dockerfile: Dockerfile
     container_name: vivido-api
     profiles: ["full"]
+    env_file:
+      - .env
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:5000
@@ -203,7 +207,7 @@ services:
       Email__FromAddress: ${Email__FromAddress:-}
       Email__FromName: ${Email__FromName:-Vivido}
     ports:
-      - "5000:5000"
+      - "${API_HOST_PORT:-5003}:5000"
     depends_on:
       postgis:
         condition: service_healthy
@@ -211,6 +215,34 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:5003/api/v1}
+        VITE_TILE_STYLE_URL: ${VITE_TILE_STYLE_URL:-http://localhost:8081/styles/basic/style.json}
+        VITE_TILE_URL: ${VITE_TILE_URL:-http://localhost:8081/data/v3.json}
+        VITE_GLYPHS_URL: ${VITE_GLYPHS_URL:-http://localhost:8081/fonts/{fontstack}/{range}.pbf}
+        VITE_USE_MOCKS: ${VITE_USE_MOCKS:-false}
+    image: vivido-web:local
+    container_name: vivido-web
+    profiles: ["full"]
+    env_file:
+      - .env
+    ports:
+      - "${WEB_HOST_PORT:-8082}:80"
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+
 volumes:
   pgdata:
-  redisdata:
+    name: vivido-pgdata
+  vivido-redisdata:
+    name: vivido-redisdata
+
+networks:
+  default:
+    name: vivido-network
