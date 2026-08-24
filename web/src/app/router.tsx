@@ -51,17 +51,14 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
-<<<<<<< Updated upstream
-      {
-  path: 'properties',
-  element: (
-    <ProtectedRoute>
-      <PropertiesMapView />
-    </ProtectedRoute>
-  ),
-},
-=======
->>>>>>> Stashed changes
+     {
+        path: 'properties',
+        element: (
+          <ProtectedRoute>
+            <PropertiesMapView />
+          </ProtectedRoute>
+        ),
+      },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
