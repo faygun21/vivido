@@ -140,6 +140,16 @@ jobs:
       # sunucudaki komut satırına düşer ve `ps` çıktısında görünürdü.
       # Betikte sunucu tarafında çözülmesi gereken $değişken YOK, o yüzden
       # kaçış gerekmiyor.
+      #
+      # ⭐ HER KOMUTA `</dev/null` — BUNU KALDIRMAYIN
+      #
+      # Betik uzak tarafta `bash -s` ile STDIN'den okunuyor. STDIN'i tüketen
+      # bir komut (docker compose exec -T, docker login --password-stdin, …)
+      # betiğin GERİ KALANINI yutar: bash EOF görür, sessizce 0 ile çıkar.
+      # Sonuç, 2026-08-24'te sekiz deploy boyunca yaşandı: `migrate.sh`
+      # çalıştı, `up -d` HİÇ çalışmadı, konteynerler 29 saat eski imajda
+      # kaldı, iş yine de "success" göründü. Duman testi de geçti — çünkü
+      # site ayaktaydı, sadece eski sürümdü. Bkz. docs/02-KARARLAR.md K-13.
       - name: İmajları çek, göçleri uygula, servisleri yenile
         run: |
           H="${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}"
@@ -149,6 +159,8 @@ jobs:
 
           # Geçici kimlik bilgisi: iş bitince token geçersiz oluyor,
           # sunucuda kalıcı GHCR erişimi bırakmıyoruz.
+          # Bu satır güvenli: boru, docker login'e KENDİ stdin'ini verir,
+          # betiğin stdin'ini tüketmez. Aşağıdaki `exec -T` öyle değildi.
           echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
           trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
 
@@ -156,13 +168,27 @@ jobs:
           # geri dönüşü belirsiz. .env'deki IMAGE_TAG'i kabuk ortamı ezer.
           export IMAGE_TAG='${{ github.sha }}'
 
-          docker compose -f docker-compose.prod.yml pull --quiet api web
+          docker compose -f docker-compose.prod.yml pull --quiet api web </dev/null
 
           # Şema, imajlardan ÖNCE. Yeni kod eksik sütuna sorgu atmasın.
-          docker compose -f docker-compose.prod.yml exec -T postgis bash /db/migrate.sh
+          docker compose -f docker-compose.prod.yml exec -T postgis bash /db/migrate.sh </dev/null
 
-          docker compose -f docker-compose.prod.yml up -d
-          docker image prune -f --filter 'until=168h' >/dev/null 2>&1 || true
+          docker compose -f docker-compose.prod.yml up -d </dev/null
+
+          # ⭐ "up -d çalıştı" yetmez: konteyner GERÇEKTEN yeni imajda mı?
+          # Sessiz no-op'un bir daha yeşil görünmemesinin tek garantisi bu.
+          for SERVIS in api web; do
+            BEKLENEN="ghcr.io/${{ github.repository_owner }}/vivido-\$SERVIS:${{ github.sha }}"
+            CALISAN=\$(docker inspect "vivido-\$SERVIS" --format '{{.Config.Image}}' 2>/dev/null || echo YOK)
+            if [ "\$CALISAN" != "\$BEKLENEN" ]; then
+              echo "::error::vivido-\$SERVIS \$CALISAN imajında çalışıyor, beklenen \$BEKLENEN"
+              docker compose -f docker-compose.prod.yml ps </dev/null
+              exit 1
+            fi
+            echo "  ✓ vivido-\$SERVIS → ${{ github.sha }}"
+          done
+
+          docker image prune -f --filter 'until=168h' >/dev/null 2>&1 </dev/null || true
           SH
 
       # Deploy "konteyner ayağa kalktı" demek değil. Gerçekten cevap veriyor mu?

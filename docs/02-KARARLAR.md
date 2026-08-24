@@ -23,6 +23,7 @@
 | [K-10](#k-10) | Misafir modu: kayıtsız harita gezintisi, skor kilitli | Kabul |
 | [K-11](#k-11) | Ortak staging ortamı — tek sunucu, tek origin, HTTPS | Kabul |
 | [K-12](#k-12) | Şemanın tek uygulayıcısı `migrate.sh`; initdb.d kaldırıldı | Kabul |
+| [K-13](#k-13) | Deploy "başarılı" diyemez — çalışan imaj doğrulanır | Kabul |
 
 ---
 
@@ -577,3 +578,55 @@ görünmeyecekti — [K-01](#k-01)'in uyardığı sessiz şema kaymasının ayn�
 
 **Bedeli.** Sıfırdan kurulum bir komut uzadı. Karşılığında "şema var sanıp
 olmayan sütuna sorgu atma" sınıfı hatalar kapandı.
+
+---
+
+## K-13
+### Deploy "başarılı" diyemez — sunucuda çalışan imaj doğrulanır
+
+**Durum:** Kabul · 2026-08-24 · [K-11](#k-11)'in CI/CD açığını kapatır
+
+**Bağlam — sekiz yeşil deploy, sıfır güncelleme.**
+
+24 Ağustos'ta `yazilim` dalına sekiz PR merge edildi ve `deploy-staging`
+sekizinde de **success** verdi. Ama https://vividoapp.xyz 23 Ağustos'ta
+derlenmiş imajı çalıştırmaya devam etti: konteynerler 29 saatlik,
+`docker inspect vivido-api` → `created=2026-08-23T14:03`.
+
+Sebep, uzak betiğin **STDIN'ini tüketen bir komut**:
+
+```bash
+ssh "$H" bash -s <<SH          # betik uzak tarafta STDIN'den okunuyor
+  …
+  docker compose exec -T postgis bash /db/migrate.sh   # ← STDIN'i devralır
+  docker compose up -d                                 # ← ARTIK ÇALIŞMAZ
+SH
+```
+
+`exec -T` konteynere stdin'i **aktarır**; aktardığı stdin de betiğin
+kendisidir. `migrate.sh`'ten sonraki satırları psql yutar, `bash` EOF görür
+ve **0 ile çıkar**. Hata yok, uyarı yok.
+
+Sonuç zinciri: şema 008 ile `monthly_budget` sütununu düşürdü (migrate
+çalıştı), API ise hâlâ o sütunu soran eski imajdaydı →
+`42703: column u.monthly_budget does not exist` → `/profile` ve
+`/profile/anchors` **500**. Haritaya yer pinlerken, mobil giriş yaparken
+görülen hata buydu. Yani tek bir kök neden üç ayrı arıza gibi göründü.
+
+**Duman testi neden yakalamadı:** `/health/ready`, `/`, `/tiles/data/v3.json`
+ve worker parçası — hepsi 200. Site ayaktaydı, yalnızca **eskiydi**.
+Ayakta olmak ile güncel olmak aynı şey değil.
+
+**Karar — üç madde.**
+
+| # | Değişiklik | Neden |
+|---|---|---|
+| 1 | Uzak betikte stdin tüketen her komut `</dev/null` alır | Betiğin geri kalanının yutulması yapısal olarak imkânsız olur |
+| 2 | `up -d` sonrası `docker inspect` ile **çalışan imaj = beklenen SHA** doğrulanır, değilse `exit 1` | Sessiz no-op bir daha yeşil görünemez |
+| 3 | Boru (`echo … \| docker login --password-stdin`) sorun değildir, dokunulmadı | Boru komuta KENDİ stdin'ini verir; gereksiz değişiklik gürültüdür |
+
+**Ders.** Deploy otomasyonunun doğruluğu, "iş yeşil mi" ile değil
+**"sunucuda ne çalışıyor"** ile ölçülür. K-11 "bayat staging, staging
+olmamaktan kötüdür" diyordu; bu olay onun otomasyona bakan yüzü:
+**yeşil raporlayan bayat staging, elle deploy'dan da kötüdür** — çünkü
+kimse şüphelenmez.
