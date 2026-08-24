@@ -123,6 +123,15 @@ interface CankayaMapProps {
   selectedLocation?: WalkingLocation | null;
   walkingMinutes?: WalkingMinutes;
   analysisRadiusKm?: AnalysisRadiusKm;
+  /**
+   * Görünür alanın solunda kaç piksellik kısmın ÖRTÜLÜ olduğu.
+   *
+   * Keşfet ekranında çekmece haritanın üstünde yüzüyor; padding verilmezse
+   * ilçe sınırının solu panelin altında kalır ve kullanıcı haritayı elle
+   * kaydırmak zorunda kalır. MapLibre `padding`i hem `fitBounds` hem de
+   * ortalama hesabına katar.
+   */
+  padLeft?: number;
 }
 
 const GEO_DISTRICT = '/geo/cankaya.geojson';
@@ -398,10 +407,15 @@ export function CankayaMap({
   selectedLocation = null,
   walkingMinutes = 15,
   analysisRadiusKm = 2,
+  padLeft = 0,
 }: CankayaMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerObjectsRef = useRef<Marker[]>([]);
+  // Harita bir kez kuruluyor; kurulum anındaki padding'i efektin bağımlılık
+  // listesine sokmadan okuyabilmek için ref'te tutuyoruz.
+  const padLeftRef = useRef(padLeft);
+  padLeftRef.current = padLeft;
   // onMapClick her render'da yeni referans olabilir; listener'ı yeniden
   // bağlamak yerine ref üzerinden güncel tutuyoruz.
   const clickHandlerRef = useRef(onMapClick);
@@ -444,7 +458,12 @@ export function CankayaMap({
           style: buildStyle(district, neighbourhoods),
           attributionControl: false,
           ...(hasBounds
-            ? { bounds, fitBoundsOptions: { padding: 24 } }
+            ? {
+                bounds,
+                fitBoundsOptions: {
+                  padding: { top: 24, right: 24, bottom: 24, left: 24 + padLeftRef.current },
+                },
+              }
             : { center: FALLBACK_CENTER, zoom: 10.5 }),
         });
         mapRef.current = map;
@@ -565,6 +584,31 @@ export function CankayaMap({
     const canvas = mapRef.current?.getCanvas();
     if (canvas) canvas.style.cursor = onMapClick ? 'crosshair' : '';
   }, [onMapClick, status]);
+
+  /**
+   * Panel açılıp kapandıkça haritayı yatayda kaydırır.
+   *
+   * Neden `setPadding`/`easeTo({padding})` DEĞİL: `fitBoundsOptions.padding`
+   * yalnızca ilk yerleştirmenin HESABINA girer, haritanın kalıcı padding'ini
+   * ayarlamaz. İkisini karıştırınca kurulumda dolgu iki kez sayılıp ilçe
+   * kırpılıyor, panel kapanınca da harita yerinde kalıyordu (ikisi de
+   * görüldü).
+   *
+   * `panBy` yakınlaştırmayı ve kullanıcının kendi kaydırmasını korur:
+   * yalnızca örtülen genişliğin yarısı kadar öteler. Süre panelin CSS
+   * geçişiyle (0.22s) aynı — ikisi birlikte hareket etsin.
+   */
+  const previousPadRef = useRef(padLeft);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== 'hazir') return;
+
+    const delta = padLeft - previousPadRef.current;
+    previousPadRef.current = padLeft;
+    if (delta === 0) return;
+
+    map.panBy([-delta / 2, 0], { duration: 220 });
+  }, [padLeft, status]);
 
   useEffect(() => {
     const source = mapRef.current?.getSource('yurume-alani') as GeoJSONSource | undefined;
