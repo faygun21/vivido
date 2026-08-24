@@ -8,6 +8,9 @@ import '../../../location_search/data/api_location_search_gateway.dart';
 import '../../../location_search/domain/location_search_models.dart';
 import '../../../location_search/presentation/widgets/location_search_panel.dart';
 import '../../../map/presentation/widgets/cankaya_map.dart';
+import '../../../preferences/domain/life_criteria.dart';
+import '../../../preferences/presentation/widgets/life_criteria_order_list.dart';
+import '../../../../shared/widgets/budget_range_fields.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({required this.controller, this.initialIndex = 0, super.key})
@@ -211,7 +214,15 @@ class _ProfileView extends StatelessWidget {
         controller.personas
             .where((item) => item.code == profile?.personaCode)
             .firstOrNull;
-    final budget = profile?.monthlyBudget;
+    final profileName = [profile?.firstName, profile?.lastName]
+        .whereType<String>()
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .join(' ');
+    final criteriaSummary =
+        profile == null || profile.categoryOrder.isEmpty
+            ? 'Henüz sıralanmadı'
+            : profile.categoryOrder.take(3).map(lifeCriterionLabel).join(' · ');
 
     return SafeArea(
       child: ListView(
@@ -223,7 +234,9 @@ class _ProfileView extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Text(
-            controller.user?.displayName ?? 'Vivido kullanıcısı',
+            profileName.isNotEmpty
+                ? profileName
+                : controller.user?.displayName ?? 'Vivido kullanıcısı',
             textAlign: TextAlign.center,
             style: Theme.of(
               context,
@@ -251,12 +264,14 @@ class _ProfileView extends StatelessWidget {
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.payments_outlined),
-                  title: const Text('Aylık kira bütçesi'),
-                  subtitle: Text(
-                    budget == null
-                        ? 'Belirtilmedi'
-                        : '${budget.toStringAsFixed(0)} ₺',
-                  ),
+                  title: const Text('Aylık kira aralığı'),
+                  subtitle: Text(_formatBudgetRange(profile)),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.format_list_numbered),
+                  title: const Text('Yaşam kriterleri'),
+                  subtitle: Text(criteriaSummary),
                 ),
                 const Divider(height: 1),
                 ListTile(
@@ -274,7 +289,7 @@ class _ProfileView extends StatelessWidget {
                     ? null
                     : () => _showProfileEditor(context, controller),
             icon: const Icon(Icons.edit_outlined),
-            label: const Text('Persona ve bütçeyi düzenle'),
+            label: const Text('Profil ve tercihleri düzenle'),
           ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
@@ -321,44 +336,94 @@ class _ProfileEditorSheet extends StatefulWidget {
 }
 
 class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
-  late final TextEditingController _budgetController;
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _firstNameController;
+  late final TextEditingController _lastNameController;
+  late final TextEditingController _minBudgetController;
+  late final TextEditingController _maxBudgetController;
   late String _selectedPersona;
+  late List<String> _categoryOrder;
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    _budgetController = TextEditingController(
-      text: widget.initialProfile.monthlyBudget?.toStringAsFixed(0) ?? '',
+    _firstNameController = TextEditingController(
+      text: widget.initialProfile.firstName,
+    );
+    _lastNameController = TextEditingController(
+      text: widget.initialProfile.lastName,
+    );
+    _minBudgetController = TextEditingController(
+      text: widget.initialProfile.minMonthlyBudget?.toStringAsFixed(0) ?? '',
+    );
+    _maxBudgetController = TextEditingController(
+      text: widget.initialProfile.maxMonthlyBudget?.toStringAsFixed(0) ?? '',
     );
     _selectedPersona = widget.initialProfile.personaCode;
+    final persona = _findPersona(_selectedPersona);
+    _categoryOrder =
+        persona == null
+            ? List<String>.of(widget.initialProfile.categoryOrder)
+            : resolveLifeCriteriaOrder(
+              persona: persona,
+              savedOrder: widget.initialProfile.categoryOrder,
+            );
   }
 
   @override
   void dispose() {
-    _budgetController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _minBudgetController.dispose();
+    _maxBudgetController.dispose();
     super.dispose();
+  }
+
+  Persona? _findPersona(String code) {
+    for (final persona in widget.controller.personas) {
+      if (persona.code == code) return persona;
+    }
+    return null;
+  }
+
+  void _selectPersona(String code) {
+    final persona = _findPersona(code);
+    if (persona == null) return;
+    final savedOrder =
+        widget.initialProfile.personaCode == code
+            ? widget.initialProfile.categoryOrder
+            : const <String>[];
+    setState(() {
+      _selectedPersona = code;
+      _categoryOrder = resolveLifeCriteriaOrder(
+        persona: persona,
+        savedOrder: savedOrder,
+      );
+    });
   }
 
   Future<void> _save() async {
     FocusScope.of(context).unfocus();
-
-    final rawBudget = _budgetController.text.trim();
-    final budget =
-        rawBudget.isEmpty
-            ? null
-            : double.tryParse(rawBudget.replaceAll(',', '.'));
-    if (rawBudget.isNotEmpty && budget == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Geçerli bir bütçe gir.')));
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (_categoryOrder.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Yaşam kriterleri yüklenemedi.')),
+      );
       return;
     }
 
+    final minBudget = parseBudgetInput(_minBudgetController.text);
+    final maxBudget = parseBudgetInput(_maxBudgetController.text);
+
     setState(() => _saving = true);
     final saved = await widget.controller.saveProfile(
+      firstName: _firstNameController.text,
+      lastName: _lastNameController.text,
       personaCode: _selectedPersona,
-      monthlyBudget: budget,
+      minMonthlyBudget: minBudget,
+      maxMonthlyBudget: maxBudget,
+      categoryOrder: _categoryOrder,
     );
     if (!mounted) return;
 
@@ -391,65 +456,100 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
           20 + MediaQuery.viewInsetsOf(context).bottom,
         ),
         child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Profil tercihleri',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedPersona,
-                decoration: const InputDecoration(labelText: 'Persona'),
-                items: [
-                  for (final persona in widget.controller.personas)
-                    DropdownMenuItem(
-                      value: persona.code,
-                      child: Text(persona.displayNameTr),
-                    ),
-                ],
-                onChanged:
-                    _saving
-                        ? null
-                        : (value) {
-                          if (value != null) {
-                            setState(() => _selectedPersona = value);
-                          }
-                        },
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: _budgetController,
-                enabled: !_saving,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Profil tercihleri',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                 ),
-                decoration: const InputDecoration(
-                  labelText: 'Aylık kira bütçesi',
-                  suffixText: '₺',
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _firstNameController,
+                  enabled: !_saving,
+                  textInputAction: TextInputAction.next,
+                  autofillHints: const [AutofillHints.givenName],
+                  decoration: const InputDecoration(labelText: 'Ad'),
+                  validator: _requiredName,
                 ),
-              ),
-              const SizedBox(height: 18),
-              FilledButton(
-                onPressed: _saving ? null : _save,
-                child:
-                    _saving
-                        ? const SizedBox.square(
-                          dimension: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                        : const Text('Kaydet'),
-              ),
-            ],
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _lastNameController,
+                  enabled: !_saving,
+                  textInputAction: TextInputAction.next,
+                  autofillHints: const [AutofillHints.familyName],
+                  decoration: const InputDecoration(labelText: 'Soyad'),
+                  validator: _requiredName,
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedPersona,
+                  decoration: const InputDecoration(labelText: 'Persona'),
+                  items: [
+                    for (final persona in widget.controller.personas)
+                      DropdownMenuItem(
+                        value: persona.code,
+                        child: Text(persona.displayNameTr),
+                      ),
+                  ],
+                  onChanged:
+                      _saving
+                          ? null
+                          : (value) {
+                            if (value != null) _selectPersona(value);
+                          },
+                ),
+                const SizedBox(height: 18),
+                LifeCriteriaOrderList(
+                  categoryOrder: _categoryOrder,
+                  enabled: !_saving,
+                  onChanged: (order) {
+                    setState(() => _categoryOrder = order);
+                  },
+                ),
+                const SizedBox(height: 14),
+                BudgetRangeFields(
+                  minController: _minBudgetController,
+                  maxController: _maxBudgetController,
+                  enabled: !_saving,
+                ),
+                const SizedBox(height: 18),
+                FilledButton(
+                  onPressed: _saving ? null : _save,
+                  child:
+                      _saving
+                          ? const SizedBox.square(
+                            dimension: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : const Text('Kaydet'),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+
+  String? _requiredName(String? value) =>
+      (value ?? '').trim().isEmpty ? 'Bu alan zorunludur.' : null;
+}
+
+String _formatBudgetRange(UserProfile? profile) {
+  final minimum = profile?.minMonthlyBudget;
+  final maximum = profile?.maxMonthlyBudget;
+  if (minimum != null && maximum != null) {
+    return '${minimum.toStringAsFixed(0)} ₺ - ${maximum.toStringAsFixed(0)} ₺';
+  }
+  if (minimum != null) return '${minimum.toStringAsFixed(0)} ₺ ve üzeri';
+  if (maximum != null) return '${maximum.toStringAsFixed(0)} ₺\'ye kadar';
+  return 'Belirtilmedi';
 }
 
 IconData _personaIcon(String? code) => switch (code) {

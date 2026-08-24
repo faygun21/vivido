@@ -312,12 +312,20 @@ class VividoRepository {
   );
 
   Future<UserProfile> saveProfile({
+    required String firstName,
+    required String lastName,
     required String personaCode,
-    double? monthlyBudget,
+    double? minMonthlyBudget,
+    double? maxMonthlyBudget,
+    List<String>? categoryOrder,
   }) async => UserProfile.fromJson(
     await client.put('/profile', {
+          'firstName': firstName.trim(),
+          'lastName': lastName.trim(),
           'personaCode': personaCode,
-          'monthlyBudget': monthlyBudget,
+          'minMonthlyBudget': minMonthlyBudget,
+          'maxMonthlyBudget': maxMonthlyBudget,
+          if (categoryOrder != null) 'categoryOrder': categoryOrder,
         })
         as Map<String, dynamic>,
   );

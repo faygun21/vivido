@@ -135,6 +135,59 @@ void main() {
 
       expect(store.session?.accessToken, 'access-2');
     });
+
+    test('profil güncellemesi ad, soyad ve kriter sırasını gönderir', () async {
+      final categoryOrder = <String>[
+        'school',
+        'transit',
+        'market',
+        'pharmacy',
+        'food',
+        'park',
+        'gym',
+        'health',
+      ];
+      final store = MemoryTokenStore(_session(accessToken: 'access-1'));
+      final mock = MockClient((request) async {
+        expect(request.method, 'PUT');
+        expect(request.url.path, '/api/v1/profile');
+        expect(request.headers['authorization'], 'Bearer access-1');
+        expect(jsonDecode(request.body), {
+          'firstName': 'Mert',
+          'lastName': 'Dulgar',
+          'personaCode': 'student',
+          'minMonthlyBudget': 15000,
+          'maxMonthlyBudget': 27500,
+          'categoryOrder': categoryOrder,
+        });
+        return _jsonResponse({
+          ..._profileJson,
+          'minMonthlyBudget': 15000,
+          'maxMonthlyBudget': 27500,
+          'categoryOrder': categoryOrder,
+        });
+      });
+      final client = ApiClient(
+        baseUrl: 'http://localhost/api/v1',
+        tokenStore: store,
+        httpClient: mock,
+      );
+      addTearDown(client.close);
+      await client.restoreSession();
+
+      final profile = await VividoRepository(client).saveProfile(
+        firstName: ' Mert ',
+        lastName: ' Dulgar ',
+        personaCode: 'student',
+        minMonthlyBudget: 15000,
+        maxMonthlyBudget: 27500,
+        categoryOrder: categoryOrder,
+      );
+
+      expect(profile.firstName, 'Mert');
+      expect(profile.lastName, 'Dulgar');
+      expect(profile.categoryOrder, categoryOrder);
+    });
   });
 }
 
@@ -170,7 +223,11 @@ AuthSession _session({required String accessToken}) => AuthSession(
 
 const _profileJson = <String, Object>{
   'id': 'profile-1',
+  'firstName': 'Mert',
+  'lastName': 'Dulgar',
   'personaCode': 'student',
-  'monthlyBudget': 25000,
+  'minMonthlyBudget': 15000,
+  'maxMonthlyBudget': 25000,
+  'categoryOrder': <String>[],
   'anchors': <Object>[],
 };
