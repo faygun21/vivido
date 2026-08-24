@@ -1,38 +1,32 @@
-/*
-  Vivido — temel stiller.
-
-  Bu dosya bilinçli olarak KÜÇÜK. Tasarım sistemi (renk paleti, skor bandı
-  renkleri, bileşen stilleri) Hafta 2'de explore ekranıyla birlikte gelecek.
-  Şimdilik amaç: iskeletin okunabilir görünmesi.
-
-  SAHİBİ: Kişi 1 — buraya özellik bazlı stil yazmayın, kendi bileşeninizin
-  yanında CSS modülü kullanın, yoksa bu dosya dört kişilik çakışma noktası olur.
-*/
-
 :root {
-  --bg: #fbfbf9;
-  --surface: #ffffff;
-  --ink: #14201c;
-  --ink-muted: #64756f;
-  --line: #e2e8e5;
-  --accent: #0b6e60;
-  --accent-ink: #ffffff;
+  --bg: #F9F4ED;
+  --surface: #FFFFFF;
+  --ink: #333333;
+  --ink-muted: #737373;
+  --line: #A79D93;
+  --accent: #C0421D;
+  --accent-secondary: #E27250;
+  --accent-ink: #FFFFFF;
+  --input-bg: #ECEAE6;
 
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: "Poppins", system-ui, -apple-system, sans-serif;
   line-height: 1.6;
   color: var(--ink);
   background: var(--bg);
 }
 
+/* Tasarım bütünlüğü için dark mode şimdilik ana palete sabitlendi */
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0d1512;
-    --surface: #131e1a;
-    --ink: #e3eae7;
-    --ink-muted: #93a49e;
-    --line: #22322d;
-    --accent: #51c0a7;
-    --accent-ink: #0d1512;
+    --bg: #F9F4ED;
+    --surface: #FFFFFF;
+    --ink: #333333;
+    --ink-muted: #737373;
+    --line: #A79D93;
+    --accent: #C0421D;
+    --accent-secondary: #E27250;
+    --accent-ink: #FFFFFF;
+    --input-bg: #ECEAE6;
   }
 }
 
@@ -51,16 +45,6 @@ a { color: var(--accent); }
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-}
-
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.9rem 1.5rem;
-  border-bottom: 1px solid var(--line);
-  background: var(--surface);
 }
 
 .brand {
@@ -105,6 +89,7 @@ a { color: var(--accent); }
 .landing h1 {
   letter-spacing: -0.025em;
   margin-top: 0;
+  color: #000;
 }
 
 .landing p { max-width: 46rem; }
@@ -133,7 +118,7 @@ a { color: var(--accent); }
   margin-top: 2rem;
   padding: 1.25rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: 1.25rem;
   background: var(--surface);
 }
 
@@ -150,66 +135,74 @@ button {
   background: var(--surface);
   color: var(--ink);
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   Hafta 2 — form, harita ve anchor bileşenleri
-   Mevcut tasarım token'larını (--accent, --line, --surface…) kullanır,
-   böylece açık/koyu tema otomatik çalışır.
-   ═══════════════════════════════════════════════════════════════ */
-
 /* ── Formlar ── */
-.auth-page { max-width: 26rem; }
+.auth-page { max-width: 26rem; margin: 0 auto; }
 
 .form-card {
   display: grid;
-  gap: 1rem;
-  padding: 1.25rem;
-  border: 1px solid var(--line);
-  border-radius: 0.75rem;
-  background: var(--surface);
+  gap: 1.25rem;
+  padding: 1.5rem;
+  background: transparent;
   margin-bottom: 1rem;
 }
 
-.field { display: grid; gap: 0.35rem; }
-.field > span { font-size: 0.9rem; font-weight: 600; }
+.field { display: grid; gap: 0.35rem; position: relative; }
+.field > span { font-size: 0.9rem; font-weight: 600; display: none; }
 
 .field input,
 .field select {
   font: inherit;
-  padding: 0.55rem 0.7rem;
+  padding: 1rem 1.25rem;
   border: 1px solid var(--line);
-  border-radius: 0.45rem;
-  background: var(--bg);
+  border-radius: 1.25rem;
+  background: var(--input-bg);
   color: var(--ink);
   width: 100%;
+  transition: all 0.2s;
+}
+
+.field input::placeholder {
+  color: var(--ink-muted);
 }
 
 .field input:focus-visible,
 .field select:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
 .btn-primary {
-  padding: 0.6rem 1.1rem;
-  border: 1px solid transparent;
-  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+  border: none;
+  border-radius: 1.25rem;
   background: var(--accent);
   color: var(--accent-ink);
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 1.1rem;
 }
-.btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-primary:hover {
+  background: #a53818;
+}
+.btn-primary:disabled { opacity: 0.65; cursor: not-allowed; }
 
 .btn-secondary {
   display: inline-block;
-  padding: 0.45rem 0.9rem;
+  padding: 1rem 1.25rem;
   border: 1px solid var(--line);
-  border-radius: 0.5rem;
-  background: var(--surface);
+  border-radius: 1.25rem;
+  background: var(--input-bg);
   color: var(--ink);
   text-decoration: none;
-  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.btn-secondary:hover {
+  background: #e0deda;
 }
 
 .btn-icon {
@@ -217,223 +210,30 @@ button {
   line-height: 1;
   color: var(--ink-muted);
 }
-.btn-icon:hover { color: #b3261e; }
+.btn-icon:hover { color: var(--accent); }
 
 .form-error {
   margin: 0;
-  padding: 0.6rem 0.75rem;
-  border-radius: 0.45rem;
+  padding: 0.8rem 1rem;
+  border-radius: 1rem;
   background: #fdeceb;
   color: #7f1d1d;
   border: 1px solid #f5c2c0;
   font-size: 0.9rem;
-}
-@media (prefers-color-scheme: dark) {
-  .form-error { background: #3a1c1a; color: #ffd9d6; border-color: #5d2b28; }
+  text-align: center;
 }
 
 .notice {
-  padding: 0.75rem 0.9rem;
-  border: 1px dashed var(--line);
-  border-radius: 0.5rem;
-  color: var(--ink-muted);
+  padding: 0.8rem 1rem;
+  border: 1px solid #fef3c7;
+  border-radius: 1rem;
+  background: #fffbeb;
+  color: #92400e;
   font-size: 0.92rem;
+  text-align: center;
 }
 
 .row-actions { display: flex; gap: 0.5rem; align-items: center; }
-
-/* ── Bilgi kartı ── */
-.info-card {
-  padding: 1rem 1.1rem;
-  border: 1px solid var(--line);
-  border-radius: 0.75rem;
-  background: var(--surface);
-  margin-bottom: 1rem;
-}
-.info-card h2 { margin: 0 0 0.6rem; font-size: 1rem; }
-
-.kv {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.3rem 1rem;
-  margin: 0 0 0.8rem;
-  font-size: 0.92rem;
-}
-.kv dt { color: var(--ink-muted); }
-.kv dd { margin: 0; font-weight: 600; }
-
-.data-badge {
-  display: inline-block;
-  padding: 0.25rem 0.6rem;
-  border-radius: 999px;
-  background: var(--line);
-  color: var(--ink-muted);
-  font-size: 0.78rem;
-}
-
-/* ── Explore düzeni ── */
-.explore {
-  display: grid;
-  grid-template-columns: 22rem 1fr;
-  gap: 1.25rem;
-  align-items: start;
-  min-height: calc(100vh - 12rem);
-}
-.explore-side h1 { margin-top: 0; }
-.explore-map {
-  position: relative;
-  height: calc(100vh - 12rem);
-  min-height: 26rem;
-  border: 1px solid var(--line);
-  border-radius: 0.75rem;
-  overflow: hidden;
-}
-@media (max-width: 900px) {
-  .explore { grid-template-columns: 1fr; }
-  .explore-map { height: 60vh; }
-}
-
-/* ── Harita ── */
-.map-wrap { position: relative; width: 100%; }
-.map-canvas { position: absolute; inset: 0; }
-
-.map-note,
-.map-hover-badge {
-  position: absolute;
-  z-index: 2;
-  padding: 0.35rem 0.7rem;
-  border-radius: 0.4rem;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  font-size: 0.85rem;
-  pointer-events: none;
-}
-.map-note { top: 0.6rem; left: 0.6rem; color: var(--ink-muted); }
-.map-note--error { color: #7f1d1d; border-color: #f5c2c0; pointer-events: auto; }
-.map-hover-badge { bottom: 0.6rem; left: 0.6rem; font-weight: 600; }
-
-/* Anchor pin'i — MapLibre HTML Marker'ı olarak basılır. */
-.map-pin {
-  display: grid;
-  place-items: center;
-  width: 1.6rem;
-  height: 1.6rem;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--accent-ink);
-  border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
-  font-size: 0.8rem;
-  font-weight: 700;
-  cursor: default;
-}
-
-/* ── Anchor listesi ── */
-.anchor-map {
-  height: 320px;
-  border: 1px solid var(--line);
-  border-radius: 0.6rem;
-  overflow: hidden;
-  margin-bottom: 0.5rem;
-}
-.map-hint { font-size: 0.85rem; }
-
-.anchor-form {
-  display: grid;
-  gap: 0.75rem;
-  padding: 0.9rem;
-  border: 1px solid var(--line);
-  border-radius: 0.6rem;
-  background: var(--bg);
-  margin-bottom: 1rem;
-}
-
-.anchor-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
-
-.anchor-item {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  padding: 0.6rem 0.75rem;
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
-  background: var(--bg);
-}
-.anchor-item--dragging { opacity: 0.85; box-shadow: 0 4px 14px rgb(0 0 0 / 0.18); }
-
-.anchor-grip { cursor: grab; color: var(--ink-muted); touch-action: none; user-select: none; }
-.anchor-grip:active { cursor: grabbing; }
-
-.anchor-order {
-  display: grid;
-  place-items: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-size: 0.8rem;
-  font-weight: 700;
-  flex: none;
-}
-
-.anchor-body { display: grid; gap: 0.1rem; flex: 1; min-width: 0; }
-.anchor-body span { font-size: 0.82rem; }
-
-.walking-access-card label {
-  display: block;
-  margin: 0.85rem 0 0.4rem;
-  font-weight: 700;
-}
-
-.walking-access-card select {
-  width: 100%;
-  min-height: 2.75rem;
-  padding: 0.55rem 0.7rem;
-  border: 1px solid var(--border);
-  border-radius: 0.55rem;
-  background: #fff;
-  color: var(--ink);
-  font: inherit;
-}
-
-.walking-access-status {
-  margin: 0.7rem 0 0;
-  color: #92400e;
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.analysis-area-hint {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin: 0.45rem 0 0;
-  color: var(--ink-muted);
-  font-size: 0.82rem;
-}
-
-.area-key {
-  width: 1.1rem;
-  height: 0.65rem;
-  border-radius: 999px;
-  flex: none;
-}
-
-.area-key--analysis {
-  border: 2px dashed #0f766e;
-  background: rgb(15 118 110 / 0.1);
-}
-
-.area-key--walking {
-  border: 2px solid #b45309;
-  background: rgb(245 158 11 / 0.22);
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   Misafir modu, e-posta doğrulama ve şifre sıfırlama (K-09 / W0)
-   Var olan token'ları kullanır; ayrı tema tanımı yok.
-   ═══════════════════════════════════════════════════════════════ */
 
 /* ── Form yardımcı metinleri ── */
 .field-hint {
@@ -447,9 +247,6 @@ button {
   color: #b3261e;
   font-weight: 600;
 }
-@media (prefers-color-scheme: dark) {
-  .field-error { color: #ffb4ab; }
-}
 
 .field-ok {
   font-size: 0.8rem;
@@ -462,86 +259,262 @@ button {
   font-size: 0.9rem;
   text-align: right;
 }
-
-/* ── 6 haneli kod alanı ──
-   Rakamlar arasını açmak, kullanıcının kodu e-postadakiyle
-   karakter karakter karşılaştırmasını kolaylaştırıyor. */
-.code-input {
-  font-size: 1.6rem !important;
-  font-weight: 700;
-  letter-spacing: 0.45em;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  /* letter-spacing son karakterin de sağına boşluk koyar; metin
-     optik olarak sola kayar. Yarısı kadar sol padding dengeler. */
-  padding-left: 0.45em !important;
+.form-links a {
+  color: var(--accent);
+  font-weight: 600;
 }
 
-/* ── Tanıtım sayfası eylemleri ── */
-.landing-actions {
+/* Diğer harita ve anchor bileşenlerinin stilleri */
+.info-card { padding: 1rem 1.1rem; border: 1px solid var(--line); border-radius: 1.25rem; background: var(--surface); margin-bottom: 1rem; }
+.info-card h2 { margin: 0 0 0.6rem; font-size: 1rem; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 0.3rem 1rem; margin: 0 0 0.8rem; font-size: 0.92rem; }
+.kv dt { color: var(--ink-muted); }
+.kv dd { margin: 0; font-weight: 600; }
+.data-badge { display: inline-block; padding: 0.25rem 0.6rem; border-radius: 999px; background: var(--line); color: var(--surface); font-size: 0.78rem; }
+.explore { display: grid; grid-template-columns: 22rem 1fr; gap: 1.25rem; align-items: start; min-height: calc(100vh - 12rem); }
+.explore-side h1 { margin-top: 0; }
+.explore-map { position: relative; height: calc(100vh - 12rem); min-height: 26rem; border: 1px solid var(--line); border-radius: 1.25rem; overflow: hidden; }
+@media (max-width: 900px) { .explore { grid-template-columns: 1fr; } .explore-map { height: 60vh; } }
+.map-wrap { position: relative; width: 100%; }
+.map-canvas { position: absolute; inset: 0; }
+.map-pin { display: grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--accent); color: var(--accent-ink); border: 2px solid #fff; box-shadow: 0 1px 4px rgb(0 0 0 / 0.35); font-size: 0.8rem; font-weight: 700; cursor: default; }
+.anchor-map { height: 320px; border: 1px solid var(--line); border-radius: 1rem; overflow: hidden; margin-bottom: 0.5rem; }
+.anchor-form { display: grid; gap: 0.75rem; padding: 0.9rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--surface); margin-bottom: 1rem; }
+.anchor-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.anchor-item { display: flex; align-items: center; gap: 0.7rem; padding: 0.6rem 0.75rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--surface); }
+.anchor-grip { cursor: grab; color: var(--ink-muted); touch-action: none; user-select: none; }
+.anchor-order { display: grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 0.8rem; font-weight: 700; flex: none; }
+.anchor-body { display: grid; gap: 0.1rem; flex: 1; min-width: 0; }
+.code-input { font-size: 1.6rem !important; font-weight: 700; letter-spacing: 0.45em; text-align: center; font-variant-numeric: tabular-nums; padding-left: 0.45em !important; }
+
+/* ─── İkon Boyutlandırması ─── */
+svg {
+  max-width: 1.25rem;
+  max-height: 1.25rem;
+}
+
+button svg, 
+.btn-icon svg {
+  max-width: 1.5rem;
+  max-height: 1.5rem;
+}
+
+/* ─── GİRİŞ EKRANI ─── */
+.login-page-wrapper {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: row !important; 
+  height: 100vh;
+  overflow: hidden;
+  width: 100%;
+  background-color: var(--bg);
+  align-items: stretch;
+}
+
+.login-left {
+  flex: 1;
+  display: flex;
+  background-color: var(--accent-secondary);
+  padding: 2.5rem;
   align-items: center;
-  gap: 0.75rem;
-  margin-top: 1.25rem;
+  justify-content: center;
 }
 
-.btn-ghost {
-  padding: 0.55rem 1rem;
-  border: 1px dashed var(--line);
-  border-radius: 0.5rem;
-  background: transparent;
-  color: var(--ink-muted);
-  font-weight: 600;
-}
-.btn-ghost:hover { color: var(--ink); border-style: solid; }
-
-.landing-guest-note {
-  max-width: 46rem;
-  margin-top: 1.25rem;
-  font-size: 0.9rem;
+.login-right {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
 }
 
-/* ── Üst çubuk: misafir rozeti ── */
-.guest-chip {
-  padding: 0.15rem 0.55rem;
+.login-video-box {
+  width: 100%;
+  height: 100%;
+  background-color: #fff;
+  border-radius: 1.5rem;
+  overflow: hidden;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+  display: flex;
+}
+
+.login-video-box video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.login-form-container {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.login-logo {
+  height: 6rem;
+  width: auto;
+  margin-bottom: 0.5rem;
+}
+
+.login-slogan {
+  font-size: 0.95rem;
+  color: var(--ink);
+  font-weight: 500;
+  margin: 0 0 0.75rem 0;
+}
+
+.login-divider {
+  width: 100%;
+  border-top: 1px solid var(--line);
+  margin-bottom: 1.5rem; 
+}
+
+.login-title {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #000;
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+}
+
+.login-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem; 
+}
+
+.login-input-group {
+  position: relative;
+  width: 100%;
+}
+
+.login-input {
+  width: 100%;
+  padding: 1rem 1.25rem;
+  background-color: var(--input-bg);
   border: 1px solid var(--line);
-  border-radius: 999px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  border-radius: 1rem;
+  font-size: 0.95rem;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.login-input::placeholder {
   color: var(--ink-muted);
 }
 
-.nav-cta {
-  background: var(--accent);
-  color: var(--accent-ink);
-  border-color: transparent;
-  font-weight: 600;
-}
-
-/* ── Misafir bilgi kartı ── */
-.guest-card {
-  display: grid;
-  gap: 0.7rem;
+.login-input:focus {
   border-color: var(--accent);
 }
 
-.locked-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.5rem;
-  font-size: 0.9rem;
-  color: var(--ink-muted);
+.login-icon {
+  position: absolute;
+  right: 1.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.25rem; 
+  height: 1.25rem;
+  color: var(--line);
+  pointer-events: none;
 }
 
-.locked-list li {
+.login-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.login-forgot {
+  text-align: right;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  margin-top: -0.25rem;
+}
+
+.login-submit {
+  width: 100%;
+  height: 54px;
+  background-color: var(--accent);
+  color: var(--accent-ink);
+  border: none;
+  border-radius: 1rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 0.25rem;
+  transition: background-color 0.2s;
+}
+
+.login-submit:hover {
+  background-color: #a53818;
+}
+
+.login-or {
   display: flex;
-  gap: 0.5rem;
-  align-items: baseline;
-  line-height: 1.4;
+  align-items: center;
+  width: 100%;
+  margin: 1.5rem 0; 
 }
 
-.locked-list .lock { flex: none; }
+.login-or::before,
+.login-or::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--line);
+}
+
+.login-or span {
+  padding: 0 0.75rem;
+  color: var(--ink);
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.login-guest-btn {
+  width: 100%;
+  height: 54px;
+  background-color: var(--input-bg);
+  color: var(--ink-muted);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.login-guest-btn:hover {
+  background-color: #e0deda;
+}
+
+.login-register-text {
+  margin-top: 1.5rem;
+  font-size: 0.9rem;
+  color: var(--ink);
+  font-weight: 500;
+  text-align: center;
+}
+
+.login-register-text a {
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+/* Mobil için sadece formu gösterme */
+@media (max-width: 768px) {
+  .login-page-wrapper {
+    flex-direction: column !important;
+    overflow: auto; 
+  }
+  .login-left {
+    display: none;
+  }
+}
