@@ -30,10 +30,15 @@ Console.WriteLine(
         "$1***"));
 
 // 2. SONRA VERİTABANI BAĞLANTISINI KURUYORUZ
-builder.Services.AddDbContext<VividoDbContext>(options =>
-    options.UseNpgsql(connectionString, o => o.UseNetTopologySuite())
-           .UseSnakeCaseNamingConvention()
-);
+// In integration tests we set environment name to "IntegrationTests" so tests can
+// replace the DB provider. Skip registering the production Postgres provider in that case.
+if (!builder.Environment.IsEnvironment("IntegrationTests"))
+{
+    builder.Services.AddDbContext<VividoDbContext>(options =>
+        options.UseNpgsql(connectionString, o => o.UseNetTopologySuite())
+               .UseSnakeCaseNamingConvention()
+    );
+}
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -51,26 +56,36 @@ builder.Services.AddSwaggerGen(o =>
 builder.Services.AddScoped<JwtService>();
 
 // JWT Doğrulama ayarlarını ekleme
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
+if (!builder.Environment.IsEnvironment("IntegrationTests"))
+{
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
         {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
-        };
-    });
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = builder.Configuration["Jwt:Issuer"],
+                ValidAudience = builder.Configuration["Jwt:Audience"],
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
+            };
+        });
 
-builder.Services.AddAuthorization();
+    builder.Services.AddAuthorization();
+}
+else
+{
+    // For integration tests disable authentication/authorization to simplify.
+}
 
 // Sağlık kontrolleri. (Artık connectionString'i tanıyor)
-builder.Services.AddHealthChecks()
-    .AddNpgSql(connectionString!, name: "database");
+var healthChecksBuilder = builder.Services.AddHealthChecks();
+if (!builder.Environment.IsEnvironment("IntegrationTests"))
+{
+    healthChecksBuilder.AddNpgSql(connectionString!, name: "database");
+}
 
 // Web ve mobil istemciler için CORS.
 const string DevCors = "dev";

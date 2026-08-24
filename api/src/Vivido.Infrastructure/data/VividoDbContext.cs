@@ -16,6 +16,12 @@ public class VividoDbContext : DbContext
     public DbSet<UserProfile> UserProfiles { get; set; }
     public DbSet<Anchor> Anchors { get; set; }
 
+    // Scoring related (use existing entity names)
+    public DbSet<PoiCategory> PoiCategories { get; set; }
+    public DbSet<PropertyPoiAccess> PropertyPoiAccesses { get; set; }
+    public DbSet<PersonaCategoryWeight> PersonaCategoryWeights { get; set; }
+    public DbSet<ScoreCache> ScoreCaches { get; set; }
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -73,6 +79,32 @@ public class VividoDbContext : DbContext
             // PostGIS Point geometry alanı tanımı (NTS ile uyumlu)
             entity.Property(e => e.Geom)
                   .HasColumnType("geometry (Point, 4326)");
+        });
+
+        // Scoring related entities (simple mappings for tests)
+        builder.Entity<PoiCategory>(entity =>
+        {
+            entity.ToTable("poi_categories");
+            entity.HasKey(e => e.Code);
+            entity.Property(e => e.Code).HasColumnName("code");
+        });
+
+        builder.Entity<PropertyPoiAccess>(entity =>
+        {
+            entity.ToTable("property_poi_access");
+            entity.HasKey(e => new { e.PropertyId, e.CategoryCode });
+        });
+
+        builder.Entity<PersonaCategoryWeight>(entity =>
+        {
+            entity.ToTable("persona_category_weights");
+            entity.HasKey(e => new { e.PersonaCode, e.CategoryCode });
+        });
+
+        builder.Entity<ScoreCache>(entity =>
+        {
+            entity.ToTable("score_caches");
+            entity.HasKey(e => new { e.PropertyId, e.ProfileId, e.ScoringVersion });
         });
     }
 }
