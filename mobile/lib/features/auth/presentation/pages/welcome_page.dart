@@ -26,7 +26,6 @@ class WelcomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     // Tasarımdaki renkler
     const Color primaryColor = Color(0xFFC06B3E);
     const Color backgroundColor = Color(0xFFF9F5F0);
