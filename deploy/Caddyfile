@@ -28,6 +28,44 @@
 {$SITE_ADDRESS::80} {
 	encode zstd gzip
 
+	# ⭐ SERTİFİKA ZİNCİRİ — bunu kaldırma, site Windows'ta güvensiz görünür.
+	#
+	# Let's Encrypt 7 Ocak 2026'da "Generation Y" hiyerarşisine geçti
+	# (Root YE / Root YR). Caddy varsayılan olarak o zinciri seçiyor, ama
+	# bu kökler HENÜZ hiçbir büyük güven deposunda yok. Sonuç:
+	#
+	#   OpenSSL         → Verification: OK
+	#   Windows Chrome  → NET::ERR_CERT_AUTHORITY_INVALID
+	#   iPhone Safari   → sorunsuz
+	#
+	# Yani hata istemciye göre değişiyor ve "bende çalışıyor" tuzağının
+	# ders kitabı örneği. Zincirde ISRG Root X1'e çapraz imza olmasına
+	# rağmen Windows schannel o yoldan güvenilir köke ulaşamıyor.
+	#
+	# ⭐ `key_type rsa2048` ASIL DÜZELTME, süs değil.
+	#
+	# Ölçülen durum: bu ekipteki Windows makinesinin güven deposunda
+	# `ISRG Root X1` VAR ama `ISRG Root X2` YOK. Varsayılan ECDSA anahtarla
+	# Let's Encrypt şu zinciri veriyor:
+	#
+	#     leaf ← YE2 ← Root YE ← ISRG Root X2 ← ISRG Root X1
+	#                            ^^^^^^^^^^^^ Windows bunu tanımıyor
+	#
+	# RSA anahtarla YR hiyerarşisi devreye giriyor ve doğrudan
+	# ISRG Root X1'e çapraz imzalı — X2 yolundan hiç geçmiyor.
+	#
+	# Bedeli: RSA imzalar ECDSA'dan biraz yavaş ve sertifika birkaç yüz
+	# bayt büyük. Bir demo sitesinde ölçülemez; "jürinin makinesinde kırmızı
+	# uyarı çıkması" riskinin yanında hiçbir şey.
+	tls {
+		key_type rsa2048
+		issuer acme {
+			preferred_chains {
+				root_common_name "ISRG Root X1"
+			}
+		}
+	}
+
 	# ── Karo sunucusu ──
 	#
 	# `handle_path` ön eki SOYAR: /tiles/data/v3.json → /data/v3.json
