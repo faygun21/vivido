@@ -31,7 +31,7 @@ public class VividoDbContext : DbContext
 
     /// <summary>E-posta doğrulama + şifre sıfırlama kodları (K-09).</summary>
     public DbSet<AuthCode> AuthCodes { get; set; } = null!;
-
+    public DbSet<Property> Properties { get; set; } = null!;
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

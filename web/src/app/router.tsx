@@ -10,7 +10,7 @@ import { OnboardingPage } from '@/features/onboarding/OnboardingPage';
 import { ExplorePage } from '@/features/explore/ExplorePage';
 import { ProfilePage } from '@/features/profile/ProfilePage';
 import { NotFoundPage } from '@/features/NotFoundPage';
-
+import { PropertiesMapView } from '@/features/properties/PropertiesMapView'; 
 /**
  * Route tanımları — SAHİBİ: Kişi 1
  *
@@ -59,7 +59,14 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
-
+      {
+  path: 'properties',
+  element: (
+    <ProtectedRoute>
+      <PropertiesMapView />
+    </ProtectedRoute>
+  ),
+},
       { path: '*', element: <NotFoundPage /> },
     ],
   },
