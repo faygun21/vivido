@@ -51,21 +51,23 @@ class WelcomePage extends StatelessWidget {
                       child: SvgPicture.asset(
                         'assets/images/vivido_logo.svg', 
                         height: 70,
+                        semanticsLabel: AppConfig.appName,
                       ),
                     ),
                     
                     const Spacer(),
                     
-                    //İllüstrasyon Resmi
+                    // 2. İllüstrasyon Resmi
                     Image.asset(
                       'assets/images/ev_resmi.png',
                       height: 250,
                       fit: BoxFit.contain,
+                      semanticLabel: 'Ev ve yaşam alanı illüstrasyonu',
                     ),
                     
                     const SizedBox(height: 32),
                     
-                    //Slogan Metni
+                    // 3. Slogan Metni
                     const Text(
                       'Yeni evini sadece\nkonumuna göre değil,\nyaşamına göre seç.',
                       textAlign: TextAlign.center,
@@ -87,7 +89,7 @@ class WelcomePage extends StatelessWidget {
                     
                     const Spacer(),
                     
-                    //Giriş Yap Butonu
+                    // 4. Giriş Yap Butonu
                     SizedBox(
                       height: 54,
                       child: ElevatedButton(
@@ -113,7 +115,7 @@ class WelcomePage extends StatelessWidget {
                     
                     const SizedBox(height: 12),
                     
-                    //Kayıt Ol Butonu
+                    // 5. Kayıt Ol Butonu
                     SizedBox(
                       height: 54,
                       child: OutlinedButton(
