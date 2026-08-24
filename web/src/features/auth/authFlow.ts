@@ -29,10 +29,19 @@ export async function routeAfterAuth(
   try {
     await api.get('/profile');
     navigate(from ?? HOME_PATH, { replace: true });
-  } catch {
-    // 404 → profil yok. Başka bir hata olsa bile onboarding güvenli varış
-    // noktası: kullanıcı oradan profilini oluşturabiliyor.
-    navigate('/onboarding', { replace: true });
+  } catch (error) {
+    // Yalnızca gerçekten profil yoksa onboarding'e git. 500/ağ hatasını burada
+    // yutmak giriş başarılıymış gibi gösteriyor ve asıl sunucu arızasını
+    // kullanıcının profil kaydetme adımına kadar gizliyordu.
+    if (
+      error instanceof ApiError &&
+      (error.status === 404 || error.problem.code === 'PROFILE_NOT_FOUND')
+    ) {
+      navigate('/onboarding', { replace: true });
+      return;
+    }
+
+    throw error;
   }
 }
 

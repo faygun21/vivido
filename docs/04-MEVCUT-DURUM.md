@@ -329,6 +329,22 @@ görünmeyecekti — [K-01](02-KARARLAR.md#k-01)'in uyardığı sessiz şema kay
 `006_email_dogrulama_ve_sifre_sifirlama` · `007_add_profile_category_order`);
 her makine tek `pnpm db:migrate` ile kendiliğinden hizalanıyor.
 
+### 5.11 🔴 Profil çağrısı eski staging şemasında 500 dönüyordu
+
+K-12 gelecekteki hatalı baseline işlemini engelledi ancak daha önce yanlış
+işaretlenmiş staging veritabanını kendiliğinden onarmıyordu. Defter 005 ve
+007'yi uygulanmış gösterirken `first_name`, `last_name` sütunları ile
+`user_profile_category_order` tablosu eksik kalabiliyordu. Sonuç olarak giriş
+başarılı olsa da hemen arkasındaki `GET /api/v1/profile` çağrısı 500 dönüyordu.
+Web istemcisi bütün profil hatalarını onboarding yönlendirmesine çevirdiği için
+aynı arızayı gizliyor, mobil istemci ise giriş ekranında gösteriyordu.
+
+**Düzeltme:** `009_reconcile_profile_schema.sql` eksik profil sütunlarını,
+bütçe aralığını ve kategori sırası tablosunu idempotent olarak uzlaştırır.
+Web artık yalnızca 404 `PROFILE_NOT_FOUND` yanıtında onboarding'e gider; 500 ve
+ağ hatalarını gizlemez. CI, eski staging kaymasını kasten üretip 009'un yeniden
+onarabildiğini doğrular.
+
 ---
 
 ## 6. Veri boru hattı — sıfırdan çalıştırma

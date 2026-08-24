@@ -85,13 +85,14 @@ jobs:
               FROM unnest(ARRAY[
                 'users','refresh_tokens','user_profiles','anchors',
                 'personas','persona_category_weights',
+                'auth_codes','user_profile_category_order',
                 'poi_categories','poi_tag_mapping','pois',
                 'neighborhoods','buildings','properties',
                 'property_poi_access','score_cache','routes','route_stops'
               ]) AS t
               WHERE to_regclass('public.' || t) IS NULL;"); then
               if [ -z "$EKSIK" ]; then
-                echo "✓ 16 tablonun hepsi mevcut."
+                echo "✓ 18 tablonun hepsi mevcut."
                 exit 0
               fi
             fi
@@ -186,6 +187,53 @@ jobs:
           fi
           echo "✓ Yeniden adlandırma tanındı, dosya tekrar uygulanmadı."
           SH
+
+      # Eski staging'de otomatik baseline 005/007'yi çalıştırmadan deftere
+      # yazmıştı. 009 bu gerçek şema kaymasını yeni bir migration olarak
+      # onarır. Test, aynı bozuk durumu kasten üretip onarımın çalıştığını
+      # kanıtlar; yalnızca boş veritabanı kurulumunu test etmek yetmezdi.
+      - name: Profil şeması kaymasını onarır (regresyon testi)
+        run: |
+          docker compose exec -T postgis psql -U vivido -d vivido -v ON_ERROR_STOP=1 -c "
+            DROP TABLE user_profile_category_order;
+            ALTER TABLE user_profiles
+              DROP CONSTRAINT IF EXISTS ck_user_profiles_budget_range,
+              DROP COLUMN first_name,
+              DROP COLUMN last_name,
+              DROP COLUMN min_monthly_budget,
+              DROP COLUMN max_monthly_budget;
+            DELETE FROM schema_migrations
+            WHERE filename = '009_reconcile_profile_schema.sql';"
+
+          docker compose exec -T postgis bash /db/migrate.sh
+
+          docker compose exec -T postgis psql -U vivido -d vivido -v ON_ERROR_STOP=1 -c "
+            DO \$\$
+            DECLARE missing text;
+            BEGIN
+              SELECT string_agg(required_columns.name, ', ')
+              INTO missing
+              FROM unnest(ARRAY[
+                'first_name','last_name',
+                'min_monthly_budget','max_monthly_budget'
+              ]) AS required_columns(name)
+              WHERE NOT EXISTS (
+                SELECT 1
+                FROM information_schema.columns c
+                WHERE c.table_schema = 'public'
+                  AND c.table_name = 'user_profiles'
+                  AND c.column_name = required_columns.name
+              );
+
+              IF missing IS NOT NULL THEN
+                RAISE EXCEPTION 'Eksik profil sütunları: %', missing;
+              END IF;
+
+              IF to_regclass('public.user_profile_category_order') IS NULL THEN
+                RAISE EXCEPTION 'user_profile_category_order tablosu eksik';
+              END IF;
+            END
+            \$\$;"
 
       - name: Loglar (hata durumunda)
         if: failure()

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../config/app_config.dart';
@@ -270,9 +271,18 @@ class ApiClient {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final problem =
           decoded is Map<String, dynamic> ? decoded : const <String, dynamic>{};
+      if (kDebugMode) {
+        final contentType = response.headers['content-type'] ?? 'belirtilmedi';
+        debugPrint(
+          'API $method ${_resolve(path)} -> ${response.statusCode} '
+          '(content-type: $contentType, problem-json: ${problem.isNotEmpty})',
+        );
+      }
       throw ApiException(
         statusCode: response.statusCode,
-        title: problem['title'] as String? ?? 'İstek tamamlanamadı',
+        title:
+            problem['title'] as String? ??
+            _fallbackErrorTitle(response.statusCode),
         detail: problem['detail'] as String?,
         code: problem['code'] as String?,
       );
@@ -293,6 +303,15 @@ class ApiClient {
       return text;
     }
   }
+
+  static String _fallbackErrorTitle(int statusCode) => switch (statusCode) {
+    >= 500 => 'Sunucu tarafında bir hata oluştu ($statusCode).',
+    429 => 'Çok fazla istek gönderildi. Biraz bekleyip tekrar dene.',
+    404 => 'İstenen servis bulunamadı (404).',
+    403 => 'Bu işlem için yetkin bulunmuyor (403).',
+    401 => 'Oturum açılamadı (401).',
+    _ => 'İstek tamamlanamadı ($statusCode).',
+  };
 }
 
 class VividoRepository {

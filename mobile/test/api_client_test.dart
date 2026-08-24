@@ -136,6 +136,34 @@ void main() {
       expect(store.session?.accessToken, 'access-2');
     });
 
+    test('JSON olmayan sunucu hatasında HTTP durum kodunu korur', () async {
+      final client = ApiClient(
+        baseUrl: 'http://localhost/api/v1',
+        tokenStore: MemoryTokenStore(),
+        httpClient: MockClient(
+          (_) async => http.Response(
+            'Internal Server Error',
+            500,
+            headers: {'content-type': 'text/plain; charset=utf-8'},
+          ),
+        ),
+      );
+      addTearDown(client.close);
+
+      await expectLater(
+        client.login(email: 'test@vivido.app', password: 'secret123'),
+        throwsA(
+          isA<ApiException>()
+              .having((error) => error.statusCode, 'statusCode', 500)
+              .having(
+                (error) => error.title,
+                'title',
+                'Sunucu tarafında bir hata oluştu (500).',
+              ),
+        ),
+      );
+    });
+
     test('profil güncellemesi ad, soyad ve kriter sırasını gönderir', () async {
       final categoryOrder = <String>[
         'school',
