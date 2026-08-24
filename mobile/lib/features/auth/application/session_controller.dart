@@ -189,14 +189,22 @@ class SessionController extends ChangeNotifier {
   }
 
   Future<bool> saveProfile({
+    required String firstName,
+    required String lastName,
     required String personaCode,
-    double? monthlyBudget,
+    double? minMonthlyBudget,
+    double? maxMonthlyBudget,
+    List<String>? categoryOrder,
   }) async {
     _setBusy(true);
     try {
       profile = await repository.saveProfile(
+        firstName: firstName,
+        lastName: lastName,
         personaCode: personaCode,
-        monthlyBudget: monthlyBudget,
+        minMonthlyBudget: minMonthlyBudget,
+        maxMonthlyBudget: maxMonthlyBudget,
+        categoryOrder: categoryOrder,
       );
       _clearError();
       notifyListeners();
