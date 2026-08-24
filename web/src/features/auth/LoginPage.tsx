@@ -6,13 +6,12 @@ import { useAuthStore } from '@/features/auth/authStore';
 import { describeAuthError, hasErrorCode, routeAfterAuth } from '@/features/auth/authFlow';
 
 /**
- * Giriş sayfası — W1
+ * Giriş sayfası
  */
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const setSession = useAuthStore((s) => s.setSession);
-  const clearSession = useAuthStore((s) => s.clearSession);
   const enterGuest = useAuthStore((s) => s.enterGuest);
 
   const [email, setEmail] = useState('');
@@ -66,7 +65,6 @@ export function LoginPage() {
       {/* Sağ Taraf: Giriş Formu */}
       <div className="login-right">
         <div className="login-form-container">
-          {/* Logo */}
           <img
             src="/images/logo.svg"
             alt="Vivido Logo"
@@ -82,7 +80,7 @@ export function LoginPage() {
             {notice && <p className="notice" role="status">{notice}</p>}
             {error && <p className="form-error" role="alert">{error}</p>}
 
-            {/* E-posta Input */}
+            {/* E-posta*/}
             <div className="login-input-group">
               <input
                 type="email"
@@ -100,7 +98,7 @@ export function LoginPage() {
               </span>
             </div>
 
-            {/* Şifre Input */}
+            {/* Şifre*/}
             <div className="login-input-group">
               <input
                 type="password"
@@ -131,18 +129,18 @@ export function LoginPage() {
             <span>veya</span>
           </div>
 
-          {/* Misafir Olarak Devam Et Butonu */}
-{/* Misafir Olarak Devam Et Butonu */}
-<button
-  type="button"
-  onClick={() => {
-    enterGuest(); // 1. Korumalı rotaya "ben misafirim" diyoruz
-    navigate('/explore'); // 2. İçeri giriyoruz
-  }}
-  className="login-guest-btn"
->
-  Misafir olarak devam et
-</button>
+          
+        {/* Misafir Olarak Devam Et Butonu */}
+        <button
+          type="button"
+          onClick={() => {
+          enterGuest(); 
+          navigate('/explore'); 
+          }}
+          className="login-guest-btn"
+          >
+              Misafir olarak devam et
+          </button>
 
           <p className="login-register-text">
             Hesabın yok mu? <Link to="/auth/register">Kayıt ol</Link>
