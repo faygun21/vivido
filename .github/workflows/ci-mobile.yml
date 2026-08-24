@@ -25,18 +25,23 @@ jobs:
       - name: Repository'yi checkout et
         uses: actions/checkout@v4
 
-      - name: Flutter 3.47.0 kur
-        shell: bash
-        run: |
-          git clone https://github.com/flutter/flutter.git \
-            --depth 1 \
-            --branch 3.47.0 \
-            "$HOME/flutter"
-
-          echo "$HOME/flutter/bin" >> "$GITHUB_PATH"
+      # 1. SDK'yı otomatik önbelleğe alan standart action
+      - name: Flutter ortamını kur
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.0'
+          cache: true 
 
       - name: Flutter sürümünü doğrula
         run: flutter --version
+
+   
+      - name: Pub cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('mobile/pubspec.lock') }}
+          restore-keys: pub-${{ runner.os }}-
 
       - name: Bağımlılıkları yükle
         working-directory: mobile
