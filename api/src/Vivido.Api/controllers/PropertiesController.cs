@@ -41,12 +41,16 @@ public class PropertiesController : ControllerBase
         if (profile == null)
             return ApiProblem.ProfileNotFound();
 
-        // Bütçe filtresine göre konutları süzüyoruz (R-18 / Bütçe Süzgeci)
         var query = _context.Properties.AsNoTracking().AsQueryable();
 
-        if (profile.MonthlyBudget.HasValue)
+        if (profile.MinMonthlyBudget.HasValue)
         {
-            query = query.Where(p => p.MonthlyRent <= profile.MonthlyBudget.Value);
+            query = query.Where(p => p.MonthlyRent >= profile.MinMonthlyBudget.Value);
+        }
+
+        if (profile.MaxMonthlyBudget.HasValue)
+        {
+            query = query.Where(p => p.MonthlyRent <= profile.MaxMonthlyBudget.Value);
         }
 
         var properties = await query.ToListAsync();
