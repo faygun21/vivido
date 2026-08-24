@@ -2,7 +2,7 @@ name: ci-mobile
 
 on:
   push:
-    branches: [main, dev]
+    branches: [yazilim, dev, main]
     paths:
       - "mobile/**"
       - ".github/workflows/ci-mobile.yml"

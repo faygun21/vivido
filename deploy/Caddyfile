@@ -28,6 +28,41 @@
 {$SITE_ADDRESS::80} {
 	encode zstd gzip
 
+	# ─── Sertifika zinciri: uyumluluk tercihi ───
+	#
+	# Let's Encrypt 7 Ocak 2026'da "Generation Y" hiyerarşisine geçti
+	# (Root YE = ECDSA, Root YR = RSA). Bu kökler henüz büyük güven
+	# depolarında yok; istemciler çapraz imzayla eski köke ulaşıyor:
+	#
+	#   varsayılan (ECDSA):  leaf ← YE2 ← Root YE ← ISRG Root X2 ← ISRG Root X1
+	#   rsa2048:             leaf ← YR2 ← Root YR ← ISRG Root X1
+	#
+	# İkincisi bir halka kısa ve `ISRG Root X2`'ye hiç ihtiyaç duymuyor.
+	# X2 (2020) X1'e (2015) göre daha yeni, dolayısıyla eski/güncellenmemiş
+	# güven depolarında bulunmama ihtimali daha yüksek. Demo bir jürinin
+	# bilmediğimiz makinesinde açılacak; en geniş uyumlu zinciri seçiyoruz.
+	#
+	# ⚠️ TARİHSEL NOT — yanlış teşhis kaydı:
+	# Bu blok, Chrome'un NET::ERR_CERT_AUTHORITY_INVALID vermesi üzerine
+	# eklendi. Ölçümde bu ekibin Windows makinesinde `ISRG Root X1` olup
+	# `ISRG Root X2` olmadığı görüldü ve sebep o sanıldı. GERÇEK SEBEP
+	# BAŞKAYDI: hata yalnızca ŞİRKET AĞINDA çıkıyordu; aynı bilgisayar
+	# kişisel bağlantıya alınınca sorunsuz açıldı. Kurumsal güvenlik duvarı
+	# TLS'i araya girip kendi sertifikasıyla yeniden imzalıyor.
+	#
+	# Yani bu ayar o hatayı ÇÖZMEDİ — o hata sunucuyla ilgili değildi.
+	# Yine de zinciri kısalttığı ve uyumluluğu artırdığı için duruyor.
+	# Kaldırmak da güvenli; ama kaldırmak yeni sertifika alımı demek ve
+	# Let's Encrypt haftada aynı alan adı için 5 sertifika sınırı koyuyor.
+	tls {
+		key_type rsa2048
+		issuer acme {
+			preferred_chains {
+				root_common_name "ISRG Root X1"
+			}
+		}
+	}
+
 	# ── Karo sunucusu ──
 	#
 	# `handle_path` ön eki SOYAR: /tiles/data/v3.json → /data/v3.json

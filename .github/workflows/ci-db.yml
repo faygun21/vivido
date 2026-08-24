@@ -15,7 +15,7 @@ name: ci-db
 
 on:
   push:
-    branches: [main, dev]
+    branches: [yazilim, dev, main]
     paths:
       - 'db/**'
       - 'docker-compose.yml'

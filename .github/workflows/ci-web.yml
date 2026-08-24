@@ -2,7 +2,7 @@ name: ci-web
 
 on:
   push:
-    branches: [main]
+    branches: [yazilim, dev, main]
     paths: ['web/**', 'packages/**', 'pnpm-lock.yaml', '.github/workflows/ci-web.yml']
   pull_request:
     paths: ['web/**', 'packages/**', 'pnpm-lock.yaml', '.github/workflows/ci-web.yml']
