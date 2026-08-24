@@ -329,6 +329,69 @@ görünmeyecekti — [K-01](02-KARARLAR.md#k-01)'in uyardığı sessiz şema kay
 `006_email_dogrulama_ve_sifre_sifirlama` · `007_add_profile_category_order`);
 her makine tek `pnpm db:migrate` ile kendiliğinden hizalanıyor.
 
+### 5.11 🔴 Deploy sekiz kez "başarılı" dedi, siteyi bir kez bile güncellemedi
+
+**Tarih:** 2026-08-24 · Karar: [K-13](02-KARARLAR.md#k-13)
+
+`deploy-staging` iş akışı uzak betiği `ssh … bash -s <<SH` ile **STDIN
+üzerinden** gönderiyor. Betiğin ortasındaki
+
+```bash
+docker compose -f docker-compose.prod.yml exec -T postgis bash /db/migrate.sh
+```
+
+satırı, `-T` sayesinde stdin'i konteynere aktarıyor — aktardığı stdin de
+**betiğin kendisi**. Kalan satırları (`docker compose up -d`,
+`docker image prune`) psql yutuyor, `bash` EOF görüp **0 ile çıkıyor**.
+
+Görünen tablo: sekiz merge, sekiz yeşil deploy, GHCR'de sekiz yeni imaj,
+sunucuda **29 saatlik konteynerler**. İmajlar `pull` ile sunucuya iniyordu
+bile — sadece hiç devreye alınmıyorlardı.
+
+**Üç arıza, tek kök neden.** Şema `008` ile `monthly_budget` düşürüldü
+(migrate çalışan tek adımdı), API ise o sütunu soran eski imajda kaldı:
+
+```
+Npgsql.PostgresException 42703: column u.monthly_budget does not exist
+  at Vivido.Api.Controllers.ProfilesController.GetProfile()
+```
+
+- `/api/v1/profile` ve `/profile/anchors` → **500** (haritaya yer pinleme)
+- Mobil giriş → aynı 500
+- "Site son değişiklikleri almıyor" → aynı sebep
+
+**Düzeltme** (K-13): stdin tüketen her komuta `</dev/null`; `up -d` sonrası
+`docker inspect` ile çalışan imajın beklenen SHA olduğu doğrulanıyor,
+tutmuyorsa iş **kırmızı** oluyor.
+
+> **Ders:** duman testi `/health/ready` 200 dönmesine bakıyordu. Site
+> ayaktaydı — sadece eskiydi. **Ayakta olmak ile güncel olmak aynı şey
+> değil.**
+
+### 5.12 🟠 Mobil uygulama sunucuya değil, derleyenin bilgisayarına bağlanıyordu
+
+`mobile/lib/core/config/app_config.dart` varsayılanı
+`http://10.0.2.2:5000/api/v1` — Android emülatörünün **host loopback**
+adresi. Yani APK yalnızca onu derleyen kişinin makinesindeki API'ye
+ulaşıyordu; başka cihazda "sunucuya ulaşılamadı", webde açılan hesapla
+giriş yok. Oysa M1'in tanımı *"web ile aynı hesap"* ([K-11](02-KARARLAR.md#k-11)).
+
+Üstüne Android 9+ düz HTTP'yi engeller: `http://<IP>` **release APK'da
+sessizce ölür**, yalnızca debug build'de çalışır.
+
+**Düzeltme:** varsayılan `https://vividoapp.xyz/api/v1` (karolar:
+`https://vividoapp.xyz/tiles`). Yerelde çalışmak isteyen ezer:
+
+```bash
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:5000/api/v1 \
+            --dart-define=TILE_BASE_URL=http://10.0.2.2:8080
+```
+
+Ayrıca `mobile/lib/core/mobile/lib/core/config/app_config.dart` ve
+`mobile/lib/core/theme/mobile/lib/core/theme/app_theme.dart` silindi:
+yanlışlıkla iç içe kopyalanmış, hiçbir yerden import edilmeyen ikizlerdi ve
+biri **farklı bir base URL** taşıyordu — okuyan herkesi yanıltacak bir tuzak.
+
 ---
 
 ## 6. Veri boru hattı — sıfırdan çalıştırma
@@ -414,7 +477,7 @@ pnpm db:check
 
 | # | Konu | Not |
 |---|---|---|
-| **1** | **CI/CD yok — en öncelikli borç** | Staging **elle** deploy ediliyor: imajlar bir makinede derlenip SSH ile aktarılıyor. Sonuç: `yazilim`'a merge edilen kod siteye **otomatik gitmiyor** ve bunu yapabilen tek makine var (bus factor 1). Bayat staging, staging olmamaktan kötüdür — yanlış bilgi verir |
+| **1** | ~~CI/CD yok~~ → **kuruldu** (`deploy-staging.yml`), ilk hâlinde sessizce hiçbir şey yapmıyordu | `yazilim`'a merge → imaj derle → GHCR → migrate → `up -d` → duman testi. 2026-08-24'te bulunan stdin hatası ve çalışan imaj doğrulaması için [§5.11](#511-🔴-deploy-sekiz-kez-başarılı-dedi-siteyi-bir-kez-bile-güncellemedi) / [K-13](02-KARARLAR.md#k-13). **Kalan borç:** deploy'un doğruluğunu ölçen tek şey duman testi; "hangi commit yayında" diyen bir sürüm uç noktası yok |
 | 2 | **6.000 konutun 5.568'i farklı koordinatta** (%7 çakışma) | `gen_properties.py` `random.choices` ile **iadeli** örnekliyor ve her bina sabit `ST_PointOnSurface` merkezine sahip. [§9.6](01-PROJE-PLANI.md) `ST_GeneratePoints(geom, n)` diyor — "20 daireli apartman" kavramı şu an kayıp |
 | 3 | **Staging yedeği yok** | `pg_dump` cron'u kurulmadı. Biri yanlışlıkla `TRUNCATE` çekerse kullanıcı hesapları geri gelmez (konut verisi `seed.sql`'den yüklenebilir) |
 | 4 | **`web/public/geo/` git'e girmiyor** | `data/*.geojson`'dan `web/scripts/sync-geo.mjs` ile üretilir; `pnpm dev`/`build` otomatik çalıştırır. İki nüsha tutup ayrışmasını önlemek için |
