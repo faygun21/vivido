@@ -51,7 +51,8 @@ public class ProfilesController : ControllerBase
             profile.FirstName,
             profile.LastName,
             profile.PersonaCode,
-            profile.MonthlyBudget,
+            profile.MinMonthlyBudget,
+            profile.MaxMonthlyBudget,
             categoryOrder,
             profile.Anchors
                 .OrderBy(a => a.Priority)
@@ -79,6 +80,26 @@ public class ProfilesController : ControllerBase
         if (!Guid.TryParse(userIdString, out var userId))
             return Unauthorized();
 
+        /*
+         * Kira aralığı kontrolü.
+         *
+         * İki değer de girilmişse minimum kira,
+         * maksimum kiradan büyük olamaz.
+         */
+        if (
+            request.MinMonthlyBudget is not null &&
+            request.MaxMonthlyBudget is not null &&
+            request.MinMonthlyBudget > request.MaxMonthlyBudget
+        )
+        {
+            ModelState.AddModelError(
+                nameof(request.MinMonthlyBudget),
+                "Minimum kira, maksimum kiradan büyük olamaz."
+            );
+
+            return ValidationProblem(ModelState);
+        }
+
         var profile = await _context.UserProfiles
             .FirstOrDefaultAsync(p => p.UserId == userId);
 
@@ -91,7 +112,8 @@ public class ProfilesController : ControllerBase
                 FirstName = request.FirstName,
                 LastName = request.LastName,
                 PersonaCode = request.PersonaCode,
-                MonthlyBudget = request.MonthlyBudget
+                MinMonthlyBudget = request.MinMonthlyBudget,
+                MaxMonthlyBudget = request.MaxMonthlyBudget
             };
 
             _context.UserProfiles.Add(profile);
@@ -101,7 +123,8 @@ public class ProfilesController : ControllerBase
             profile.FirstName = request.FirstName;
             profile.LastName = request.LastName;
             profile.PersonaCode = request.PersonaCode;
-            profile.MonthlyBudget = request.MonthlyBudget;
+            profile.MinMonthlyBudget = request.MinMonthlyBudget;
+            profile.MaxMonthlyBudget = request.MaxMonthlyBudget;
             profile.UpdatedAt = DateTime.UtcNow;
         }
 
@@ -219,7 +242,8 @@ public class ProfilesController : ControllerBase
                 profile.FirstName,
                 profile.LastName,
                 profile.PersonaCode,
-                profile.MonthlyBudget,
+                profile.MinMonthlyBudget,
+                profile.MaxMonthlyBudget,
                 savedCategoryOrder,
                 anchors.Select(a => new AnchorDto(
                     a.Id.ToString(),

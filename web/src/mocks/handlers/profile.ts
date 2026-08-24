@@ -94,6 +94,17 @@ export const profileHandlers = [
       const body =
         (await request.json()) as UpdateProfileRequest;
 
+      if (
+        body.minMonthlyBudget !== null &&
+        body.maxMonthlyBudget !== null &&
+        body.minMonthlyBudget > body.maxMonthlyBudget
+      ) {
+        return problem(
+          422,
+          'Minimum kira, maksimum kiradan büyük olamaz.',
+        );
+      }
+
       const existing =
         mockDb.profiles.get(userId);
 
@@ -105,8 +116,11 @@ export const profileHandlers = [
 
         personaCode: body.personaCode,
 
-        monthlyBudget:
-          body.monthlyBudget,
+        minMonthlyBudget:
+          body.minMonthlyBudget,
+
+        maxMonthlyBudget:
+          body.maxMonthlyBudget,
 
         /*
          * Kullanıcının sürükle-bırak ile belirlediği

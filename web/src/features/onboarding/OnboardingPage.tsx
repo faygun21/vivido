@@ -60,8 +60,15 @@ export function OnboardingPage() {
   const [selectedPersona, setSelectedPersona] =
     useState<PersonaCode | null>(null);
 
-  const [budget, setBudget] =
-    useState<number | null>(null);
+  const [
+    minMonthlyBudget,
+    setMinMonthlyBudget,
+  ] = useState<number | null>(null);
+
+  const [
+    maxMonthlyBudget,
+    setMaxMonthlyBudget,
+  ] = useState<number | null>(null);
 
   const [firstName, setFirstName] =
     useState('');
@@ -146,7 +153,15 @@ export function OnboardingPage() {
 
     setFirstName(savedProfile.firstName);
     setLastName(savedProfile.lastName);
-    setBudget(savedProfile.monthlyBudget);
+
+    setMinMonthlyBudget(
+      savedProfile.minMonthlyBudget,
+    );
+
+    setMaxMonthlyBudget(
+      savedProfile.maxMonthlyBudget,
+    );
+
     setSelectedPersona(
       savedProfile.personaCode,
     );
@@ -438,8 +453,8 @@ export function OnboardingPage() {
             personaCode:
               selectedPersona,
 
-            monthlyBudget:
-              budget,
+            minMonthlyBudget,
+            maxMonthlyBudget,
 
             categoryOrder:
               categoryWeights.map(
@@ -455,10 +470,23 @@ export function OnboardingPage() {
       },
     });
 
+  /*
+   * Minimum kira maksimum kiradan büyük
+   * olamaz.
+   *
+   * Alanlardan biri boşsa aralık kontrolü
+   * uygulanmaz.
+   */
+  const budgetRangeIsInvalid =
+    minMonthlyBudget !== null &&
+    maxMonthlyBudget !== null &&
+    minMonthlyBudget > maxMonthlyBudget;
+
   const formIsInvalid =
     firstName.trim() === '' ||
     lastName.trim() === '' ||
-    !selectedPersona;
+    !selectedPersona ||
+    budgetRangeIsInvalid;
 
   return (
     <section
@@ -752,13 +780,32 @@ export function OnboardingPage() {
           {selectedPersona
             ? '4.'
             : '3.'}{' '}
-          Aylık Kira Bütçesi
+          Aylık Kira Aralığı
         </h2>
 
         <BudgetInput
-          value={budget}
-          onChange={setBudget}
+          minValue={minMonthlyBudget}
+          maxValue={maxMonthlyBudget}
+          onMinChange={
+            setMinMonthlyBudget
+          }
+          onMaxChange={
+            setMaxMonthlyBudget
+          }
         />
+
+        {budgetRangeIsInvalid && (
+          <p
+            style={{
+              color: '#c62828',
+              marginTop: '8px',
+              fontSize: '14px',
+            }}
+          >
+            Minimum kira, maksimum
+            kiradan büyük olamaz.
+          </p>
+        )}
       </div>
 
       {/* 5 — Anchor */}

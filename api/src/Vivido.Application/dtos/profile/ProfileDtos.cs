@@ -5,7 +5,8 @@ public record UserProfileDto(
     string FirstName,
     string LastName,
     string PersonaCode,
-    decimal? MonthlyBudget,
+    decimal? MinMonthlyBudget,
+    decimal? MaxMonthlyBudget,
 
     // Kullanıcının kaydettiği yaşam kriterleri önem sırası.
     // Örn: ["school", "market", "park", ...]
@@ -18,7 +19,8 @@ public record UpdateProfileRequest(
     string FirstName,
     string LastName,
     string PersonaCode,
-    decimal? MonthlyBudget,
+    decimal? MinMonthlyBudget,
+    decimal? MaxMonthlyBudget,
 
     // Frontend sürükle-bırak sonrası kriterleri
     // en önemliden en aza doğru gönderir.
