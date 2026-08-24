@@ -105,24 +105,48 @@ class AuthSession {
   };
 }
 
+class PersonaCategoryWeight {
+  const PersonaCategoryWeight({
+    required this.categoryCode,
+    required this.weight,
+  });
+
+  final String categoryCode;
+  final double weight;
+
+  factory PersonaCategoryWeight.fromJson(Map<String, dynamic> json) =>
+      PersonaCategoryWeight(
+        categoryCode: json['categoryCode'] as String,
+        weight: (json['weight'] as num).toDouble(),
+      );
+}
+
 class Persona {
   const Persona({
     required this.code,
     required this.displayNameTr,
     required this.descriptionTr,
     this.icon,
+    this.categoryWeights = const [],
   });
 
   final String code;
   final String displayNameTr;
   final String descriptionTr;
   final String? icon;
+  final List<PersonaCategoryWeight> categoryWeights;
 
   factory Persona.fromJson(Map<String, dynamic> json) => Persona(
     code: json['code'] as String,
     displayNameTr: json['displayNameTr'] as String,
     descriptionTr: json['descriptionTr'] as String,
     icon: json['icon'] as String?,
+    categoryWeights: (json['categoryWeights'] as List<dynamic>? ?? const [])
+        .map(
+          (item) =>
+              PersonaCategoryWeight.fromJson(item as Map<String, dynamic>),
+        )
+        .toList(growable: false),
   );
 }
 
@@ -166,19 +190,33 @@ class UserProfile {
   const UserProfile({
     required this.id,
     required this.personaCode,
-    required this.monthlyBudget,
+    required this.minMonthlyBudget,
+    required this.maxMonthlyBudget,
     required this.anchors,
+    this.firstName = '',
+    this.lastName = '',
+    this.categoryOrder = const [],
   });
 
   final String id;
+  final String firstName;
+  final String lastName;
   final String personaCode;
-  final double? monthlyBudget;
+  final double? minMonthlyBudget;
+  final double? maxMonthlyBudget;
+  final List<String> categoryOrder;
   final List<Anchor> anchors;
 
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
     id: json['id'] as String,
+    firstName: json['firstName'] as String? ?? '',
+    lastName: json['lastName'] as String? ?? '',
     personaCode: json['personaCode'] as String,
-    monthlyBudget: (json['monthlyBudget'] as num?)?.toDouble(),
+    minMonthlyBudget: (json['minMonthlyBudget'] as num?)?.toDouble(),
+    maxMonthlyBudget: (json['maxMonthlyBudget'] as num?)?.toDouble(),
+    categoryOrder: (json['categoryOrder'] as List<dynamic>? ?? const [])
+        .cast<String>()
+        .toList(growable: false),
     anchors:
         (json['anchors'] as List<dynamic>? ?? const [])
             .map((item) => Anchor.fromJson(item as Map<String, dynamic>))
@@ -187,14 +225,24 @@ class UserProfile {
   );
 
   UserProfile copyWith({
+    String? firstName,
+    String? lastName,
     String? personaCode,
-    double? monthlyBudget,
-    bool clearBudget = false,
+    double? minMonthlyBudget,
+    double? maxMonthlyBudget,
+    bool clearBudgets = false,
+    List<String>? categoryOrder,
     List<Anchor>? anchors,
   }) => UserProfile(
     id: id,
+    firstName: firstName ?? this.firstName,
+    lastName: lastName ?? this.lastName,
     personaCode: personaCode ?? this.personaCode,
-    monthlyBudget: clearBudget ? null : monthlyBudget ?? this.monthlyBudget,
+    minMonthlyBudget:
+        clearBudgets ? null : minMonthlyBudget ?? this.minMonthlyBudget,
+    maxMonthlyBudget:
+        clearBudgets ? null : maxMonthlyBudget ?? this.maxMonthlyBudget,
+    categoryOrder: categoryOrder ?? this.categoryOrder,
     anchors: anchors ?? this.anchors,
   );
 }
