@@ -1,5 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { api } from '@/shared/api/client';
+import { useSessionQuery } from '@/shared/api/sessionQuery';
 
+/**
+ * ⚠️ Bu bileşen kendi ağ katmanını kuruyordu ve iki şeyi birden bozuyordu:
+ *
+ * 1. Token'ı `localStorage.getItem('token')` ile okuyordu — projede böyle
+ *    bir anahtar YOK. Access token BELLEKTE tutuluyor (`shared/api/tokens.ts`,
+ *    K-A), localStorage'da yalnızca `vivido.refreshToken` var. Yani her
+ *    istek `Bearer ` (boş) gidiyor, uç noktalar `[Authorize]` olduğu için
+ *    401 dönüyordu; `response.ok` false olunca da hata yutuluyor, ekran
+ *    sessizce boş kalıyordu.
+ * 2. Ham `fetch` kullandığı için 401→refresh→tekrar dene zinciri,
+ *    `problem+json` ayrıştırma ve oturum düşme bildirimi devre dışıydı.
+ *
+ * İkisi de ortak istemciye geçilerek kapandı.
+ */
 interface PropertyMapItem {
   id: string;
   monthlyRent: number;
@@ -18,50 +34,26 @@ interface PropertyDetail {
 }
 
 export function PropertiesMapView() {
-  const [properties, setProperties] = useState<PropertyMapItem[]>([]);
-  const [selectedProperty, setSelectedProperty] = useState<PropertyDetail | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // 1. Backend'den skorlanmış ve bütçeye göre filtrelenmiş konutları çekme
-  useEffect(() => {
-    async function fetchProperties() {
-      try {
-        const response = await fetch('/api/v1/properties', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-          }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setProperties(data);
-        }
-      } catch (error) {
-        console.error("Konutlar yüklenirken hata oluştu:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchProperties();
-  }, []);
+  // 1. Skorlanmış ve bütçeye göre filtrelenmiş konutlar.
+  //    Oturum kapsamlı: başka hesabın bütçesine göre süzülmüş liste
+  //    bu hesaba SIZAMAZ.
+  const { data: properties = [], isLoading } = useSessionQuery({
+    queryKey: ['properties', 'map'],
+    queryFn: () => api.get<PropertyMapItem[]>('/properties'),
+  });
 
-  // 2. Bir konuta tıklandığında detay verisini çekme
-  const handleSelectProperty = async (id: string) => {
-    try {
-      const response = await fetch(`/api/v1/properties/${id}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-        }
-      });
-      if (response.ok) {
-        const detailData = await response.json();
-        setSelectedProperty(detailData);
-      }
-    } catch (error) {
-      console.error("Konut detayı alınamadı:", error);
-    }
-  };
+  // 2. Seçili konutun detayı. Ayrı bir `useState` + elle fetch yerine
+  //    sorgu: seçim değişince kendisi çalışır, önbelleğe girer ve kimlik
+  //    değişince diğerleriyle birlikte düşer.
+  const { data: selectedProperty = null } = useSessionQuery({
+    queryKey: ['properties', 'detail', selectedId],
+    queryFn: () => api.get<PropertyDetail>(`/properties/${selectedId}`),
+    enabled: selectedId !== null,
+  });
 
-  if (loading) return <div style={{ padding: '20px' }}>Konutlar ve skorlar yükleniyor, lütfen bekleyin...</div>;
+  if (isLoading) return <div style={{ padding: '20px' }}>Konutlar ve skorlar yükleniyor, lütfen bekleyin...</div>;
 
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: 'sans-serif' }}>
@@ -74,14 +66,14 @@ export function PropertiesMapView() {
         {properties.map((prop) => (
           <div 
             key={prop.id}
-            onClick={() => handleSelectProperty(prop.id)}
+            onClick={() => setSelectedId(prop.id)}
             style={{
               padding: '12px',
               margin: '8px 0',
               borderRadius: '8px',
               border: '1px solid #ddd',
               cursor: 'pointer',
-              background: selectedProperty?.id === prop.id ? '#eef2ff' : '#fff',
+              background: selectedId === prop.id ? '#eef2ff' : '#fff',
               boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
             }}
           >
@@ -113,7 +105,7 @@ export function PropertiesMapView() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ margin: '0 0 10px 0' }}>Konut Detayları</h3>
             <button 
-              onClick={() => setSelectedProperty(null)}
+              onClick={() => setSelectedId(null)}
               style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer' }}
             >
               ✕

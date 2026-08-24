@@ -1,16 +1,16 @@
-import { useQuery } from '@tanstack/react-query';
 import { api } from '@/shared/api/client';
+import { useSessionQuery } from '@/shared/api/sessionQuery';
 import type { FavoriteResponse, RouteListResponse } from '@vivido/shared';
 
 export function FavoritesAndRoutesPanel() {
   // Favorileri Çekme İsteği
-  const { data: favorites, isLoading: isFavoritesLoading } = useQuery({
+  const { data: favorites, isLoading: isFavoritesLoading } = useSessionQuery({
     queryKey: ['favorites'],
     queryFn: () => api.get<FavoriteResponse[]>('/profile/favorites'),
   });
 
   // Rotaları Çekme İsteği
-  const { data: routes, isLoading: isRoutesLoading } = useQuery({
+  const { data: routes, isLoading: isRoutesLoading } = useSessionQuery({
     queryKey: ['routes'],
     queryFn: () => api.get<RouteListResponse[]>('/routes'),
   });
