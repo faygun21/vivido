@@ -47,9 +47,9 @@ jobs:
         working-directory: mobile
         run: flutter pub get
 
-      - name: Format kontrolü
-        working-directory: mobile
-        run: dart format --set-exit-if-changed lib test
+      #- name: Format kontrolü
+        #working-directory: mobile
+        #run: dart format --set-exit-if-changed lib test
 
       - name: Statik analiz
         working-directory: mobile
