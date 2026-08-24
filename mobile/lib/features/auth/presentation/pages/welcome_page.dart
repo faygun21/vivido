@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart'; 
 
 import '../../../../core/config/app_config.dart';
 import '../../application/session_controller.dart';
@@ -24,7 +25,13 @@ class WelcomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    
+    // Tasarımdaki renkler
+    const Color primaryColor = Color(0xFFC06B3E); 
+    const Color backgroundColor = Color(0xFFF9F5F0); 
+
     return Scaffold(
+      backgroundColor: backgroundColor, 
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) => SingleChildScrollView(
@@ -37,98 +44,117 @@ class WelcomePage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: colors.primary,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: const Icon(
-                            Icons.home_work,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          AppConfig.appName,
-                          style: Theme.of(context).textTheme.headlineSmall
-                              ?.copyWith(fontWeight: FontWeight.w800),
-                        ),
-                      ],
+                    const SizedBox(height: 16),
+                    
+                    // 1. SVG Logo
+                    Center(
+                      child: SvgPicture.asset(
+                        'assets/images/vivido_logo.svg', 
+                        height: 70,
+                      ),
                     ),
+                    
                     const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.all(28),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [colors.primary, const Color(0xFF0F766E)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(32),
-                      ),
-                      child: const Icon(
-                        Icons.map_outlined,
-                        size: 116,
-                        color: Colors.white,
-                      ),
+                    
+                    //İllüstrasyon Resmi
+                    Image.asset(
+                      'assets/images/ev_resmi.png',
+                      height: 250,
+                      fit: BoxFit.contain,
                     ),
+                    
                     const SizedBox(height: 32),
-                    Text(
-                      'Hayatına uyan evi bul.',
-                      style: Theme.of(context).textTheme.displaySmall
-                          ?.copyWith(fontWeight: FontWeight.w800, height: 1.05),
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      'Personanı seç, düzenli gittiğin yerleri haritada işaretle; '
-                      'Vivido sana uygun yaşam alanlarını hazırlasın.',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: colors.onSurfaceVariant,
-                        height: 1.5,
+                    
+                    //Slogan Metni
+                    const Text(
+                      'Yeni evini sadece\nkonumuna göre değil,\nyaşamına göre seç.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF333333),
+                        height: 1.3,
                       ),
                     ),
+                    
+                    const SizedBox(height: 24),
+                    
                     if (controller.errorMessage != null) ...[
                       const SizedBox(height: 16),
                       _InlineError(message: controller.errorMessage!),
                     ],
+                    
                     const Spacer(),
-                    FilledButton(
-                      onPressed: () => _openAuth(context, register: false),
-                      child: const Text('Giriş yap'),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton(
-                      onPressed: () => _openAuth(context, register: true),
-                      child: const Text('Yeni hesap oluştur'),
-                    ),
-                    const SizedBox(height: 6),
-                    // W0: kayıt olmadan haritayı gezme. Skor, persona ve
-                    // anchor kilitli kalır; kullanıcı o işlemlere
-                    // dokunduğunda giriş/kayıt ekranına yönlendirilir.
-                    TextButton(
-                      onPressed: controller.continueAsGuest,
-                      child: const Text('Misafir olarak devam et'),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Misafirken haritayı ve konutların temel bilgilerini '
-                      'görebilirsin; kişiselleştirilmiş skor için hesap gerekir.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                        height: 1.35,
+                    
+                    //Giriş Yap Butonu
+                    SizedBox(
+                      height: 54,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryColor,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: () => _openAuth(context, register: false),
+                        child: const Text(
+                          'Giriş Yap',
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 16,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                       ),
                     ),
+                    
                     const SizedBox(height: 12),
+                    
+                    //Kayıt Ol Butonu
+                    SizedBox(
+                      height: 54,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFFE5E5E5), width: 1.5),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: () => _openAuth(context, register: true),
+                        child: const Text(
+                          'Kayıt Ol',
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 16,
+                            color: Color(0xFF555555),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    TextButton(
+                      onPressed: controller.continueAsGuest,
+                      child: const Text('Misafir olarak devam et', style: TextStyle(color: Colors.grey)),
+                    ),
                     Text(
-                      'Geliştirme API’si: ${AppConfig.apiBaseUrl}',
+                      'Misafirken haritayı ve konutların temel bilgilerini görebilirsin.',
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.labelSmall
-                          ?.copyWith(color: colors.outline),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey.shade600,
+                        height: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'API: ${AppConfig.apiBaseUrl}',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.outline),
                     ),
                   ],
                 ),
