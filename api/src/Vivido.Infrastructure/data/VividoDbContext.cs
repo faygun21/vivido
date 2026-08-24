@@ -25,6 +25,9 @@ public class VividoDbContext : DbContext
     public DbSet<FavoriteProperty> FavoriteProperties { get; set; }
     public DbSet<Route> Routes { get; set; }
     public DbSet<RouteStop> RouteStops { get; set; }
+    public DbSet<PoiCategory> PoiCategories { get; set; } = null!;
+    public DbSet<PropertyPoiAccess> PropertyPoiAccesses { get; set; } = null!;
+    public DbSet<ScoreCache> ScoreCaches { get; set; } = null!;
 
     /// <summary>E-posta doğrulama + şifre sıfırlama kodları (K-09).</summary>
     public DbSet<AuthCode> AuthCodes { get; set; } = null!;
@@ -32,6 +35,9 @@ public class VividoDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        // ScoreCache için bileşik anahtar (Composite Key) tanımı
+         builder.Entity<ScoreCache>()
+        .HasKey(sc => new { sc.PropertyId, sc.ProfileId, sc.ScoringVersion });
 
         builder.Entity<User>(entity =>
         {

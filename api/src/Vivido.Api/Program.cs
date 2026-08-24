@@ -9,6 +9,7 @@ using Vivido.Application.Abstractions;
 using Vivido.Application.dtos.location;
 using Vivido.Infrastructure.Data;
 using Vivido.Infrastructure.Services;
+using Vivido.Api.services;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -42,7 +43,8 @@ builder.Services.AddDbContext<VividoDbContext>(options =>
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddMemoryCache();
-
+// Scoring servisini Scoped olarak kaydediyoruz (Her HTTP isteğinde bir kez üretilir)
+builder.Services.AddScoped<PropertyScoringService>();
 // R-105: yerel mahallelerden sonra Photon, sonuç/hizmet yoksa Nominatim denenir.
 // Her sağlayıcının adresi yapılandırmadan değiştirilebilir veya kurum içine alınabilir.
 builder.Services.AddScoped<ILocationSearchService, LocationSearchService>();
