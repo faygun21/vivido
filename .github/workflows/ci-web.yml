@@ -42,3 +42,28 @@ jobs:
 
       - name: Build
         run: pnpm --filter web build
+
+      # ⭐ MapLibre worker parçası çıktıya girdi mi?
+      #
+      # MapLibre 6 worker dosyasının adını ÇALIŞMA ANINDA kuruyor
+      # (`dev ? '…-worker-dev.mjs' : '…-worker.mjs'`). Vite 8 / Rolldown bunu
+      # statik olarak göremeyip parçayı çıktıya HİÇ EKLEMEYEBİLİYOR.
+      #
+      # Olduğunda belirti sinsi: MapLibre GeoJSON ayrıştırmayı ve karo
+      # çizimini worker'da yapar, worker ölünce hiçbir veri katmanı çizilmez —
+      # ama arka plan, +/− kontrolü ve atıf ana iş parçacığında olduğu için
+      # çalışmaya devam eder. Harita "var" görünür, bomboştur ve HATA
+      # FIRLATMAZ; tarayıcı konsolu tertemiz kalır. Ne build, ne test, ne
+      # typecheck yakalar.
+      #
+      # Bu tam olarak yaşandı ve haftalarca fark edilmedi çünkü herkes
+      # `pnpm dev` kullanıyordu (docs/04-MEVCUT-DURUM.md §5.5).
+      # Düzeltme: web/src/shared/map/CankayaMap.tsx → setWorkerUrl().
+      - name: Harita worker parçası üretildi mi
+        run: |
+          if ! ls web/dist/assets/maplibre-gl-worker-*.js >/dev/null 2>&1; then
+            echo "::error file=web/src/shared/map/CankayaMap.tsx::maplibre-gl-worker parçası üretilmedi — harita üretimde boş çizilir (bkz. docs/04-MEVCUT-DURUM.md §5.5)"
+            ls -la web/dist/assets/
+            exit 1
+          fi
+          echo "✓ $(ls web/dist/assets/maplibre-gl-worker-*.js)"

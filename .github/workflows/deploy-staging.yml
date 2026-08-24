@@ -1,0 +1,209 @@
+name: deploy-staging
+
+# `yazilim` dalına merge edilen her şeyi https://vividoapp.xyz adresine taşır.
+#
+# NEDEN VAR: staging elle deploy ediliyordu — imajlar tek bir makinede
+# derlenip SSH ile aktarılıyordu. Sonuç: merge edilen kod siteye otomatik
+# gitmiyordu ve bunu yapabilen tek kişi vardı. Bayat bir ortam, ortam
+# olmamaktan kötüdür; ekip merge ettiği özelliği sitede bulamayıp
+# "kodum mu bozuk" diye vakit harcar.
+#
+# AKIŞ:
+#   yazilim'a merge → test → imajları derle → GHCR'ye it
+#                   → sunucu: şema kopyala → migrate → pull → up -d
+#                   → duman testi
+#
+# ⚠️ SUNUCUDA DERLEME YAPILMAZ. `api/Dockerfile` dotnet/sdk ile derliyor;
+# 4 GB'lık makinede Postgres çalışırken OOM riski var. Ayrıca CI'dan geçen
+# imajın TAM OLARAK AYNISI çalışsın istiyoruz.
+#
+# ⚠️ SUNUCUDA KALICI GHCR TOKEN'I YOK. Deploy sırasında Actions'ın kendi
+# GITHUB_TOKEN'ıyla `docker login` yapılıyor; iş bitince token geçersiz
+# oluyor ve `docker logout` ile temizleniyor.
+
+on:
+  push:
+    branches: [yazilim]
+  # Elle tetikleme: sunucu yeniden kurulduğunda ya da bir deploy takıldığında.
+  workflow_dispatch:
+
+concurrency:
+  # Arka arkaya iki merge gelirse ikisi aynı anda deploy etmesin.
+  # `cancel-in-progress: false` — devam eden deploy YARIDA KESİLMEZ,
+  # yarım kalmış bir migration'dan beteri yok.
+  group: deploy-staging
+  cancel-in-progress: false
+
+env:
+  IMAGE_API: ghcr.io/${{ github.repository_owner }}/vivido-api
+  IMAGE_WEB: ghcr.io/${{ github.repository_owner }}/vivido-web
+  SITE: https://vividoapp.xyz
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: GHCR'ye giriş
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # İki etiket: `latest` (compose bunu çeker) ve commit SHA'sı
+      # (geri dönüş tek satır — .env'de IMAGE_TAG=<sha>).
+      - name: API imajı
+        uses: docker/build-push-action@v6
+        with:
+          context: ./api
+          push: true
+          tags: ${{ env.IMAGE_API }}:latest,${{ env.IMAGE_API }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ⚠️ Build bağlamı DEPO KÖKÜ, `web/` değil: pnpm workspace kökü,
+      # packages/shared ve sync-geo.mjs'in okuduğu data/*.geojson gerekiyor.
+      - name: Web imajı
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./web/Dockerfile
+          push: true
+          tags: ${{ env.IMAGE_WEB }}:latest,${{ env.IMAGE_WEB }}:${{ github.sha }}
+          build-args: |
+            VITE_TILE_URL=https://vividoapp.xyz/tiles/data/v3.json
+            VITE_GLYPHS_URL=https://vividoapp.xyz/tiles/fonts/{fontstack}/{range}.pbf
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ⭐ MapLibre worker parçası çıktıya girdi mi?
+      #
+      # MapLibre 6 worker dosyasının adını çalışma anında kuruyor; Vite 8 /
+      # Rolldown bunu statik olarak göremeyip parçayı ATLAYABİLİYOR. Olduğunda
+      # harita bomboş çizilir ve HATA FIRLATMAZ — konsol tertemiz kalır.
+      # Bu tam olarak yaşandı (04-MEVCUT-DURUM §5.5). Sessizce geri gelmesin.
+      - name: Harita worker parçası imajda mı
+        run: |
+          docker pull -q "$IMAGE_WEB:${{ github.sha }}"
+          BULUNAN=$(docker run --rm --entrypoint sh "$IMAGE_WEB:${{ github.sha }}" \
+            -c 'ls /usr/share/nginx/html/assets/ | grep -c "^maplibre-gl-worker-.*\.js$" || true')
+          if [ "$BULUNAN" -lt 1 ]; then
+            echo "::error::maplibre-gl-worker parçası imajda YOK — harita boş çizilecek."
+            echo "Bkz. web/src/shared/map/CankayaMap.tsx (setWorkerUrl) ve docs/04-MEVCUT-DURUM.md §5.5"
+            docker run --rm --entrypoint sh "$IMAGE_WEB:${{ github.sha }}" -c 'ls -la /usr/share/nginx/html/assets/'
+            exit 1
+          fi
+          echo "✓ Worker parçası yerinde."
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SSH anahtarını kur
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.STAGING_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.STAGING_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      # ⭐ SIRA KRİTİK: şema dosyaları migrate'ten ÖNCE sunucuya gitmeli.
+      # Ters olursa migrate eski dosya listesini görür ve yeni göç atlanır —
+      # staging'de tam olarak bu oldu (04-MEVCUT-DURUM §5.10).
+      - name: Şema, migrate.sh ve compose dosyalarını gönder
+        run: |
+          H="${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}"
+          ssh "$H" 'mkdir -p /opt/vivido/db/schema /opt/vivido/db/checks'
+          # --delete: depodan SİLİNEN şema dosyası sunucuda kalmasın.
+          # Yeniden adlandırma sonrası eski adın kalması "aynı numaralı iki
+          # dosya" hatası verirdi.
+          rsync -az --delete -e ssh db/schema/ "$H:/opt/vivido/db/schema/"
+          rsync -az --delete -e ssh db/checks/ "$H:/opt/vivido/db/checks/"
+          rsync -az -e ssh db/migrate.sh "$H:/opt/vivido/db/"
+          rsync -az -e ssh deploy/Caddyfile deploy/docker-compose.prod.yml "$H:/opt/vivido/"
+
+      # ⚠️ Heredoc BİLEREK tırnaksız (`<<SH`, `<<'SH'` değil): böylece token
+      # ve etiket runner tarafında yerine konup betiğe gömülüyor ve yalnızca
+      # STDIN üzerinden gidiyor. `ssh host GH_TOKEN=… bash` yazsaydık token
+      # sunucudaki komut satırına düşer ve `ps` çıktısında görünürdü.
+      # Betikte sunucu tarafında çözülmesi gereken $değişken YOK, o yüzden
+      # kaçış gerekmiyor.
+      - name: İmajları çek, göçleri uygula, servisleri yenile
+        run: |
+          H="${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}"
+          ssh "$H" bash -s <<SH
+          set -euo pipefail
+          cd /opt/vivido
+
+          # Geçici kimlik bilgisi: iş bitince token geçersiz oluyor,
+          # sunucuda kalıcı GHCR erişimi bırakmıyoruz.
+          echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+          trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+
+          # Commit SHA'sı ile sabitliyoruz: 'latest' yarış durumuna açık ve
+          # geri dönüşü belirsiz. .env'deki IMAGE_TAG'i kabuk ortamı ezer.
+          export IMAGE_TAG='${{ github.sha }}'
+
+          docker compose -f docker-compose.prod.yml pull --quiet api web
+
+          # Şema, imajlardan ÖNCE. Yeni kod eksik sütuna sorgu atmasın.
+          docker compose -f docker-compose.prod.yml exec -T postgis bash /db/migrate.sh
+
+          docker compose -f docker-compose.prod.yml up -d
+          docker image prune -f --filter 'until=168h' >/dev/null 2>&1 || true
+          SH
+
+      # Deploy "konteyner ayağa kalktı" demek değil. Gerçekten cevap veriyor mu?
+      - name: Duman testi
+        run: |
+          for i in $(seq 1 20); do
+            KOD=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$SITE/health/ready" || true)
+            if [ "$KOD" = "200" ]; then break; fi
+            echo "  bekleniyor… ($i, son kod: $KOD)"
+            sleep 5
+          done
+
+          HATA=0
+          kontrol() {
+            KOD=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$SITE$1" || echo 000)
+            if [ "$KOD" != "$2" ]; then
+              echo "::error::$1 → $KOD (beklenen $2)"; HATA=1
+            else
+              printf '  ✓ %-26s %s\n' "$1" "$KOD"
+            fi
+          }
+          kontrol /health/ready 200
+          kontrol / 200
+          kontrol /tiles/data/v3.json 200
+
+          # Harita altlığının gerçekten çizilebildiğini kanıtlayan tek şey:
+          # worker parçası sunuluyor mu. 200 dönen bir sayfa boş harita
+          # gösterebiliyor (§5.5) — bu yüzden ayrıca kontrol ediyoruz.
+          JS=$(curl -s --max-time 20 "$SITE/" | grep -oE '/assets/[^"]+\.js' | head -1)
+          WK=$(curl -s --max-time 40 "$SITE$JS" | grep -oE '/assets/maplibre-gl-worker-[A-Za-z0-9_-]+\.js' | head -1)
+          if [ -z "$WK" ]; then
+            echo "::error::Yayınlanan bundle worker parçasına referans vermiyor — harita boş çizilir."
+            HATA=1
+          else
+            kontrol "$WK" 200
+          fi
+
+          exit $HATA
+
+      - name: Başarısızlıkta sunucu logları
+        if: failure()
+        run: |
+          ssh "${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}" \
+            'cd /opt/vivido && docker compose -f docker-compose.prod.yml ps && docker compose -f docker-compose.prod.yml logs --tail 60 api caddy'
