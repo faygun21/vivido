@@ -69,7 +69,7 @@ public class ProfilesController : ControllerBase
         return Ok(profileDto);
     }
 
-    [HttpPut]
+   [HttpPut]
     public async Task<IActionResult> UpsertProfile(
         [FromBody] UpdateProfileRequest request
     )
@@ -197,6 +197,24 @@ public class ProfilesController : ControllerBase
                 );
             }
 
+            await _context.SaveChangesAsync();
+        }
+
+        /* 
+         * =========================================================================
+         * YENİ EKLENEN KISIM: Cache Invalidation (Önbellek Temizliği)
+         * Kullanıcının tercihleri / sıralaması güncellendiğinde, bu profile ait
+         * daha önce hesaplanmış eski mülk skoru cache'lerini siliyoruz ki
+         * yeni tercihlerle yeniden hesaplama yapılabilsin.
+         * =========================================================================
+         */
+        var existingCaches = await _context.ScoreCaches
+            .Where(sc => sc.ProfileId == profile.Id)
+            .ToListAsync();
+
+        if (existingCaches.Any())
+        {
+            _context.ScoreCaches.RemoveRange(existingCaches);
             await _context.SaveChangesAsync();
         }
 
