@@ -68,12 +68,13 @@ class _LocationSearchPanelState extends State<LocationSearchPanel> {
                 enabled: !state.loading,
                 textInputAction: TextInputAction.search,
                 maxLength: 200,
-                buildCounter: (
-                  _, {
-                  required currentLength,
-                  required isFocused,
-                  maxLength,
-                }) => null,
+                buildCounter:
+                    (
+                      _, {
+                      required currentLength,
+                      required isFocused,
+                      maxLength,
+                    }) => null,
                 onSubmitted: state.search,
                 decoration: InputDecoration(
                   hintText: 'Mahalle, adres veya konum ara',

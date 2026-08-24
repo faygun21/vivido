@@ -144,9 +144,9 @@ class _MapOverviewState extends State<_MapOverview> {
                           Text(
                             '${persona?.displayNameTr ?? profile?.personaCode ?? 'Persona'} · ${anchors.length}/3 önemli konum',
                             style: TextStyle(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -222,8 +222,9 @@ class _ProfileView extends StatelessWidget {
           Text(
             controller.user?.displayName ?? 'Vivido kullanıcısı',
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleLarge
-                ?.copyWith(fontWeight: FontWeight.w800),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 4),
           Text(
@@ -388,8 +389,9 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
             children: [
               Text(
                 'Profil tercihleri',
-                style: Theme.of(context).textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w800),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(

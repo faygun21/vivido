@@ -131,8 +131,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           Text(
             'Sıfırlama kodu gönderelim',
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.headlineSmall
-                ?.copyWith(fontWeight: FontWeight.w800),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           Text(
@@ -178,8 +179,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           Text(
             'Yeni şifreni belirle',
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.headlineSmall
-                ?.copyWith(fontWeight: FontWeight.w800),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           Text(

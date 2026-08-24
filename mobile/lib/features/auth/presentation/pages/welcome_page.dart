@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart'; 
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../application/session_controller.dart';
@@ -25,13 +25,13 @@ class WelcomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    
+
     // Tasarımdaki renkler
-    const Color primaryColor = Color(0xFFC06B3E); 
-    const Color backgroundColor = Color(0xFFF9F5F0); 
+    const Color primaryColor = Color(0xFFC06B3E);
+    const Color backgroundColor = Color(0xFFF9F5F0);
 
     return Scaffold(
-      backgroundColor: backgroundColor, 
+      backgroundColor: backgroundColor,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) => SingleChildScrollView(
@@ -45,18 +45,18 @@ class WelcomePage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 16),
-                    
+
                     // 1. SVG Logo
                     Center(
                       child: SvgPicture.asset(
-                        'assets/images/vivido_logo.svg', 
+                        'assets/images/vivido_logo.svg',
                         height: 70,
                         semanticsLabel: AppConfig.appName,
                       ),
                     ),
-                    
+
                     const Spacer(),
-                    
+
                     // 2. İllüstrasyon Resmi
                     Image.asset(
                       'assets/images/ev_resmi.png',
@@ -64,9 +64,9 @@ class WelcomePage extends StatelessWidget {
                       fit: BoxFit.contain,
                       semanticLabel: 'Ev ve yaşam alanı illüstrasyonu',
                     ),
-                    
+
                     const SizedBox(height: 32),
-                    
+
                     // 3. Slogan Metni
                     const Text(
                       'Yeni evini sadece\nkonumuna göre değil,\nyaşamına göre seç.',
@@ -79,16 +79,16 @@ class WelcomePage extends StatelessWidget {
                         height: 1.3,
                       ),
                     ),
-                    
+
                     const SizedBox(height: 24),
-                    
+
                     if (controller.errorMessage != null) ...[
                       const SizedBox(height: 16),
                       _InlineError(message: controller.errorMessage!),
                     ],
-                    
+
                     const Spacer(),
-                    
+
                     // 4. Giriş Yap Butonu
                     SizedBox(
                       height: 54,
@@ -112,15 +112,18 @@ class WelcomePage extends StatelessWidget {
                         ),
                       ),
                     ),
-                    
+
                     const SizedBox(height: 12),
-                    
+
                     // 5. Kayıt Ol Butonu
                     SizedBox(
                       height: 54,
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFFE5E5E5), width: 1.5),
+                          side: const BorderSide(
+                            color: Color(0xFFE5E5E5),
+                            width: 1.5,
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -137,12 +140,15 @@ class WelcomePage extends StatelessWidget {
                         ),
                       ),
                     ),
-                    
+
                     const SizedBox(height: 16),
-                    
+
                     TextButton(
                       onPressed: controller.continueAsGuest,
-                      child: const Text('Misafir olarak devam et', style: TextStyle(color: Colors.grey)),
+                      child: const Text(
+                        'Misafir olarak devam et',
+                        style: TextStyle(color: Colors.grey),
+                      ),
                     ),
                     Text(
                       'Misafirken haritayı ve konutların temel bilgilerini görebilirsin.',
@@ -153,11 +159,13 @@ class WelcomePage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      'API: ${AppConfig.apiBaseUrl}',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.outline),
-                    ),
+
+                    //Api'yi gösterme kısmı geliştriciler için eklendi, yorum satırını kaldırarak aktif hale getirebilirsiniz.
+                    //Text(
+                    //  'API: ${AppConfig.apiBaseUrl}',
+                    //  textAlign: TextAlign.center,
+                    //  style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.outline),
+                    //),
                   ],
                 ),
               ),
