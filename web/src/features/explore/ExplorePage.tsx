@@ -62,32 +62,61 @@ export function ExplorePage() {
     });
   }
 
+  function formatBudgetRange(
+    minMonthlyBudget: number | null,
+    maxMonthlyBudget: number | null,
+  ) {
+    if (minMonthlyBudget != null && maxMonthlyBudget != null) {
+      return `${minMonthlyBudget.toLocaleString('tr-TR')} ₺ - ${maxMonthlyBudget.toLocaleString('tr-TR')} ₺`;
+    }
+
+    if (minMonthlyBudget != null) {
+      return `${minMonthlyBudget.toLocaleString('tr-TR')} ₺ ve üzeri`;
+    }
+
+    if (maxMonthlyBudget != null) {
+      return `${maxMonthlyBudget.toLocaleString('tr-TR')} ₺'ye kadar`;
+    }
+
+    return 'Girilmedi';
+  }
+
   return (
     <section className="explore">
       <aside className="explore-side">
         <h1>Keşfet</h1>
 
-        {isGuest ? <GuestPanel /> : (
+        {isGuest ? (
+          <GuestPanel />
+        ) : (
           <div className="info-card">
             <h2>Profilin</h2>
+
             {profile ? (
               <dl className="kv">
                 <dt>Persona</dt>
                 <dd>{persona?.displayNameTr ?? profile.personaCode}</dd>
-                <dt>Bütçe</dt>
+
+                <dt>Kira Aralığı</dt>
                 <dd>
-                  {profile.monthlyBudget != null
-                    ? `${profile.monthlyBudget.toLocaleString('tr-TR')} ₺`
-                    : 'Girilmedi'}
+                  {formatBudgetRange(
+                    profile.minMonthlyBudget,
+                    profile.maxMonthlyBudget,
+                  )}
                 </dd>
+
                 <dt>Yerlerin</dt>
                 <dd>{profile.anchors.length} / 3</dd>
               </dl>
             ) : (
               <p className="muted">
-                Profil bulunamadı. <Link to="/onboarding">Onboarding'i tamamla</Link>
+                Profil bulunamadı.{' '}
+                <Link to="/onboarding">
+                  Onboarding&apos;i tamamla
+                </Link>
               </p>
             )}
+
             <Link className="btn-secondary" to="/profile">
               Profili düzenle
             </Link>
@@ -96,13 +125,15 @@ export function ExplorePage() {
 
         <div className="info-card">
           <h2>Harita</h2>
+
           <p className="muted">
             Çankaya ilçe sınırı ve <strong>124 mahalle</strong> poligonu gösteriliyor.
             Mahalle üzerine gelince adı görünür.
           </p>
+
           <p className="muted">
             Skorlanmış kiralık ev noktaları, filtreler ve gerekçe tablosu
-            Hafta 2'nin kalan işleri.
+            Hafta 2&apos;nin kalan işleri.
           </p>
         </div>
 
@@ -111,8 +142,12 @@ export function ExplorePage() {
 
       <div className="explore-map">
         <CankayaMap markers={markers} focus={mapFocus} />
+
         {authenticated && (
-          <LocationSearch onSelect={focusLocation} onClear={() => setMapFocus(null)} />
+          <LocationSearch
+            onSelect={focusLocation}
+            onClear={() => setMapFocus(null)}
+          />
         )}
       </div>
     </section>
@@ -137,6 +172,7 @@ function GuestPanel() {
   return (
     <div className="info-card guest-card">
       <h2>Misafir olarak geziyorsun</h2>
+
       <p className="muted">
         Haritayı ve kiralık konutların temel bilgilerini serbestçe
         inceleyebilirsin.
@@ -144,22 +180,34 @@ function GuestPanel() {
 
       <ul className="locked-list">
         <li>
-          <span className="lock">🔒</span> Kişiselleştirilmiş <strong>0–100 skor</strong> ve
-          skorun gerekçe tablosu
+          <span className="lock">🔒</span>{' '}
+          Kişiselleştirilmiş <strong>0–100 skor</strong> ve skorun gerekçe tablosu
         </li>
+
         <li>
-          <span className="lock">🔒</span> <strong>Persona seçimi</strong> ve aylık kira bütçesi
+          <span className="lock">🔒</span>{' '}
+          <strong>Persona seçimi</strong> ve aylık kira aralığı
         </li>
+
         <li>
-          <span className="lock">🔒</span> <strong>Düzenli gittiğin yerleri</strong> ekleme ve
-          önem sırasına dizme
+          <span className="lock">🔒</span>{' '}
+          <strong>Düzenli gittiğin yerleri</strong> ekleme ve önem sırasına dizme
         </li>
       </ul>
 
-      <button className="btn-primary" type="button" onClick={() => goAuth('/auth/register')}>
+      <button
+        className="btn-primary"
+        type="button"
+        onClick={() => goAuth('/auth/register')}
+      >
         Ücretsiz hesap oluştur
       </button>
-      <button className="btn-secondary" type="button" onClick={() => goAuth('/auth/login')}>
+
+      <button
+        className="btn-secondary"
+        type="button"
+        onClick={() => goAuth('/auth/login')}
+      >
         Zaten hesabım var
       </button>
     </div>

@@ -9,7 +9,10 @@ public class UserProfile
     public required string LastName { get; set; }
 
     public required string PersonaCode { get; set; }
-    public decimal? MonthlyBudget { get; set; }
+
+    public decimal? MinMonthlyBudget { get; set; }
+    public decimal? MaxMonthlyBudget { get; set; }
+
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     // Navigation properties

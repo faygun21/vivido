@@ -103,6 +103,15 @@ public class VividoDbContext : DbContext
             entity.ToTable("user_profiles");
             entity.HasKey(e => e.Id);
 
+            entity.Property(e => e.MinMonthlyBudget)
+                  .HasColumnName("min_monthly_budget")
+                  .HasColumnType("numeric(10,2)");
+
+            entity.Property(e => e.MaxMonthlyBudget)
+                  .HasColumnName("max_monthly_budget")
+                  .HasColumnType("numeric(10,2)");
+
+            // Persona ile ilişki
             entity.HasOne(e => e.Persona)
                   .WithMany()
                   .HasForeignKey(e => e.PersonaCode)
