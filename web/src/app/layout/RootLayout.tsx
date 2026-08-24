@@ -1,18 +1,27 @@
-import { Link, Outlet, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/features/auth/authStore';
 import { HOME_PATH } from '@/features/auth/authFlow';
 
 /**
  * Uygulama kabuğu — SAHİBİ: Kişi 1
  *
- * Şu an iskelet. Explore ekranı geldiğinde (Hafta 2) üst çubuğa
- * persona ve bütçe göstergeleri eklenecek.
+ * Gezinme bağlantıları **düğme** olarak çiziliyor: altı çizili metinler
+ * tıklanabilir hissettirmiyordu ve "Giriş"/"Kayıt ol" ile "Keşfet"/"Profil"
+ * aynı ağırlıkta görünüyordu. Artık birincil eylem dolu, ikincil eylemler
+ * hayalet düğme.
  */
 export function RootLayout() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const { status, user, isGuest, clearSession, leaveGuest } = useAuthStore();
 
   const authenticated = status === 'authenticated';
+
+  /**
+   * Keşfet ekranı kenardan kenara çizilir: harita `.app-main`'in 68rem'lik
+   * okuma genişliğine sıkıştırılırsa geniş ekranlarda yarısı boşa gider.
+   */
+  const fullBleed = pathname.startsWith('/explore');
 
   /**
    * Marka bağlantısının hedefi.
@@ -34,7 +43,7 @@ export function RootLayout() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${fullBleed ? ' app-shell--full' : ''}`}>
       <header className="app-header">
         <Link to={brandTarget} className="brand">
           Vivido
@@ -43,10 +52,22 @@ export function RootLayout() {
         <nav className="app-nav">
           {authenticated ? (
             <>
-              <Link to="/explore">Keşfet</Link>
-              <Link to="/profile">Profil</Link>
-              <span className="user-email">{user?.email}</span>
-              <button type="button" onClick={handleLogout}>
+              <NavLink
+                to="/explore"
+                className={({ isActive }) => `nav-btn${isActive ? ' is-active' : ''}`}
+              >
+                Keşfet
+              </NavLink>
+              <NavLink
+                to="/profile"
+                className={({ isActive }) => `nav-btn${isActive ? ' is-active' : ''}`}
+              >
+                Profil
+              </NavLink>
+              <span className="user-email" title={user?.email}>
+                {user?.email}
+              </span>
+              <button type="button" className="nav-btn nav-btn--quiet" onClick={handleLogout}>
                 Çıkış
               </button>
             </>
@@ -56,12 +77,16 @@ export function RootLayout() {
                 <span className="guest-chip" title="Skorlar ve kişiselleştirme kayıt gerektirir">
                   Misafir
                 </span>
-                <button type="button" onClick={() => handleLeaveGuest('/auth/login')}>
-                  Giriş
+                <button
+                  type="button"
+                  className="nav-btn"
+                  onClick={() => handleLeaveGuest('/auth/login')}
+                >
+                  Giriş yap
                 </button>
                 <button
                   type="button"
-                  className="nav-cta"
+                  className="nav-btn nav-btn--primary"
                   onClick={() => handleLeaveGuest('/auth/register')}
                 >
                   Kayıt ol
@@ -69,22 +94,26 @@ export function RootLayout() {
               </>
             ) : (
               <>
-                <Link to="/auth/login">Giriş</Link>
-                <Link to="/auth/register">Kayıt ol</Link>
+                <Link to="/auth/login" className="nav-btn">
+                  Giriş yap
+                </Link>
+                <Link to="/auth/register" className="nav-btn nav-btn--primary">
+                  Kayıt ol
+                </Link>
               </>
             )
           ) : null}
         </nav>
       </header>
 
-      <main className="app-main">
+      <main className={`app-main${fullBleed ? ' app-main--full' : ''}`}>
         <Outlet />
       </main>
 
       {/*
         ODbL yükümlülüğü: OpenStreetMap atfı harita üzerinde GÖRÜNÜR olmak
-        zorunda. Harita bileşeni geldiğinde MapLibre'ın attributionControl'ü
-        bunu üstlenecek; bu satır genel atıf olarak kalır.
+        zorunda. Harita ekranlarında bunu MapLibre'ın `attributionControl`ü
+        üstleniyor; bu satır uygulama genelindeki atıf olarak kalır.
       */}
       <footer className="app-footer">
         Harita verisi © OpenStreetMap katkıcıları · Konut verisi{' '}

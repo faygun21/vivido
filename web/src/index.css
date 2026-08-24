@@ -9,6 +9,16 @@
   --accent-ink: #FFFFFF;
   --input-bg: #ECEAE6;
 
+  /* Yükseklikler tek yerde: keşfet ekranı haritayı
+     `100dvh − başlık − alt bilgi` ile tam ekrana yayıyor. */
+  --header-h: 3.75rem;
+  --footer-h: 2.75rem;
+
+  /* Yükseltme (elevation) — panel/harita katmanları tutarlı gölgelensin. */
+  --shadow-sm: 0 1px 2px rgb(51 51 51 / 0.06), 0 1px 3px rgb(51 51 51 / 0.08);
+  --shadow-md: 0 4px 14px rgb(51 51 51 / 0.10);
+  --shadow-lg: 0 10px 34px rgb(51 51 51 / 0.16);
+
   font-family: "Poppins", system-ui, -apple-system, sans-serif;
   line-height: 1.6;
   color: var(--ink);
@@ -47,25 +57,115 @@ a { color: var(--accent); }
   min-height: 100vh;
 }
 
+/* Keşfet ekranı: sayfa DEĞİL uygulama gibi davranır — dış kaydırma yok,
+   harita kalan alanın tamamını kaplar. */
+.app-shell--full {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  height: var(--header-h);
+  padding: 0 1.25rem;
+  background: var(--surface);
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
+}
+
 .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--ink);
   font-weight: 700;
   font-size: 1.15rem;
   letter-spacing: -0.02em;
   text-decoration: none;
 }
 
+/* Marka işareti: logo dosyası olmadan da kimlik veren küçük bir aksan. */
+.brand::before {
+  content: "";
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+
 .app-nav {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.4rem;
   font-size: 0.9rem;
 }
 
 .app-nav a { text-decoration: none; }
 
+/* ── Gezinme düğmeleri ──
+   Bağlantılar düğme gibi görünür: hedef alanı büyür, birincil eylem
+   (Kayıt ol) dolu, diğerleri hayalet. */
+.nav-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.nav-btn:hover { background: var(--input-bg); }
+
+.nav-btn.is-active {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--accent);
+}
+
+.nav-btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.nav-btn--primary:hover { background: #a53818; border-color: #a53818; }
+
+.nav-btn--quiet { color: var(--ink-muted); }
+
+.guest-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  border-radius: 999px;
+  background: var(--input-bg);
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
 .user-email {
+  max-width: 12rem;
+  overflow: hidden;
   color: var(--ink-muted);
   font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .app-main {
@@ -76,11 +176,29 @@ a { color: var(--accent); }
   padding: 2rem 1.5rem;
 }
 
+/* Okuma genişliği sınırı harita ekranında geçersiz. */
+.app-main--full {
+  max-width: none;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+}
+
 .app-footer {
-  padding: 1rem 1.5rem;
-  border-top: 1px solid var(--line);
+  padding: 0 1.25rem;
+  height: var(--footer-h);
+  display: flex;
+  align-items: center;
+  border-top: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
+  background: var(--surface);
   color: var(--ink-muted);
   font-size: 0.78rem;
+}
+
+@media (max-width: 560px) {
+  .app-header { padding: 0 0.75rem; }
+  .user-email { display: none; }
+  .nav-btn { padding: 0.45rem 0.7rem; }
 }
 
 /* ─── Sayfalar ─── */
@@ -271,10 +389,6 @@ button {
 .kv dt { color: var(--ink-muted); }
 .kv dd { margin: 0; font-weight: 600; }
 .data-badge { display: inline-block; padding: 0.25rem 0.6rem; border-radius: 999px; background: var(--line); color: var(--surface); font-size: 0.78rem; }
-.explore { display: grid; grid-template-columns: 22rem 1fr; gap: 1.25rem; align-items: start; min-height: calc(100vh - 12rem); }
-.explore-side h1 { margin-top: 0; }
-.explore-map { position: relative; height: calc(100vh - 12rem); min-height: 26rem; border: 1px solid var(--line); border-radius: 1.25rem; overflow: hidden; }
-@media (max-width: 900px) { .explore { grid-template-columns: 1fr; } .explore-map { height: 60vh; } }
 .map-wrap { position: relative; width: 100%; }
 .map-canvas { position: absolute; inset: 0; }
 .map-pin { display: grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--accent); color: var(--accent-ink); border: 2px solid #fff; box-shadow: 0 1px 4px rgb(0 0 0 / 0.35); font-size: 0.8rem; font-weight: 700; cursor: default; }
@@ -512,9 +626,388 @@ button svg,
 @media (max-width: 768px) {
   .login-page-wrapper {
     flex-direction: column !important;
-    overflow: auto; 
+    overflow: auto;
   }
   .login-left {
     display: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   KEŞFET EKRANI
+   ───────────────────────────────────────────────────────────────────
+   Harita bir "panel" değil, ekranın kendisidir. Profil, konum analizi ve
+   harita bilgisi sol üstteki ☰ düğmesinin açtığı çekmecede yüzer; panel
+   açıkken de harita tam genişlikte kalır (yana itmez, üstünü örter).
+   ═══════════════════════════════════════════════════════════════════ */
+
+.explore {
+  position: relative;
+  height: calc(100vh - var(--header-h) - var(--footer-h));
+  height: calc(100dvh - var(--header-h) - var(--footer-h));
+  min-height: 24rem;
+  overflow: hidden;
+  background: var(--input-bg);
+}
+
+.explore .map-wrap { height: 100%; }
+
+/* ── Harita üstü kontroller ── */
+
+.map-topbar {
+  position: absolute;
+  z-index: 6;
+  top: 0.9rem;
+  left: 0.9rem;
+  right: 0.9rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  /* Şeridin kendisi tıklamayı geçirir, çocukları yakalar — aksi halde
+     görünmez bir bant haritanın üstünü kaplar ve tıklamaları yerdi. */
+  pointer-events: none;
+  transition: left 0.22s ease;
+}
+
+.map-topbar > * { pointer-events: auto; }
+
+.map-topbar-search {
+  flex: 1;
+  min-width: 0;
+  max-width: 30rem;
+}
+
+/* LocationSearch kendini haritaya konumluyordu; şeridin içindeyken akışa
+   girer, yoksa ☰ düğmesinin altında kaybolurdu. */
+.map-topbar-search .location-search {
+  position: static;
+  width: 100%;
+}
+
+.map-fab {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: none;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  border-radius: 0.85rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.map-fab:hover { background: var(--input-bg); }
+
+.map-fab[aria-expanded="true"] {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+/* Üç çizgi: ikon paketi eklemeden, tek elemanla. */
+.map-fab-bars,
+.map-fab-bars::before,
+.map-fab-bars::after {
+  display: block;
+  width: 1.15rem;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--ink);
+}
+
+.map-fab-bars { position: relative; }
+
+.map-fab-bars::before,
+.map-fab-bars::after {
+  content: "";
+  position: absolute;
+  left: 0;
+}
+
+.map-fab-bars::before { top: -0.4rem; }
+.map-fab-bars::after { top: 0.4rem; }
+
+/* Nokta seçme kipi bandı — kullanıcı haritaya neden tıklayacağını bilsin. */
+.map-banner {
+  position: absolute;
+  z-index: 7;
+  top: 4.6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.6rem 0.5rem 1rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: var(--shadow-lg);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.map-banner .btn-chip {
+  border-color: color-mix(in srgb, #fff 45%, transparent);
+  background: color-mix(in srgb, #fff 18%, transparent);
+  color: var(--accent-ink);
+}
+
+.map-banner .btn-chip:hover { background: color-mix(in srgb, #fff 30%, transparent); }
+
+/* ── Çekmece ── */
+
+.explore-drawer {
+  position: absolute;
+  z-index: 8;
+  top: 0.9rem;
+  left: 0.9rem;
+  bottom: 0.9rem;
+  width: 21.5rem;
+  max-width: calc(100% - 1.8rem);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  border-radius: 1.1rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  /* Kapalıyken sola kayar. `visibility` geçişin SONUNDA kapanır: görünmeyen
+     panel fare olaylarını ve odağı yakalamasın. */
+  transform: translateX(calc(-100% - 1.2rem));
+  visibility: hidden;
+  transition: transform 0.22s ease, visibility 0s linear 0.22s;
+}
+
+.explore--drawer-open .explore-drawer {
+  transform: none;
+  visibility: visible;
+  transition: transform 0.22s ease, visibility 0s;
+}
+
+/* Panel açıkken ☰ ve arama kutusu panelin sağına kayar. */
+@media (min-width: 900px) {
+  .explore--drawer-open .map-topbar { left: calc(21.5rem + 1.8rem); }
+}
+
+.drawer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1rem 0.75rem 1.15rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 35%, transparent);
+}
+
+.drawer-head h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+}
+
+.drawer-head p { margin: 0.1rem 0 0; font-size: 0.82rem; }
+
+.drawer-close { font-size: 1rem; }
+
+/* Bölüm sekmeleri — segment denetimi görünümü. */
+.drawer-tabs {
+  display: flex;
+  gap: 0.2rem;
+  margin: 0.75rem 0.85rem 0;
+  padding: 0.25rem;
+  border-radius: 0.8rem;
+  background: var(--input-bg);
+}
+
+.drawer-tab {
+  flex: 1;
+  padding: 0.45rem 0.5rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.drawer-tab:hover { color: var(--ink); }
+
+.drawer-tab.is-active {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+
+.drawer-body {
+  flex: 1;
+  min-height: 0;
+  padding: 0.85rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.drawer-section + .drawer-section {
+  margin-top: 0.85rem;
+  padding-top: 0.95rem;
+  border-top: 1px solid color-mix(in srgb, var(--line) 30%, transparent);
+}
+
+.drawer-section h2 {
+  margin: 0 0 0.4rem;
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.drawer-section p { font-size: 0.86rem; }
+.drawer-section .kv { font-size: 0.88rem; }
+.drawer-section .field { margin-bottom: 0.7rem; }
+.drawer-section .field > span { display: block; font-size: 0.8rem; }
+
+/* Form alanları giriş ekranı için 1rem iç boşlukla tasarlandı; panelde
+   o ölçü iki seçim kutusuyla ekranı doldurur. */
+.drawer-section .field input,
+.drawer-section .field select {
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.7rem;
+  font-size: 0.9rem;
+}
+
+.drawer-actions { display: grid; gap: 0.5rem; }
+
+/* ── Küçük düğme boyları ──
+   `.btn-primary` / `.btn-secondary` giriş formları için 1.1rem punto ve
+   1rem iç boşlukla tasarlandı; panel içinde o ölçü ekranı yiyor. */
+.btn-sm {
+  padding: 0.55rem 0.9rem;
+  border-radius: 0.7rem;
+  font-size: 0.88rem;
+}
+
+.btn-chip {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-chip:hover { background: var(--input-bg); }
+.btn-chip:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-chip.is-active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--accent);
+}
+
+/* ── Anchor editörü ── */
+
+.anchor-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.section-count {
+  color: var(--ink-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.anchor-editor .anchor-form { margin-bottom: 0.75rem; }
+.anchor-item--dragging { box-shadow: var(--shadow-md); opacity: 0.9; }
+
+/* ── Analiz göstergeleri ── */
+
+.legend {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.2rem 0 0.6rem;
+  padding: 0;
+  color: var(--ink-muted);
+  font-size: 0.82rem;
+  list-style: none;
+}
+
+.legend li { display: flex; align-items: center; gap: 0.5rem; }
+
+/* Renkler haritadaki KATMANLARIN aynısı olmalı — efsane, gerçeği anlatır.
+   Değerler `CankayaMap.tsx` içindeki `analiz-alani-*` / `yurume-alani-*`
+   katmanlarından birebir alındı; orada değişirse burası da değişmeli. */
+.area-key {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex: none;
+  border-radius: 0.25rem;
+}
+
+.area-key--analysis {
+  background: color-mix(in srgb, #0f766e 10%, var(--surface));
+  border: 1.5px dashed #0f766e;
+}
+
+.area-key--walking {
+  background: color-mix(in srgb, #f59e0b 22%, var(--surface));
+  border: 1.5px solid #b45309;
+}
+
+.walking-access-status {
+  margin: 0 0 0.6rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.7rem;
+  background: var(--input-bg);
+  font-size: 0.82rem;
+}
+
+/* ── Misafir paneli ── */
+
+.locked-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0 0 0.9rem;
+  padding: 0;
+  font-size: 0.85rem;
+  list-style: none;
+}
+
+.locked-list li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.7rem;
+  background: var(--input-bg);
+  color: var(--ink-muted);
+}
+
+.locked-list .lock { flex: none; }
+
+/* ── Dar ekran ──
+   21.5rem'lik panel telefonda haritanın üstünde yüzemez; alttan açılan
+   bir sayfa (bottom sheet) hâline gelir. */
+@media (max-width: 899px) {
+  .explore-drawer {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    max-width: none;
+    max-height: 72%;
+    border-radius: 1.1rem 1.1rem 0 0;
+    transform: translateY(100%);
   }
 }
