@@ -1,0 +1,496 @@
+/*
+  Vivido — temel stiller.
+
+  Bu dosya bilinçli olarak KÜÇÜK. Tasarım sistemi (renk paleti, skor bandı
+  renkleri, bileşen stilleri) Hafta 2'de explore ekranıyla birlikte gelecek.
+  Şimdilik amaç: iskeletin okunabilir görünmesi.
+
+  SAHİBİ: Kişi 1 — buraya özellik bazlı stil yazmayın, kendi bileşeninizin
+  yanında CSS modülü kullanın, yoksa bu dosya dört kişilik çakışma noktası olur.
+*/
+
+:root {
+  --bg: #fbfbf9;
+  --surface: #ffffff;
+  --ink: #14201c;
+  --ink-muted: #64756f;
+  --line: #e2e8e5;
+  --accent: #0b6e60;
+  --accent-ink: #ffffff;
+
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1512;
+    --surface: #131e1a;
+    --ink: #e3eae7;
+    --ink-muted: #93a49e;
+    --line: #22322d;
+    --accent: #51c0a7;
+    --accent-ink: #0d1512;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+a { color: var(--accent); }
+
+/* ─── Kabuk ─── */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.5rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+
+.app-nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.9rem;
+}
+
+.app-nav a { text-decoration: none; }
+
+.user-email {
+  color: var(--ink-muted);
+  font-size: 0.82rem;
+}
+
+.app-main {
+  flex: 1;
+  width: 100%;
+  max-width: 68rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+.app-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--line);
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+}
+
+/* ─── Sayfalar ─── */
+
+.page h1,
+.landing h1 {
+  letter-spacing: -0.025em;
+  margin-top: 0;
+}
+
+.landing p { max-width: 46rem; }
+
+.muted { color: var(--ink-muted); }
+
+.page-center {
+  display: grid;
+  place-items: center;
+  min-height: 40vh;
+  color: var(--ink-muted);
+}
+
+.cta {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.6rem 1.4rem;
+  border-radius: 0.5rem;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.anchor-panel {
+  margin-top: 2rem;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+
+.anchor-panel h2 {
+  margin-top: 0;
+  font-size: 1.05rem;
+}
+
+button {
+  font: inherit;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Hafta 2 — form, harita ve anchor bileşenleri
+   Mevcut tasarım token'larını (--accent, --line, --surface…) kullanır,
+   böylece açık/koyu tema otomatik çalışır.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Formlar ── */
+.auth-page { max-width: 26rem; }
+
+.form-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  margin-bottom: 1rem;
+}
+
+.field { display: grid; gap: 0.35rem; }
+.field > span { font-size: 0.9rem; font-weight: 600; }
+
+.field input,
+.field select {
+  font: inherit;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.45rem;
+  background: var(--bg);
+  color: var(--ink);
+  width: 100%;
+}
+
+.field input:focus-visible,
+.field select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.btn-primary {
+  padding: 0.6rem 1.1rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.btn-secondary {
+  display: inline-block;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.btn-icon {
+  padding: 0.2rem 0.45rem;
+  line-height: 1;
+  color: var(--ink-muted);
+}
+.btn-icon:hover { color: #b3261e; }
+
+.form-error {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.45rem;
+  background: #fdeceb;
+  color: #7f1d1d;
+  border: 1px solid #f5c2c0;
+  font-size: 0.9rem;
+}
+@media (prefers-color-scheme: dark) {
+  .form-error { background: #3a1c1a; color: #ffd9d6; border-color: #5d2b28; }
+}
+
+.notice {
+  padding: 0.75rem 0.9rem;
+  border: 1px dashed var(--line);
+  border-radius: 0.5rem;
+  color: var(--ink-muted);
+  font-size: 0.92rem;
+}
+
+.row-actions { display: flex; gap: 0.5rem; align-items: center; }
+
+/* ── Bilgi kartı ── */
+.info-card {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  margin-bottom: 1rem;
+}
+.info-card h2 { margin: 0 0 0.6rem; font-size: 1rem; }
+
+.kv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.3rem 1rem;
+  margin: 0 0 0.8rem;
+  font-size: 0.92rem;
+}
+.kv dt { color: var(--ink-muted); }
+.kv dd { margin: 0; font-weight: 600; }
+
+.data-badge {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  background: var(--line);
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+}
+
+/* ── Explore düzeni ── */
+.explore {
+  display: grid;
+  grid-template-columns: 22rem 1fr;
+  gap: 1.25rem;
+  align-items: start;
+  min-height: calc(100vh - 12rem);
+}
+.explore-side h1 { margin-top: 0; }
+.explore-map {
+  height: calc(100vh - 12rem);
+  min-height: 26rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+@media (max-width: 900px) {
+  .explore { grid-template-columns: 1fr; }
+  .explore-map { height: 60vh; }
+}
+
+/* ── Harita ── */
+.map-wrap { position: relative; width: 100%; }
+.map-canvas { position: absolute; inset: 0; }
+
+.map-note,
+.map-hover-badge {
+  position: absolute;
+  z-index: 2;
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.4rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+.map-note { top: 0.6rem; left: 0.6rem; color: var(--ink-muted); }
+.map-note--error { color: #7f1d1d; border-color: #f5c2c0; pointer-events: auto; }
+.map-hover-badge { bottom: 0.6rem; left: 0.6rem; font-weight: 600; }
+
+/* Anchor pin'i — MapLibre HTML Marker'ı olarak basılır. */
+.map-pin {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: default;
+}
+
+/* ── Anchor listesi ── */
+.anchor-map {
+  height: 320px;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+.map-hint { font-size: 0.85rem; }
+
+.anchor-form {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: var(--bg);
+  margin-bottom: 1rem;
+}
+
+.anchor-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+
+.anchor-item {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--bg);
+}
+.anchor-item--dragging { opacity: 0.85; box-shadow: 0 4px 14px rgb(0 0 0 / 0.18); }
+
+.anchor-grip { cursor: grab; color: var(--ink-muted); touch-action: none; user-select: none; }
+.anchor-grip:active { cursor: grabbing; }
+
+.anchor-order {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.8rem;
+  font-weight: 700;
+  flex: none;
+}
+
+.anchor-body { display: grid; gap: 0.1rem; flex: 1; min-width: 0; }
+.anchor-body span { font-size: 0.82rem; }
+
+/* ═══════════════════════════════════════════════════════════════
+   Misafir modu, e-posta doğrulama ve şifre sıfırlama (K-09 / W0)
+   Var olan token'ları kullanır; ayrı tema tanımı yok.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Form yardımcı metinleri ── */
+.field-hint {
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+  font-weight: 400;
+}
+
+.field-error {
+  font-size: 0.8rem;
+  color: #b3261e;
+  font-weight: 600;
+}
+@media (prefers-color-scheme: dark) {
+  .field-error { color: #ffb4ab; }
+}
+
+.field-ok {
+  font-size: 0.8rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.form-links {
+  margin: 0;
+  font-size: 0.9rem;
+  text-align: right;
+}
+
+/* ── 6 haneli kod alanı ──
+   Rakamlar arasını açmak, kullanıcının kodu e-postadakiyle
+   karakter karakter karşılaştırmasını kolaylaştırıyor. */
+.code-input {
+  font-size: 1.6rem !important;
+  font-weight: 700;
+  letter-spacing: 0.45em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  /* letter-spacing son karakterin de sağına boşluk koyar; metin
+     optik olarak sola kayar. Yarısı kadar sol padding dengeler. */
+  padding-left: 0.45em !important;
+}
+
+/* ── Tanıtım sayfası eylemleri ── */
+.landing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.btn-ghost {
+  padding: 0.55rem 1rem;
+  border: 1px dashed var(--line);
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+.btn-ghost:hover { color: var(--ink); border-style: solid; }
+
+.landing-guest-note {
+  max-width: 46rem;
+  margin-top: 1.25rem;
+  font-size: 0.9rem;
+}
+
+/* ── Üst çubuk: misafir rozeti ── */
+.guest-chip {
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+}
+
+.nav-cta {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: transparent;
+  font-weight: 600;
+}
+
+/* ── Misafir bilgi kartı ── */
+.guest-card {
+  display: grid;
+  gap: 0.7rem;
+  border-color: var(--accent);
+}
+
+.locked-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+}
+
+.locked-list li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  line-height: 1.4;
+}
+
+.locked-list .lock { flex: none; }

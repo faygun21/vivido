@@ -1,0 +1,58 @@
+# ══════════════════════════════════════════════════════════════════════
+#  Vivido — ETL araç kutusu
+#
+#  NEDEN BU İMAJ VAR:
+#  ETL araçları (osmium, osm2pgsql, psql) tek makinede bir kez çalışır.
+#  Bunları host'a kurmak yerine konteynere koyuyoruz çünkü:
+#    · Windows'ta osmium/osm2pgsql yok — WSL'e sudo ile kurmak gerekirdi
+#    · Ekipte ETL makinesi değişirse kurulum yeniden yapılmaz, imaj build edilir
+#    · Sürümler sabitlenir — "bende çalışıyordu" sorunu ortadan kalkar
+#    · Proje zaten OSRM ve Planetiler'i Docker'la çalıştırıyor (§9.2, §9.7)
+#
+#  KULLANIM:
+#    docker compose --profile etl build etl
+#    docker compose --profile etl run --rm etl osmium --version
+#    docker compose --profile etl run --rm etl bash      # interaktif kabuk
+#
+#  Konteyner vivido ağındadır: veritabanına `postgis:5432` ile ulaşır
+#  (PG* ortam değişkenleri docker-compose.yml'de hazır gelir).
+# ══════════════════════════════════════════════════════════════════════
+
+FROM ubuntu:24.04
+
+# apt'nin kurulum sırasında soru sormasını engelle (build takılır).
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Europe/Istanbul
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      # ── OSM işleme ──
+      osmium-tool \
+      osm2pgsql \
+      # ── Veritabanı istemcisi (seed yükleme, pg_dump, DQ kontrolleri) ──
+      postgresql-client \
+      # ── Sentetik konut üretimi (data/gen/gen_properties.py) ──
+      python3 \
+      python3-psycopg2 \
+      python3-numpy \
+      python3-shapely \n      python3-requests \
+      # ── İndirme / yardımcılar ──
+      curl \
+      ca-certificates \
+      unzip \
+      jq \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python paketlerini apt'ten kuruyoruz, pip'ten değil:
+# Ubuntu 24.04 PEP 668 ile sistem Python'una pip kurulumunu engelliyor
+# (externally-managed-environment hatası). apt sürümleri bizim için yeterli.
+
+WORKDIR /work
+
+# Sürümleri build sonunda göster — hangi araçla veri üretildiği loglansın.
+RUN echo "─── Vivido ETL araç kutusu ───" \
+ && osmium --version | head -1 \
+ && osm2pgsql --version 2>&1 | head -1 \
+ && psql --version \
+ && python3 --version
+
+CMD ["bash"]

@@ -1,0 +1,65 @@
+# ─────────── .NET ───────────
+bin/
+obj/
+*.user
+*.suo
+.vs/
+artifacts/
+TestResults/
+coverage/
+*.coverage
+*.trx
+
+# ─────────── Node / pnpm ───────────
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+.eslintcache
+pnpm-debug.log*
+npm-debug.log*
+
+# ─────────── Expo / React Native ───────────
+.expo/
+.expo-shared/
+*.jks
+*.keystore
+!debug.keystore
+.easignore
+
+# ─────────── Ortam değişkenleri ───────────
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ─────────── Veri artefaktları (GitHub Release'ten iner) ───────────
+data/artifacts/
+data/sources/
+data/tmp/
+*.osm.pbf
+*.mbtiles
+*.osrm
+*.osrm.*
+*.tsv.gz
+*.zip
+*.shp
+osrm/
+!data/artifacts/.gitkeep
+
+# ─────────── IDE ───────────
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.sample.json
+*.swp
+
+# ─────────── İşletim sistemi ───────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Veri ekibinin GeoJSON'larindan uretilir (web/scripts/sync-geo.mjs).
+# Dogruluk kaynagi data/ altindadir; kopyasi git'e girmez.
+web/public/geo/

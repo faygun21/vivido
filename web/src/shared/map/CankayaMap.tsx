@@ -1,0 +1,561 @@
+import { useEffect, useRef, useState } from 'react';
+// maplibre-gl v6'nın default export'u YOK — adlandırılmış import şart.
+import {
+  AttributionControl,
+  LngLatBounds,
+  Map as MapLibreMap,
+  Marker,
+  NavigationControl,
+  type GeoJSONSource,
+  type MapOptions,
+} from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import { circleAround } from '@vivido/shared';
+import { GLYPHS_URL, MAP_ATTRIBUTION, TILE_URL, USE_RASTER_BASEMAP } from '@/shared/config';
+
+/** `StyleSpecification` maplibre-gl tarafından yeniden dışa aktarılmıyor. */
+type MapStyle = NonNullable<MapOptions['style']>;
+
+/**
+ * GeoJSON için yerel asgari tipler.
+ *
+ * `@types/geojson` yalnızca maplibre'ın alt bağımlılığı; web'in doğrudan
+ * bağımlılığı değil, bu yüzden global `GeoJSON` ad alanı derlemeye girmiyor.
+ * İhtiyacımız olan yüzey bu kadar küçükken pnpm-lock'u değiştirmeye değmez.
+ */
+interface GeoFeature {
+  type: 'Feature';
+  properties: Record<string, unknown> | null;
+  geometry: { type: string; coordinates: unknown } | null;
+}
+interface GeoCollection {
+  type: 'FeatureCollection';
+  features: GeoFeature[];
+}
+
+/** MapLibre GeoJSON kaynaklarının `setData` kabul ettiği veri türü. */
+type GeoSourceData = Parameters<GeoJSONSource['setData']>[0];
+
+/** Boş katman verisi — analiz alanı kapalıyken kaynaklar bu hale döner. */
+const EMPTY_GEO: GeoSourceData = { type: 'FeatureCollection', features: [] };
+
+/**
+ * Çankaya haritası — ortak bileşen.
+ *
+ * Veri kaynağı: veri ekibinin ürettiği GeoJSON'lar (`web/public/geo/`).
+ *   · cankaya.geojson            → ilçe sınırı (OSM relation/1812321)
+ *   · cankaya-mahalleler.geojson → 124 mahalle poligonu
+ *
+ * ⚠️ Kurulum sırası önemli: GeoJSON'lar haritadan ÖNCE indirilir ve
+ * kaynak/katman tanımları başlangıç stiline gömülür. `map.on('load')`
+ * içinde `addSource`/`addLayer` çağırmak, React StrictMode'un geliştirme
+ * modundaki çift mount'uyla yarışıyor — ilk harita `load` olayı gelmeden
+ * `remove()` ediliyor ve katmanlar sessizce hiç eklenmemiş oluyordu.
+ *
+ * ⚠️ Neden vektör/raster karo yok: `cankaya.mbtiles` artefaktı henüz
+ * yayınlanmadı (`data/artifacts/` boş, GitHub release yok). Altlık gelince
+ * bu katmanların ALTINA serilir.
+ *
+ * Neden metin katmanı (symbol) yok: MapLibre'da metin çizmek `glyphs`
+ * uç noktası ister, o da tileserver'a bağlı. Mahalle adı bunun yerine
+ * fare üzerine gelince HTML rozetinde gösteriliyor — dış bağımlılık sıfır.
+ */
+
+export interface MapPoint {
+  lat: number;
+  lon: number;
+}
+
+export interface MapMarker extends MapPoint {
+  id: string;
+  label: string;
+  /** 1 = en önemli. Pin üzerinde numara olarak görünür. */
+  priority?: number;
+}
+
+/** R-106 — analiz alanı: merkez nokta + km cinsinden yarıçap (buffer). */
+export interface AnalysisArea {
+  center: MapPoint;
+  radiusKm: number;
+}
+
+interface CankayaMapProps {
+  /** Verilirse haritaya tıklanabilir hale gelir (anchor ekleme akışı). */
+  onMapClick?: (point: MapPoint) => void;
+  markers?: MapMarker[];
+  /** Verilirse merkez çevresinde buffer çizilir; yarıçap isteğe göre değişir (R-106). */
+  analysisArea?: AnalysisArea | null;
+  /** Harita kabının yüksekliği (CSS değeri). */
+  height?: string;
+}
+
+const GEO_DISTRICT = '/geo/cankaya.geojson';
+const GEO_NEIGHBOURHOODS = '/geo/cankaya-mahalleler.geojson';
+
+/** Çankaya kaba bbox — sınır verisi okunamazsa kullanılacak yedek görünüm. */
+const FALLBACK_CENTER: [number, number] = [32.85, 39.87];
+
+/**
+ * Kendi karo sunucumuzdan gelen sokak / bina / su katmanları.
+ *
+ * Şema: OpenMapTiles (Planetiler'ın varsayılan çıktısı). `source-layer`
+ * adları o şemadan gelir — `transportation`, `building`, `water`…
+ * Alta serilir; mahalle poligonları bunların ÜSTÜNDE yarı saydam durur.
+ */
+function vectorBasemapLayers(): unknown[] {
+  return [
+    {
+      id: 'su',
+      type: 'fill',
+      source: 'karolar',
+      'source-layer': 'water',
+      paint: { 'fill-color': '#b9d6de' },
+    },
+    {
+      id: 'yesil-alan',
+      type: 'fill',
+      source: 'karolar',
+      'source-layer': 'landcover',
+      paint: { 'fill-color': '#d6e6d2', 'fill-opacity': 0.7 },
+    },
+    {
+      id: 'park',
+      type: 'fill',
+      source: 'karolar',
+      'source-layer': 'park',
+      paint: { 'fill-color': '#cfe6c8', 'fill-opacity': 0.6 },
+    },
+    {
+      id: 'binalar',
+      type: 'fill',
+      source: 'karolar',
+      'source-layer': 'building',
+      minzoom: 13,
+      paint: {
+        'fill-color': '#d9d4cc',
+        'fill-outline-color': '#c2bcb2',
+        // Uzakta bina kalabalığı haritayı okunmaz yapıyor; yakınlaştıkça belirginleşsin.
+        'fill-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0.25, 16, 0.85],
+      },
+    },
+    {
+      id: 'yollar-kucuk',
+      type: 'line',
+      source: 'karolar',
+      'source-layer': 'transportation',
+      filter: ['!', ['in', ['get', 'class'], ['literal', ['motorway', 'trunk', 'primary']]]],
+      paint: {
+        'line-color': '#ffffff',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.4, 16, 3],
+      },
+    },
+    {
+      id: 'yollar-ana',
+      type: 'line',
+      source: 'karolar',
+      'source-layer': 'transportation',
+      filter: ['in', ['get', 'class'], ['literal', ['motorway', 'trunk', 'primary']]],
+      paint: {
+        'line-color': '#f7c873',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 9, 0.8, 16, 6],
+      },
+    },
+  ];
+}
+
+/** Etiketler en üstte — karo sunucusu varsa (glyph gerekir). */
+function vectorLabelLayers(): unknown[] {
+  return [
+    {
+      id: 'yol-adlari',
+      type: 'symbol',
+      source: 'karolar',
+      'source-layer': 'transportation_name',
+      minzoom: 14,
+      layout: {
+        'text-field': ['get', 'name'],
+        'text-font': ['Noto Sans Regular'],
+        'text-size': 11,
+        'symbol-placement': 'line',
+      },
+      paint: { 'text-color': '#4a4a4a', 'text-halo-color': '#ffffff', 'text-halo-width': 1.2 },
+    },
+    {
+      id: 'yer-adlari',
+      type: 'symbol',
+      source: 'karolar',
+      'source-layer': 'place',
+      layout: {
+        'text-field': ['get', 'name'],
+        'text-font': ['Noto Sans Regular'],
+        'text-size': ['interpolate', ['linear'], ['zoom'], 10, 11, 15, 15],
+      },
+      paint: { 'text-color': '#2b3a36', 'text-halo-color': '#ffffff', 'text-halo-width': 1.4 },
+    },
+  ];
+}
+
+function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): MapStyle {
+  const sources: Record<string, unknown> = {
+    ilce: { type: 'geojson', data: district },
+    // feature-state ile hover boyaması yapabilmek için id şart.
+    mahalleler: { type: 'geojson', data: neighbourhoods, generateId: true },
+    // Analiz alanı (R-106) — verisi ayrı bir useEffect ile güncellenir.
+    analizAlani: { type: 'geojson', data: EMPTY_GEO },
+    analizMerkez: { type: 'geojson', data: EMPTY_GEO },
+  };
+
+  const layers: unknown[] = [
+    { id: 'arka-plan', type: 'background', paint: { 'background-color': '#eef2f0' } },
+  ];
+
+  const hasVectorTiles = TILE_URL !== '';
+
+  if (hasVectorTiles) {
+    sources.karolar = { type: 'vector', url: TILE_URL, attribution: MAP_ATTRIBUTION };
+    layers.push(...vectorBasemapLayers());
+  } else if (USE_RASTER_BASEMAP) {
+    sources.osm = {
+      type: 'raster',
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: MAP_ATTRIBUTION,
+    };
+    layers.push({ id: 'osm', type: 'raster', source: 'osm' });
+  } else {
+    // Altlık yokken ilçe alanını beyaza boyamak, mahalle sınırlarını
+    // okunur kılıyor. Altlık varsa sokakları örteceği için eklenmez.
+    layers.push({
+      id: 'ilce-dolgu',
+      type: 'fill',
+      source: 'ilce',
+      paint: { 'fill-color': '#ffffff', 'fill-opacity': 0.9 },
+    });
+  }
+
+  layers.push(
+    {
+      id: 'mahalle-dolgu',
+      type: 'fill',
+      source: 'mahalleler',
+      paint: {
+        'fill-color': [
+          'case',
+          ['boolean', ['feature-state', 'hover'], false],
+          '#0b6e60',
+          '#7fb3a8',
+        ],
+        'fill-opacity': [
+          'case',
+          ['boolean', ['feature-state', 'hover'], false],
+          0.6,
+          TILE_URL !== '' || USE_RASTER_BASEMAP ? 0.18 : 0.35,
+        ],
+      },
+    },
+    {
+      id: 'mahalle-cizgi',
+      type: 'line',
+      source: 'mahalleler',
+      paint: { 'line-color': '#4a8578', 'line-width': 0.8, 'line-opacity': 0.9 },
+    },
+    {
+      id: 'ilce-sinir',
+      type: 'line',
+      source: 'ilce',
+      paint: { 'line-color': '#0b3d35', 'line-width': 2.4 },
+    },
+  );
+
+  // Analiz alanı (R-106): buffer dolgu + kesikli çizgi + merkez noktası.
+  // Mahallelerin üstünde, etiketlerin altında kalacak şekilde buraya konur.
+  layers.push(
+    {
+      id: 'analiz-alani-dolgu',
+      type: 'fill',
+      source: 'analizAlani',
+      paint: { 'fill-color': '#0b6e60', 'fill-opacity': 0.14 },
+    },
+    {
+      id: 'analiz-alani-cizgi',
+      type: 'line',
+      source: 'analizAlani',
+      paint: {
+        'line-color': '#0b6e60',
+        'line-width': 2,
+        'line-opacity': 0.9,
+        'line-dasharray': [3, 2],
+      },
+    },
+    {
+      id: 'analiz-merkez-nokta',
+      type: 'circle',
+      source: 'analizMerkez',
+      paint: {
+        'circle-radius': 6,
+        'circle-color': '#0b6e60',
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': 2,
+      },
+    },
+  );
+
+  // Etiketler her şeyin üstünde kalmalı.
+  if (hasVectorTiles) layers.push(...vectorLabelLayers());
+
+  // Stil koşullu kurulduğu için TypeScript `type: 'raster'` gibi alanları
+  // string-literal birleşimine daraltamıyor. Tek noktada dönüştürüyoruz;
+  // şekil MapLibre style-spec v8 ile birebir uyumlu (validateStyleMin: 0 hata).
+  return {
+    version: 8,
+    // `glyphs` yalnızca symbol katmanı varken anlamlı; karo sunucusu yoksa
+    // hiç metin çizmediğimiz için dış bir font kaynağına da bağlanmıyoruz.
+    ...(hasVectorTiles ? { glyphs: GLYPHS_URL } : {}),
+    sources,
+    layers,
+  } as MapStyle;
+}
+
+/** Bir GeoJSON nesnesinin sınırlayıcı kutusunu hesaplar. */
+function boundsOf(geojson: GeoCollection): LngLatBounds {
+  const bounds = new LngLatBounds();
+
+  const visit = (coords: unknown): void => {
+    if (!Array.isArray(coords)) return;
+    // [lon, lat] yaprağı
+    if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+      bounds.extend(coords as [number, number]);
+      return;
+    }
+    for (const child of coords) visit(child);
+  };
+
+  for (const feature of geojson.features) {
+    if (feature.geometry && 'coordinates' in feature.geometry) {
+      visit(feature.geometry.coordinates);
+    }
+  }
+  return bounds;
+}
+
+export function CankayaMap({
+  onMapClick,
+  markers = [],
+  analysisArea = null,
+  height = '100%',
+}: CankayaMapProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
+  const markerObjectsRef = useRef<Marker[]>([]);
+  // onMapClick her render'da yeni referans olabilir; listener'ı yeniden
+  // bağlamak yerine ref üzerinden güncel tutuyoruz.
+  const clickHandlerRef = useRef(onMapClick);
+  clickHandlerRef.current = onMapClick;
+
+  const [hoveredName, setHoveredName] = useState<string | null>(null);
+  const [status, setStatus] = useState<'yukleniyor' | 'hazir' | 'hata'>('yukleniyor');
+  const [errorText, setErrorText] = useState<string | null>(null);
+
+  // ─── Haritayı bir kez kur ───
+  useEffect(() => {
+    let cancelled = false;
+    let map: MapLibreMap | null = null;
+
+    async function setup() {
+      try {
+        const [districtRaw, neighbourhoods] = await Promise.all([
+          fetchGeo(GEO_DISTRICT),
+          fetchGeo(GEO_NEIGHBOURHOODS),
+        ]);
+
+        // StrictMode geliştirme modunda efekti iki kez çalıştırır; ilk
+        // çalıştırmanın isteği dönerse haritayı kurmadan çıkıyoruz.
+        if (cancelled || !containerRef.current) return;
+
+        // cankaya.geojson içinde sınır poligonunun yanında bir de etiket
+        // node'u (Point) var — dolgu/çizgi katmanları için ayıklıyoruz.
+        const district: GeoCollection = {
+          type: 'FeatureCollection',
+          features: districtRaw.features.filter(
+            (f) => f.geometry?.type === 'Polygon' || f.geometry?.type === 'MultiPolygon',
+          ),
+        };
+
+        const bounds = boundsOf(district);
+        const hasBounds = !bounds.isEmpty();
+
+        map = new MapLibreMap({
+          container: containerRef.current,
+          style: buildStyle(district, neighbourhoods),
+          attributionControl: false,
+          ...(hasBounds
+            ? { bounds, fitBoundsOptions: { padding: 24 } }
+            : { center: FALLBACK_CENTER, zoom: 10.5 }),
+        });
+        mapRef.current = map;
+
+        map.addControl(new NavigationControl({ showCompass: false }), 'top-right');
+        // ODbL: atıf kapatılamaz olmalı.
+        map.addControl(
+          new AttributionControl({ compact: false, customAttribution: MAP_ATTRIBUTION }),
+          'bottom-right',
+        );
+
+        // Sessiz kalmasın: stil/karo hataları ekranda görünsün.
+        map.on('error', (e) => {
+          console.error('MapLibre hatası', e.error);
+          setErrorText(e.error?.message ?? 'Bilinmeyen harita hatası');
+        });
+
+        map.on('click', (e) => {
+          clickHandlerRef.current?.({ lat: e.lngLat.lat, lon: e.lngLat.lng });
+        });
+
+        // ─── Mahalle vurgulama ───
+        let hoveredId: string | number | undefined;
+
+        map.on('mousemove', 'mahalle-dolgu', (e) => {
+          const feature = e.features?.[0];
+          if (!feature || !map) return;
+
+          if (hoveredId !== undefined) {
+            map.setFeatureState({ source: 'mahalleler', id: hoveredId }, { hover: false });
+          }
+          hoveredId = feature.id;
+          map.setFeatureState({ source: 'mahalleler', id: hoveredId }, { hover: true });
+
+          const props = feature.properties as { name?: string; MAHALLE_ADI?: string } | null;
+          setHoveredName(props?.name ?? props?.MAHALLE_ADI ?? null);
+        });
+
+        map.on('mouseleave', 'mahalle-dolgu', () => {
+          if (hoveredId !== undefined && map) {
+            map.setFeatureState({ source: 'mahalleler', id: hoveredId }, { hover: false });
+          }
+          hoveredId = undefined;
+          setHoveredName(null);
+        });
+
+        setStatus('hazir');
+      } catch (err) {
+        console.error('Çankaya GeoJSON katmanları yüklenemedi', err);
+        if (!cancelled) {
+          setErrorText(err instanceof Error ? err.message : String(err));
+          setStatus('hata');
+        }
+      }
+    }
+
+    void setup();
+
+    return () => {
+      cancelled = true;
+      map?.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  // ─── İşaretçiler (anchor'lar) ───
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    for (const m of markerObjectsRef.current) m.remove();
+    markerObjectsRef.current = [];
+
+    for (const marker of markers) {
+      const el = document.createElement('div');
+      el.className = 'map-pin';
+      el.textContent = marker.priority ? String(marker.priority) : '•';
+      el.title = marker.label;
+
+      markerObjectsRef.current.push(
+        new Marker({ element: el }).setLngLat([marker.lon, marker.lat]).addTo(map),
+      );
+    }
+    // `status` bağımlılığı şart: harita asenkron kurulduğu için ilk render'da
+    // mapRef henüz boş olabiliyor, hazır olunca işaretçiler yeniden basılır.
+  }, [markers, status]);
+
+  // ─── Analiz alanı (buffer) — R-106 ───
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    // Stil asenkron yüklenir; `getSource` erken çağrılırsa fırlatabilir.
+    // Harita henüz hazır değilse `load` olayına erteliyoruz.
+    //
+    // ⚠️ `getSource` dönüş tipi ayrışık bir birleşim değil (`Source`); ama bu
+    // iki kaynağı `buildStyle` içinde kendimiz `type: 'geojson'` olarak
+    // tanımlıyoruz — cast güvenli.
+    const render = () => {
+      const alanKaynak = map.getSource('analizAlani') as GeoJSONSource | undefined;
+      const merkezKaynak = map.getSource('analizMerkez') as GeoJSONSource | undefined;
+      if (!alanKaynak || !merkezKaynak) return;
+
+      // Alan yoksa kaynakları boşalt — eski buffer ekranda kalmasın.
+      if (!analysisArea) {
+        alanKaynak.setData(EMPTY_GEO);
+        merkezKaynak.setData(EMPTY_GEO);
+        return;
+      }
+
+      const { center, radiusKm } = analysisArea;
+      const ring = circleAround({ lat: center.lat, lon: center.lon }, radiusKm);
+
+      alanKaynak.setData({
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: 'Feature',
+            properties: { radiusKm },
+            geometry: { type: 'Polygon', coordinates: [ring] },
+          },
+        ],
+      });
+
+      merkezKaynak.setData({
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: 'Feature',
+            properties: null,
+            geometry: { type: 'Point', coordinates: [center.lon, center.lat] },
+          },
+        ],
+      });
+    };
+
+    if (map.isStyleLoaded()) render();
+    else map.once('load', render);
+  }, [analysisArea, status]);
+
+  // İmleci tıklanabilirlik durumuna göre değiştir.
+  useEffect(() => {
+    const canvas = mapRef.current?.getCanvas();
+    if (canvas) canvas.style.cursor = onMapClick ? 'crosshair' : '';
+  }, [onMapClick, status]);
+
+  return (
+    <div className="map-wrap" style={{ height }}>
+      <div ref={containerRef} className="map-canvas" />
+
+      {status === 'yukleniyor' && (
+        <div className="map-note">Çankaya katmanları yükleniyor…</div>
+      )}
+      {status === 'hata' && (
+        <div className="map-note map-note--error">
+          Harita yüklenemedi: {errorText ?? 'bilinmeyen hata'}
+        </div>
+      )}
+      {hoveredName && <div className="map-hover-badge">{hoveredName}</div>}
+    </div>
+  );
+}
+
+async function fetchGeo(url: string): Promise<GeoCollection> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${url} → HTTP ${response.status}`);
+  return (await response.json()) as GeoCollection;
+}

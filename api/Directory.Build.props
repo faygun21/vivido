@@ -1,0 +1,41 @@
+<Project>
+
+  <!-- Tüm Vivido projeleri için ortak ayarlar. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+
+    <!-- Sürüm çakışmalarını sessizce yutma — build'de görünsün. -->
+    <MSBuildTreatWarningsAsErrors>false</MSBuildTreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <!--
+    ═══════════════════════════════════════════════════════════════
+     Vivido.Scoring SAF KALMALI.
+
+     Bu projede hiçbir PackageReference veya ProjectReference olamaz:
+     ne EF Core, ne HttpClient, ne cache. Girdi ScoringInput,
+     çıktı ScoreResult — o kadar.
+
+     Neden: skorlama motoru veritabanı olmadan, milisaniyelerde,
+     yüzlerce altın veri vakasıyla test edilebilmeli. I/O sızarsa
+     bu koruma çöker.
+
+     Aşağıdaki hedef, kural bozulursa build'i KIRAR.
+     CI'da ayrıca .github/workflows/ci-api.yml içinde de kontrol edilir.
+    ═══════════════════════════════════════════════════════════════
+  -->
+  <Target Name="VividoScoringSaflikKontrolu"
+          BeforeTargets="Build"
+          Condition="'$(MSBuildProjectName)' == 'Vivido.Scoring'">
+    <Error Condition="'@(PackageReference)' != ''"
+           Text="Vivido.Scoring saf olmalı — PackageReference eklenemez. Bulunan: @(PackageReference)" />
+    <Error Condition="'@(ProjectReference)' != ''"
+           Text="Vivido.Scoring saf olmalı — ProjectReference eklenemez. Bulunan: @(ProjectReference)" />
+  </Target>
+
+</Project>

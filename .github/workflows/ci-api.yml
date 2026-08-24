@@ -1,0 +1,96 @@
+name: ci-api
+
+on:
+  push:
+    branches: [main]
+    paths: ['api/**', '.github/workflows/ci-api.yml']
+  pull_request:
+    paths: ['api/**', '.github/workflows/ci-api.yml']
+
+concurrency:
+  group: ci-api-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: .NET SDK kur
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: NuGet önbelleği
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('api/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore api/Vivido.sln
+
+      - name: Build
+        run: dotnet build api/Vivido.sln --no-restore -c Release
+
+      - name: Testler
+        run: dotnet test api/Vivido.sln --no-build -c Release --logger "trx;LogFileName=test-results.trx"
+
+      - name: Test sonuçlarını yükle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-test-results
+          path: '**/test-results.trx'
+          if-no-files-found: ignore
+
+  # Vivido.Scoring saf kalmalı — hiçbir dış paket referansı olmamalı.
+  # Bu kural bozulursa altın veri seti koruması işlevsizleşir.
+  scoring-saflik-kontrolu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Vivido.Scoring paket referansı içermemeli
+        run: |
+          CSPROJ=api/src/Vivido.Scoring/Vivido.Scoring.csproj
+          if [ ! -f "$CSPROJ" ]; then
+            echo "::notice::$CSPROJ henüz yok, kontrol atlandı"
+            exit 0
+          fi
+          if grep -q "PackageReference" "$CSPROJ"; then
+            echo "::error file=$CSPROJ::Vivido.Scoring saf olmalı — PackageReference eklenemez."
+            grep -n "PackageReference" "$CSPROJ"
+            exit 1
+          fi
+          if grep -q "ProjectReference" "$CSPROJ"; then
+            echo "::error file=$CSPROJ::Vivido.Scoring hiçbir projeye bağımlı olmamalı."
+            exit 1
+          fi
+          echo "✓ Vivido.Scoring saf."
+
+  # Şemanın doğruluk kaynağı db/schema/*.sql — EF Core migration DEĞİL.
+  # Karar ve gerekçesi: docs/02-KARARLAR.md K-01.
+  #
+  # Bu kontrol refleks hatasına karşı: EntityFrameworkCore.Design paketi
+  # projede referanslı olduğu için `dotnet ef migrations add` çalışır ve
+  # sessizce ikinci bir şema kaynağı yaratır. İki kaynak aynı anda
+  # yönetilemez — EF var olan tabloları yeniden yaratmaya çalışır.
+  ef-migration-kontrolu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: EF Core migration klasörü olmamalı
+        run: |
+          BULUNAN=$(find api -type d -name Migrations -not -path '*/bin/*' -not -path '*/obj/*')
+          if [ -n "$BULUNAN" ]; then
+            echo "::error::EF Core migration klasörü bulundu:"
+            echo "$BULUNAN"
+            echo ""
+            echo "Şema db/schema/*.sql içinde tanımlanır (docs/02-KARARLAR.md K-01)."
+            echo "Şema değişikliği için yeni bir numaralı SQL dosyası ekleyin"
+            echo "ve 'pnpm db:migrate' çalıştırın."
+            exit 1
+          fi
+          echo "✓ EF migration yok — şema kaynağı db/schema/*.sql."

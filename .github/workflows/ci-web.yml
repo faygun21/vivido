@@ -1,0 +1,44 @@
+name: ci-web
+
+on:
+  push:
+    branches: [main]
+    paths: ['web/**', 'packages/**', 'pnpm-lock.yaml', '.github/workflows/ci-web.yml']
+  pull_request:
+    paths: ['web/**', 'packages/**', 'pnpm-lock.yaml', '.github/workflows/ci-web.yml']
+
+concurrency:
+  group: ci-web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Sürüm BİLEREK verilmiyor: action, package.json'daki
+      # "packageManager": "pnpm@11.22.0" alanını okur. İkisi birden
+      # yazılırsa "Multiple versions of pnpm specified" ile kırılır.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Bağımlılıklar
+        run: pnpm install --frozen-lockfile
+
+      - name: Tip kontrolü
+        run: pnpm --filter web exec tsc --noEmit
+
+      - name: Lint
+        run: pnpm --filter web lint
+        continue-on-error: true   # Hafta 1'de lint kuralları henüz oturmadı
+
+      - name: Testler
+        run: pnpm --filter web test --run
+
+      - name: Build
+        run: pnpm --filter web build

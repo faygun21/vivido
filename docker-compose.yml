@@ -1,0 +1,205 @@
+name: vivido
+
+services:
+  # ══════════════════════════════════════════════════
+  #  Hafta 1'den itibaren gerekli
+  # ══════════════════════════════════════════════════
+  postgis:
+    # DİKKAT: postgres:16 DEĞİL — PostGIS eklentisi gelmez.
+    image: postgis/postgis:16-3.4
+    container_name: vivido-postgis
+    # "etl" de dahil: ETL osm2pgsql ile doğrudan bu veritabanına yazar,
+    # yani etl profili tek başına açıldığında da postgis ayakta olmalı.
+    profiles: ["dev", "full", "etl"]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vivido}
+      POSTGRES_USER: ${POSTGRES_USER:-vivido}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vivido}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # İlk açılışta otomatik çalışan betikler (yalnızca boş volume'de).
+      - ./db/schema:/docker-entrypoint-initdb.d:ro
+      - ./db/checks:/checks:ro
+      # ETL çıktısı (seed.sql). Git'e girmez, 00_fetch_artifacts.sh ile gelir.
+      # Buradan yüklenir:
+      #   docker compose exec -T postgis psql -U vivido -d vivido -f /seed/seed.sql
+      - ./data/artifacts:/seed:ro
+      # Sonraki şema değişiklikleri için: db/migrate.sh yalnızca
+      # uygulanmamış dosyaları çalıştırır (pnpm db:migrate).
+      - ./db:/db:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vivido} -d ${POSTGRES_DB:-vivido}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: vivido-redis
+    profiles: ["dev", "full"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: vivido-pgadmin
+    profiles: ["dev"]
+    environment:
+      # DİKKAT: pgAdmin .local / .test gibi ayrılmış alan adlarını reddeder
+      # ve konteyner sonsuz yeniden başlama döngüsüne girer.
+      PGADMIN_DEFAULT_EMAIL: dev@vivido.dev
+      PGADMIN_DEFAULT_PASSWORD: vivido
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    ports:
+      - "5050:80"
+    depends_on:
+      postgis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ══════════════════════════════════════════════════
+  #  Hafta 2'den itibaren — veri artefaktları gerekli
+  #  data/scripts/00_fetch_artifacts.sh çalıştırılmadan
+  #  bu servisler BAŞLAMAZ. Bu yüzden ayrı profilde.
+  # ══════════════════════════════════════════════════
+  osrm-foot:
+    image: ghcr.io/project-osrm/osrm-backend:latest
+    container_name: vivido-osrm-foot
+    profiles: ["routing", "full"]
+    command: >
+      osrm-routed --algorithm mld
+      --max-table-size ${Routing__MaxTableSize:-200}
+      /data/cankaya.osrm
+    volumes:
+      - ./data/artifacts/osrm/foot:/data:ro
+    ports:
+      - "5001:5000"
+    restart: unless-stopped
+
+  osrm-car:
+    image: ghcr.io/project-osrm/osrm-backend:latest
+    container_name: vivido-osrm-car
+    profiles: ["routing", "full"]
+    command: >
+      osrm-routed --algorithm mld
+      --max-table-size ${Routing__MaxTableSize:-200}
+      /data/cankaya.osrm
+    volumes:
+      - ./data/artifacts/osrm/car:/data:ro
+    ports:
+      - "5002:5000"
+    restart: unless-stopped
+
+  tileserver:
+    image: maptiler/tileserver-gl:latest
+    container_name: vivido-tileserver
+    profiles: ["routing", "full"]
+    command: ["--mbtiles", "/data/cankaya.mbtiles", "--port", "8080"]
+    volumes:
+      - ./data/artifacts:/data:ro
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  # ══════════════════════════════════════════════════
+  #  ETL araç kutusu — YALNIZCA ETL makinesinde.
+  #
+  #  Ekipte tek kişi çalıştırır, çıktıları GitHub Release'e yükler.
+  #  Diğerleri data/scripts/00_fetch_artifacts.sh ile indirir ve bu
+  #  profile hiç dokunmaz (§12.2 "ETL tek makinede bir kez").
+  #
+  #  Tek seferlik çalıştırma için tasarlandı:
+  #    docker compose --profile etl build etl
+  #    docker compose --profile etl run --rm etl osmium fileinfo data/artifacts/cankaya.osm.pbf
+  #    docker compose --profile etl run --rm etl bash
+  # ══════════════════════════════════════════════════
+  etl:
+    build:
+      context: ./data
+      dockerfile: Dockerfile.etl
+    image: vivido-etl:local
+    profiles: ["etl"]
+    environment:
+      # psql / osm2pgsql bu değişkenleri kendiliğinden okur — her komutta
+      # -h -U -d yazmaya gerek kalmaz. Host adı `postgis`: aynı compose ağı.
+      PGHOST: postgis
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-vivido}
+      PGUSER: ${POSTGRES_USER:-vivido}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-vivido}
+      DATA_VERSION: ${DATA_VERSION:-osm-2026-08-20}
+    volumes:
+      - ./data:/work/data
+      - ./db:/work/db
+    working_dir: /work
+    depends_on:
+      postgis:
+        condition: service_healthy
+
+  # Harita tile üretimi (§9.7). Java kurulumu gerekmez.
+  #   docker compose --profile etl run --rm planetiler \
+  #     --osm-path=/data/artifacts/cankaya.osm.pbf \
+  #     --output=/data/artifacts/cankaya.mbtiles --force
+  planetiler:
+    image: ghcr.io/onthegomap/planetiler:latest
+    profiles: ["etl"]
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx4g"
+    volumes:
+      - ./data:/data
+
+  # ══════════════════════════════════════════════════
+  #  Konteynerize uygulama — yalnızca "full" profilinde.
+  #  Geliştirirken API ve web'i host'ta çalıştırmak
+  #  (pnpm dev:api / dev:web) çok daha hızlıdır.
+  # ══════════════════════════════════════════════════
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: vivido-api
+    profiles: ["full"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5000
+      ConnectionStrings__Default: Host=postgis;Port=5432;Database=${POSTGRES_DB:-vivido};Username=${POSTGRES_USER:-vivido};Password=${POSTGRES_PASSWORD:-vivido}
+      ConnectionStrings__Redis: redis:6379
+      Routing__FootUrl: http://osrm-foot:5000
+      Routing__CarUrl: http://osrm-car:5000
+      Tiles__BaseUrl: http://tileserver:8080
+      # E-posta doğrulama / şifre sıfırlama (K-09).
+      # Varsayılan `console`: e-posta gönderilmez, kod konteyner loglarına basılır
+      # (`docker compose logs -f api`). Gerçek gönderim için .env'e Email__* yaz.
+      Auth__RequireEmailVerification: ${Auth__RequireEmailVerification:-true}
+      Email__Provider: ${Email__Provider:-console}
+      Email__Host: ${Email__Host:-smtp.gmail.com}
+      Email__Port: ${Email__Port:-587}
+      Email__User: ${Email__User:-}
+      Email__Password: ${Email__Password:-}
+      Email__FromAddress: ${Email__FromAddress:-}
+      Email__FromName: ${Email__FromName:-Vivido}
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgis:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:

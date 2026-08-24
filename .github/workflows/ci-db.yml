@@ -1,0 +1,131 @@
+name: ci-db
+
+# Şema ve veri kalitesi kapıları.
+#
+# Neden ayrı bir workflow: db/ klasörü CODEOWNERS'ta veri ekibine ait ve
+# .NET derlemesinden bağımsız doğrulanabilir. Buradaki adımlar, bir
+# geliştiricinin kendi makinesinde yaptığının BİREBİR aynısı —
+# docker compose ile gerçek postgis, gerçek initdb.d akışı.
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'db/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/ci-db.yml'
+  pull_request:
+    paths:
+      - 'db/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/ci-db.yml'
+
+concurrency:
+  group: ci-db-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sema-ve-dq:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # docker-compose.yml'deki ${POSTGRES_*:-vivido} varsayılanları
+      # yeterli — .env olmadan da ayağa kalkmalı. Bu da bir testtir:
+      # yeni klonlayan biri .env kopyalamayı unutursa yine çalışır.
+      - name: PostGIS'i başlat
+        run: docker compose --profile dev up -d postgis
+
+      - name: Hazır olmasını bekle
+        run: |
+          for i in $(seq 1 30); do
+            if docker compose exec -T postgis pg_isready -U vivido -d vivido; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::PostGIS 60 saniyede hazır olmadı"
+          docker compose logs postgis
+          exit 1
+
+      # initdb.d db/schema/*.sql dosyalarını çalıştırmış olmalı.
+      # Beklenen tabloların hepsi var mı?
+      - name: Şema kuruldu mu
+        run: |
+          for i in $(seq 1 30); do
+            if EKSIK=$(docker compose exec -T postgis psql -U vivido -d vivido -tA -c "
+              SELECT string_agg(t, ', ')
+              FROM unnest(ARRAY[
+                'users','refresh_tokens','user_profiles','anchors',
+                'personas','persona_category_weights',
+                'poi_categories','poi_tag_mapping','pois',
+                'neighborhoods','buildings','properties',
+                'property_poi_access','score_cache','routes','route_stops'
+              ]) AS t
+              WHERE to_regclass('public.' || t) IS NULL;"); then
+              if [ -z "$EKSIK" ]; then
+                echo "✓ 16 tablonun hepsi mevcut."
+                exit 0
+              fi
+            fi
+            sleep 2
+          done
+          if [ -n "$EKSIK" ]; then
+            echo "::error::Şemada eksik tablo(lar): $EKSIK"
+          else
+            echo "::error::PostGIS şema sorgusu 60 saniye boyunca cevap vermedi"
+          fi
+          docker compose logs postgis | tail -40
+          exit 1
+
+      - name: Eklentiler
+        run: |
+          docker compose exec -T postgis psql -U vivido -d vivido -v ON_ERROR_STOP=1 -c "
+            DO \$\$
+            DECLARE eksik text;
+            BEGIN
+              SELECT string_agg(e, ', ') INTO eksik
+              FROM unnest(ARRAY['postgis','pgcrypto','citext']) AS e
+              WHERE NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = e);
+              IF eksik IS NOT NULL THEN
+                RAISE EXCEPTION 'Eksik eklenti: %', eksik;
+              END IF;
+            END \$\$;"
+
+      # migrate.sh mevcut şemayı görüp baseline almalı, dosyaları
+      # YENİDEN çalıştırmamalı. Çalıştırırsa "tablo zaten var" ile patlar.
+      - name: Şema uygulayıcı (baseline)
+        run: docker compose exec -T postgis bash /db/migrate.sh
+
+      # İkinci koşu hiçbir şey yapmamalı — idempotanlık.
+      - name: Şema uygulayıcı (idempotans)
+        run: |
+          CIKTI=$(docker compose exec -T postgis bash /db/migrate.sh)
+          echo "$CIKTI"
+          if ! echo "$CIKTI" | grep -q "Şema güncel"; then
+            echo "::error::İkinci koşu 'Şema güncel' demedi — migrate.sh idempotent değil"
+            exit 1
+          fi
+
+      # DQ kapıları. ON_ERROR_STOP=1 şart: onsuz psql hata olsa bile 0 döner
+      # ve bu adım hiçbir işe yaramaz.
+      - name: Veri kalitesi kapıları
+        run: docker compose exec -T postgis psql -U vivido -d vivido -v ON_ERROR_STOP=1 -f /checks/dq.sql
+
+      # Kapının gerçekten kapanabildiğini doğrula. "PASS yazıyor" ile
+      # "başarısızlığı yakalıyor" aynı şey değil — DQ-03'ü kasten bozup
+      # betiğin sıfırdan farklı döndüğünü görüyoruz.
+      - name: DQ kapısı gerçekten çalışıyor mu (negatif test)
+        run: |
+          docker compose exec -T postgis psql -U vivido -d vivido -q -c \
+            "UPDATE persona_category_weights SET weight = 0.9
+             WHERE persona_code = 'student' AND category_code = 'market';"
+          if docker compose exec -T postgis psql -U vivido -d vivido -v ON_ERROR_STOP=1 -f /checks/dq.sql; then
+            echo "::error::DQ-03 bozuk olmasına rağmen kapı geçti — dq.sql işlevsiz"
+            exit 1
+          fi
+          echo "✓ Kapı bozuk veride kapandı."
+
+      - name: Loglar (hata durumunda)
+        if: failure()
+        run: docker compose logs postgis

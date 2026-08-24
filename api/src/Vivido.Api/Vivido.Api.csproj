@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!--
+      Yerel gizli bilgiler (Gmail uygulama şifresi) için.
+
+      `dotnet run` depo kökündeki `.env` dosyasını OKUMAZ — o dosya yalnızca
+      docker-compose içindir. `appsettings.Development.json` ise git'te takipli,
+      oraya şifre yazılamaz. Kalan doğru yer user-secrets: depo dışında,
+      kullanıcı profilinde durur ve Development ortamında otomatik yüklenir.
+
+      Kullanımı ve Gmail uygulama şifresi adımları: README §2.5.
+    -->
+    <UserSecretsId>vivido-api-local</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Vivido.Application\Vivido.Application.csproj" />
+    <ProjectReference Include="..\Vivido.Infrastructure\Vivido.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

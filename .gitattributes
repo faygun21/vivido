@@ -1,0 +1,33 @@
+# Varsayılan: metin dosyaları depoda LF ile saklanır.
+# Ekip Windows + WSL karışık çalıştığı için bu ZORUNLU —
+# aksi halde her PR'da "tüm dosya değişmiş" gibi görünür.
+* text=auto eol=lf
+
+# Windows'ta CRLF gerektirenler
+*.ps1   text eol=crlf
+*.cmd   text eol=crlf
+*.bat   text eol=crlf
+*.sln   text eol=crlf
+
+# WSL/Linux'ta çalıştırılacaklar — mutlaka LF
+*.sh    text eol=lf
+*.lua   text eol=lf
+
+# İkili dosyalar — diff/merge denenmesin
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
+*.zip   binary
+*.gz    binary
+*.pbf   binary
+*.mbtiles binary
+*.osrm* binary
+*.apk   binary
+*.keystore binary
+
+# Otomatik üretilen dosyalar — PR diff'inde daraltılsın
+pnpm-lock.yaml  linguist-generated=true -diff
+packages/shared/src/api/**  linguist-generated=true

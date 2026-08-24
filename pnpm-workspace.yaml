@@ -1,0 +1,13 @@
+packages:
+  - 'web'
+  - 'packages/*'
+
+# pnpm 11, bağımlılıkların kurulum betiği çalıştırmasını varsayılan
+# olarak sınırlar. Gerekli derlenmiş bağımlılıklar burada açıkça izinlidir.
+allowBuilds:
+  # Vite'ın paketleyicisi — derlenmiş ikili indirir, çalışması zorunlu.
+  esbuild: true
+  # MSW'nin postinstall'ı web/public/mockServiceWorker.js dosyasını kurulu
+  # sürümle eşitler. Eşitlenmezse MSW çalışma anında sürüm uyuşmazlığı uyarısı
+  # verir. Betik yalnızca dosya kopyalar, ağ erişimi yoktur.
+  msw: true
