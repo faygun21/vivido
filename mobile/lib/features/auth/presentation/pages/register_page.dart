@@ -22,7 +22,6 @@ class _RegisterPageState extends State<RegisterPage> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
 
-  // Belirttiğin Renk Paleti
   static const Color primaryKiremit = Color(0xFFC0421D);
   static const Color backgroundColor = Color(0xFFF9F4ED);
   static const Color accentOrange = Color(0xFFE27250);
@@ -335,7 +334,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
                       const SizedBox(height: 20),
 
-                      // Tıklanabilir Sözleşme Metni (Butonun Hemen Altı)
+                      // Tıklanabilir Sözleşme Metni 
                       SizedBox(
                         width: double.infinity,
                         child: Wrap(
