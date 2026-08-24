@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   DndContext,
   PointerSensor,
@@ -17,6 +17,7 @@ import {
 import type { Anchor, TravelMode } from '@vivido/shared';
 import { MAX_ANCHORS, anchorWeights } from '@vivido/shared';
 import { ApiError, api } from '@/shared/api/client';
+import { useSessionQuery } from '@/shared/api/sessionQuery';
 import { CankayaMap, type MapPoint } from '@/shared/map/CankayaMap';
 
 /**
@@ -37,7 +38,7 @@ export function AnchorPanel() {
   const [mode, setMode] = useState<TravelMode>('car');
   const [error, setError] = useState<string | null>(null);
 
-  const { data: anchors = [], isLoading, error: loadError } = useQuery({
+  const { data: anchors = [], isLoading, error: loadError } = useSessionQuery({
     queryKey: ['anchors'],
     queryFn: () => api.get<Anchor[]>('/profile/anchors'),
     retry: false,
@@ -49,6 +50,10 @@ export function AnchorPanel() {
   const profileMissing =
     loadError instanceof ApiError && loadError.problem.code === 'PROFILE_NOT_FOUND';
 
+  // `useSessionQuery` anahtarın SONUNA oturum kimliğini ekliyor
+  // (`['anchors', 'user:42']`). TanStack önek eşleştirdiği için buradaki
+  // kimliksiz anahtarlar aktif kullanıcının sorgusunu yakalamaya devam
+  // eder — mutasyonlarda kimlik taşımak gerekmiyor.
   function invalidate() {
     void queryClient.invalidateQueries({ queryKey: ['anchors'] });
     // Profil de anchor listesi taşıyor; explore haritası ondan besleniyor.

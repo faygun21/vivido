@@ -16,6 +16,32 @@ import { clearTokens, setTokens } from '@/shared/api/tokens';
 export type AuthStatus = 'unknown' | 'authenticated' | 'anonymous';
 
 /**
+ * ⭐ OTURUM KİMLİĞİ — sunucudan gelen her verinin sahibi
+ *
+ * `status` "giriş yapılmış mı" sorusunu cevaplıyor ama "KİM" sorusunu
+ * cevaplamıyor. Sunucu verisi (profil, anchor, favori, rota) bir kişiye
+ * aittir; kimlik değişince o veri geçersizdir.
+ *
+ * Bu alan olmadan yaşanan hata: A hesabıyla eklenen pinler çıkış
+ * yapıldıktan sonra misafir ekranında ve B hesabıyla girildiğinde
+ * görünmeye devam ediyordu. Sebep, önbelleğin kimliğe bağlı olmaması ve
+ * çıkışta temizlenmemesiydi — `useQuery` `enabled: false` iken bile ELDEKİ
+ * ÖNBELLEĞİ döndürür, istek atmamak veriyi gizlemez.
+ *
+ * Değerler kasıtlı olarak ayrı: misafir de anonim de "giriş yapmamış"tır
+ * ama aynı kişi değildir; ikisi arasında geçerken de önbellek düşmelidir.
+ */
+export type SessionKey = string;
+
+export const SESSION_ANONYMOUS: SessionKey = 'anon';
+export const SESSION_GUEST: SessionKey = 'guest';
+
+/** Giriş yapmış kullanıcının önbellek kimliği. */
+export function userSessionKey(userId: string): SessionKey {
+  return `user:${userId}`;
+}
+
+/**
  * Misafir modu bayrağı `sessionStorage`'da.
  *
  * Neden `localStorage` değil: misafir gezintisi geçici bir niyet, kalıcı
@@ -52,6 +78,11 @@ interface AuthState {
    * temel bilgilerini görür; skor, persona ve anchor kayıt ister.
    */
   isGuest: boolean;
+  /**
+   * Sunucu verisinin sahibi. Değiştiği an önbellek boşaltılır —
+   * bkz. `SessionCacheSync` ve `useSessionQuery`.
+   */
+  sessionKey: SessionKey;
   /** Başarılı giriş/kayıt/yenileme sonrası çağrılır. */
   setSession: (auth: AuthResponse) => void;
   /** Çıkış ya da oturum düşmesi. */
@@ -68,30 +99,57 @@ export const useAuthStore = create<AuthState>((set) => ({
   status: 'unknown',
   user: null,
   isGuest: readGuestFlag(),
+  // Açılışta kimlik henüz bilinmiyor; misafir bayrağı varsa oradan başlar.
+  // `bootstrapSession` sonuçlanınca `setSession` ya da `markAnonymous`
+  // gerçek kimliği yazar.
+  sessionKey: readGuestFlag() ? SESSION_GUEST : SESSION_ANONYMOUS,
 
   setSession: (auth) => {
     setTokens(auth.tokens);
     // Giriş yapan kullanıcı artık misafir değil. Bayrağı bırakırsak
     // arayüz ona hâlâ "kayıt ol" çağrıları göstermeye devam ederdi.
     writeGuestFlag(false);
-    set({ status: 'authenticated', user: auth.user, isGuest: false });
+    set({
+      status: 'authenticated',
+      user: auth.user,
+      isGuest: false,
+      // Token yenilemede de bu çağrılır; kullanıcı aynıysa anahtar da aynı
+      // kalır ve önbellek BOŞUNA düşmez.
+      sessionKey: userSessionKey(auth.user.id),
+    });
   },
 
   clearSession: () => {
     clearTokens();
     writeGuestFlag(false);
-    set({ status: 'anonymous', user: null, isGuest: false });
+    set({
+      status: 'anonymous',
+      user: null,
+      isGuest: false,
+      sessionKey: SESSION_ANONYMOUS,
+    });
   },
 
-  markAnonymous: () => set({ status: 'anonymous', user: null }),
+  markAnonymous: () =>
+    set({ status: 'anonymous', user: null, sessionKey: SESSION_ANONYMOUS }),
 
+  // Misafirlik bir kimlik DEĞİL, gezinti iznidir; giriş yapmış kullanıcının
+  // kimliğini ezmemeli. `set((s) => …)` bu yüzden: aksi halde misafir
+  // panelinden "Giriş yap"a basan biri `leaveGuest` ile kendi oturum
+  // anahtarını `anon`a düşürür ve önbelleği sebepsiz kaybederdi.
   enterGuest: () => {
     writeGuestFlag(true);
-    set({ isGuest: true });
+    set((s) => ({
+      isGuest: true,
+      sessionKey: s.status === 'authenticated' ? s.sessionKey : SESSION_GUEST,
+    }));
   },
 
   leaveGuest: () => {
     writeGuestFlag(false);
-    set({ isGuest: false });
+    set((s) => ({
+      isGuest: false,
+      sessionKey: s.status === 'authenticated' ? s.sessionKey : SESSION_ANONYMOUS,
+    }));
   },
 }));

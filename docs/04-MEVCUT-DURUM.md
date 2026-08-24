@@ -392,6 +392,34 @@ Ayrıca `mobile/lib/core/mobile/lib/core/config/app_config.dart` ve
 yanlışlıkla iç içe kopyalanmış, hiçbir yerden import edilmeyen ikizlerdi ve
 biri **farklı bir base URL** taşıyordu — okuyan herkesi yanıltacak bir tuzak.
 
+### 5.13 🟠 Çıkış yapılınca önceki hesabın verisi ekranda kalıyordu
+
+**Tarih:** 2026-08-24 · Karar: [K-14](02-KARARLAR.md#k-14)
+
+A hesabıyla eklenen anchor pinleri, çıkış yapıldıktan sonra **misafir
+ekranında** ve **B hesabıyla girildiğinde** haritada görünmeye devam
+ediyordu. Sunucu doğru davranıyordu; sızan şey tarayıcıdaki önbellekti.
+
+İki sebep vardı:
+
+1. Sorgu anahtarları (`['profile']`, `['anchors']`, `['favorites']`,
+   `['routes']`) **kimliğe bağlı değildi** — herkes için aynı kutu.
+2. `enabled: false` **veriyi gizlemez.** Misafirken istek atılmıyordu ama
+   `useQuery` önbellekteki `data`yı döndürmeye devam ediyordu. Çıkışta
+   hiçbir yerde `queryClient.clear()` de çağrılmıyordu.
+
+**Düzeltme:** oturum deposu artık `sessionKey` taşıyor
+(`user:<id>` / `guest` / `anon`); oturuma bağlı sorgular
+`useSessionQuery` üzerinden yazılıyor (anahtarın sonuna kimlik eklenir,
+`enabled` giriş koşuluyla VE'lenir); `SessionCacheSync` kimlik değiştiği an
+önbelleği boşaltıyor. `sessionScope.test.tsx` üç senaryoyu da kilitliyor —
+mekanizma kaldırıldığında üçü de kırmızıya düşüyor (doğrulandı).
+
+Aynı PR'da: `PropertiesMapView` token'ı `localStorage.getItem('token')`
+ile okuyordu, **projede öyle bir anahtar yok** (access token bellekte, K-A)
+— ortak istemciye taşındı. Onboarding kaydından sonra `['profile']`
+invalidate ediliyor.
+
 ---
 
 ## 6. Veri boru hattı — sıfırdan çalıştırma

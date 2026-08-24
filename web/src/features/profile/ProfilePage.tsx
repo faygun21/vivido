@@ -1,7 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import type { Persona, UserProfile } from '@vivido/shared';
 import { api } from '@/shared/api/client';
+import { useSessionQuery } from '@/shared/api/sessionQuery';
 import { AnchorPanel } from '@/features/anchors/AnchorPanel';
 import { FavoritesAndRoutesPanel } from './FavoritesAndRoutesPanel';
 
@@ -12,13 +12,13 @@ import { FavoritesAndRoutesPanel } from './FavoritesAndRoutesPanel';
  * bileşen kendi kendine yettiği için iki yerde de aynı kod çalışıyor.
  */
 export function ProfilePage() {
-  const { data: profile, isLoading } = useQuery({
+  const { data: profile, isLoading } = useSessionQuery({
     queryKey: ['profile'],
     queryFn: () => api.get<UserProfile>('/profile'),
     retry: false,
   });
 
-  const { data: personas = [] } = useQuery({
+  const { data: personas = [] } = useSessionQuery({
     queryKey: ['personas'],
     queryFn: () => api.get<Persona[]>('/personas'),
   });

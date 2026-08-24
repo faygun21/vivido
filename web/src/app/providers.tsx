@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ApiError } from '@/shared/api/client';
+import { SessionCacheSync } from '@/app/SessionCacheSync';
 
 /**
  * Uygulama genelindeki provider'lar — SAHİBİ: Kişi 1
@@ -26,6 +27,11 @@ export function AppProviders({ children }: { children: ReactNode }) {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      {/* Oturum kimliği değişince önbelleği boşaltır — çocuklardan ÖNCE
+          bağlanması şart, aksi halde ilk kimlik geçişini kaçırır. */}
+      <SessionCacheSync />
+      {children}
+    </QueryClientProvider>
   );
 }

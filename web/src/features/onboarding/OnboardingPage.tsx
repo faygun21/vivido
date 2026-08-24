@@ -7,8 +7,8 @@ import {
 
 import { useNavigate } from 'react-router-dom';
 import {
-  useQuery,
   useMutation,
+  useQueryClient,
 } from '@tanstack/react-query';
 
 import {
@@ -36,6 +36,8 @@ import {
   api,
 } from '@/shared/api/client';
 
+import { useSessionQuery } from '@/shared/api/sessionQuery';
+
 import type {
   Persona,
   PersonaCode,
@@ -56,6 +58,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export function OnboardingPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [selectedPersona, setSelectedPersona] =
     useState<PersonaCode | null>(null);
@@ -102,7 +105,7 @@ export function OnboardingPage() {
   const {
     data: personas = [],
     isLoading: personasLoading,
-  } = useQuery({
+  } = useSessionQuery({
     queryKey: ['personas'],
 
     queryFn: async () => {
@@ -118,7 +121,7 @@ export function OnboardingPage() {
    */
   const {
     data: savedProfile,
-  } = useQuery({
+  } = useSessionQuery({
     queryKey: ['profile'],
 
     queryFn: async (): Promise<UserProfile | null> => {
@@ -466,6 +469,10 @@ export function OnboardingPage() {
       },
 
       onSuccess: () => {
+        // Kaydedilen profil önbellekteki 404'ü/eski hâli EZMELİ. Aksi
+        // halde /explore, staleTime dolana kadar "Profil bulunamadı"
+        // gösteriyordu — veri sunucuda vardı, ekranda yoktu.
+        void queryClient.invalidateQueries({ queryKey: ['profile'] });
         navigate('/explore');
       },
     });

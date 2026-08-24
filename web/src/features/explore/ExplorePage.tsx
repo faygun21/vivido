@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import type { LocationSearchResult, UserProfile, Persona } from '@vivido/shared';
 import { api } from '@/shared/api/client';
+import { useSessionQuery } from '@/shared/api/sessionQuery';
 import { useAuthStore } from '@/features/auth/authStore';
 import { CankayaMap, type MapFocus, type MapMarker } from '@/shared/map/CankayaMap';
 import { LocationSearch } from './LocationSearch';
@@ -43,21 +43,20 @@ export function ExplorePage() {
   const status = useAuthStore((s) => s.status);
   const authenticated = status === 'authenticated';
 
-  // ⚠️ Misafirken korumalı uç noktalara İSTEK ATILMAZ. Atılsaydı 401 →
-  // yenileme denemesi → refresh token yok → `onSessionExpired` →
-  // `clearSession()` zinciri çalışır ve misafir kendi kendini kapı dışarı
-  // ederdi. `enabled` bayrağı bunu tek satırda kesiyor.
-  const { data: profile } = useQuery({
+  // `useSessionQuery` iki şeyi birden halleder: anahtarı oturum kimliğine
+  // bağlar (başka hesabın verisi okunamaz) ve misafirken korumalı uç
+  // noktaya istek atılmasını engeller. Atılsaydı 401 → yenileme denemesi →
+  // refresh token yok → `onSessionExpired` → `clearSession()` zinciri
+  // çalışır ve misafir kendi kendini kapı dışarı ederdi.
+  const { data: profile } = useSessionQuery({
     queryKey: ['profile'],
     queryFn: () => api.get<UserProfile>('/profile'),
     retry: false,
-    enabled: authenticated,
   });
 
-  const { data: personas = [] } = useQuery({
+  const { data: personas = [] } = useSessionQuery({
     queryKey: ['personas'],
     queryFn: () => api.get<Persona[]>('/personas'),
-    enabled: authenticated,
   });
 
   const persona = personas.find((p) => p.code === profile?.personaCode);

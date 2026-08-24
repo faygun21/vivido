@@ -24,6 +24,7 @@
 | [K-11](#k-11) | Ortak staging ortamı — tek sunucu, tek origin, HTTPS | Kabul |
 | [K-12](#k-12) | Şemanın tek uygulayıcısı `migrate.sh`; initdb.d kaldırıldı | Kabul |
 | [K-13](#k-13) | Deploy "başarılı" diyemez — çalışan imaj doğrulanır | Kabul |
+| [K-14](#k-14) | Oturuma bağlı sunucu verisi `useSessionQuery`'den geçer | Kabul |
 
 ---
 
@@ -630,3 +631,68 @@ Ayakta olmak ile güncel olmak aynı şey değil.
 olmamaktan kötüdür" diyordu; bu olay onun otomasyona bakan yüzü:
 **yeşil raporlayan bayat staging, elle deploy'dan da kötüdür** — çünkü
 kimse şüphelenmez.
+
+---
+
+## K-14
+### Oturuma bağlı sunucu verisi yalnızca `useSessionQuery` üzerinden okunur
+
+**Durum:** Kabul · 2026-08-24
+
+**Bağlam — başka hesabın pinleri haritada kaldı.**
+
+Test sırasında bulundu: A hesabıyla eklenen anchor pinleri çıkış
+yapıldıktan sonra **misafir ekranında** ve **B hesabıyla girildiğinde**
+görünmeye devam ediyordu.
+
+İki ayrı sebep vardı ve ikisi de aynı boşluktan besleniyordu — *"bu veri
+kime ait?"* sorusunun kodda bir cevabı yoktu:
+
+1. **Önbellek anahtarı kimliğe bağlı değildi.** `['profile']`, `['anchors']`,
+   `['favorites']`, `['routes']` herkes için aynı kutuydu. B kullanıcısı
+   A'nın kutusunu açıyordu.
+2. **`enabled: false` veriyi GİZLEMEZ.** Yaygın yanılgı buydu: misafirken
+   `enabled: authenticated` ile istek atılmıyordu, dolayısıyla "veri de
+   görünmez" sanıldı. Oysa `useQuery` istek atmasa bile **önbellekteki
+   `data`yı döndürür**. Misafir ekranında A'nın pinlerini çizen tam olarak
+   buydu. Çıkışta hiçbir yerde `queryClient.clear()` de çağrılmıyordu.
+
+**Karar.**
+
+| # | Kural | Nerede |
+|---|---|---|
+| 1 | Oturum deposu **kimlik** taşır: `sessionKey` = `user:<id>` \| `guest` \| `anon` | `features/auth/authStore.ts` |
+| 2 | Oturuma bağlı her sorgu `useSessionQuery` ile yazılır; anahtarın **sonuna** kimlik eklenir, `enabled` giriş koşuluyla VE'lenir | `shared/api/sessionQuery.ts` |
+| 3 | Kimlik değişince önbelleğin tamamı boşaltılır | `app/SessionCacheSync.tsx` |
+
+⛔ Oturuma bağlı bir uç nokta için doğrudan `useQuery` yazılmaz.
+
+**Neden iki mekanizma birden.** Tek başına hiçbiri yetmiyor:
+
+- Yalnız **anahtar kapsamı** → veri okunamaz ama bellekte kalır; çıkış
+  yapan kullanıcının profili sekme kapanana kadar RAM'de durur.
+- Yalnız **temizlik** → efekt render'dan sonra çalışır; arada bir kare
+  boyunca yeni kimlik eski veriyle çizilebilir.
+
+Kimlik anahtarın **sonuna** ekleniyor (`['anchors', 'user:42']`), çünkü
+TanStack Query önek eşleştirir: mutasyonlardaki
+`invalidateQueries({ queryKey: ['anchors'] })` çağrıları olduğu gibi
+çalışmaya devam ediyor, kimlik taşımaları gerekmiyor.
+
+**Neden `status` değil `sessionKey` dinleniyor.** Token yenilemesi de
+`setSession` çağırır. `status` karşılaştırsaydık her yenilemede önbellek
+boşuna düşer, kullanıcı 15 dakikada bir boş ekran görürdü. Bu davranış
+`sessionScope.test.tsx` içinde ayrı bir testle korunuyor.
+
+**Sonuçları.**
+
+- `PropertiesMapView` ortak istemciye taşındı. Kendi `fetch`'ini kuruyor ve
+  token'ı `localStorage.getItem('token')` ile okuyordu — **projede öyle bir
+  anahtar yok** (access token bellekte, K-A). Her istek `Bearer ` (boş)
+  gidiyor, 401 dönüyor, `response.ok` false olunca hata yutuluyor ve ekran
+  sessizce boş kalıyordu.
+- Onboarding kaydından sonra `['profile']` invalidate ediliyor; eskiden
+  `/explore` `staleTime` dolana kadar "Profil bulunamadı" gösterebiliyordu.
+- Mobil tarafta bu sınıf hata **yok**: `SessionController.logout()` zaten
+  `profile` ve `personas`'ı sıfırlıyor, sunucu verisi ayrı bir önbellekte
+  durmuyor.
