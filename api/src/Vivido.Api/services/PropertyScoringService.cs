@@ -13,7 +13,6 @@ using Vivido.Scoring;
 public class PropertyScoringService
 {
     private readonly VividoDbContext _context;
-    // Formül veya eşikler değiştiğinde bu versiyonu güncelleyeceğiz (Örn: "v1.1")
     private const string CurrentScoringVersion = "v1.0"; 
 
     public PropertyScoringService(VividoDbContext context)
@@ -23,7 +22,7 @@ public class PropertyScoringService
 
     public async Task<double> ScorePropertyAsync(long propertyId, Guid profileId)
     {
-        // 1. Önce Cache'e bak! Eğer bu versiyonda zaten hesaplanmışsa direkt onu dön.
+        // 1. Önce Cache'e bak
         var cachedScore = await _context.ScoreCaches
             .AsNoTracking()
             .FirstOrDefaultAsync(sc => 
@@ -33,7 +32,7 @@ public class PropertyScoringService
 
         if (cachedScore is not null)
         {
-            return (double)cachedScore.Score;
+            return (double)cachedScore.TotalScore;
         }
 
         // 2. Cache'de yoksa, profil ve ağırlıkları çek
@@ -58,7 +57,7 @@ public class PropertyScoringService
             .AsNoTracking()
             .ToListAsync();
 
-        var categoryScores = new List<(double score, double weight)>();
+        var scoringInputs = new List<ScoringEngine.CategoryInput>();
         var breakdownList = new List<object>();
 
         foreach (var access in accesses)
@@ -66,37 +65,33 @@ public class PropertyScoringService
             if (!weights.TryGetValue(access.CategoryCode, out var weight) || weight <= 0) continue;
             if (!categories.TryGetValue(access.CategoryCode, out var cat)) continue;
 
-            // Her bir alt kategori için skoru hesapla
-            double catScore = ScoringEngine.CalculateCategoryScore(
-                (double)access.DurationMin,
-                (double)cat.TIdealMin,
-                (double)cat.THalfMin,
-                (double)cat.TCutoffMin
-            );
+            scoringInputs.Add(new ScoringEngine.CategoryInput(
+                DurationMinutes: (double)access.DurationMin,
+                Weight: weight,
+                TIdeal: (double)cat.TIdealMin,
+                THalf: (double)cat.THalfMin,
+                TCutoff: (double)cat.TCutoffMin
+            ));
 
-            categoryScores.Add((catScore, weight));
-
-            // JSON olarak veritabanına kaydetmek için detayları topla
             breakdownList.Add(new {
                 CategoryCode = access.CategoryCode,
-                Duration = access.DurationMin,
-                Weight = weight,
-                CategoryScore = catScore
+                Duration = (double)access.DurationMin,
+                Weight = weight
             });
         }
 
-        // 3. Ağırlıklı genel ortalamayı hesapla
-        var calculatedScore = ScoringEngine.CalculateWeightedScore(categoryScores);
+        // 3. Senin orijinal hesaplama motorunu çağırıyoruz
+        var calculatedScore = ScoringEngine.CalculateScore(scoringInputs);
 
-        // 4. Sonucu veritabanına (Cache'e) kaydet
+        // 4. Sonucu Cache'e kaydet
         var newCache = new ScoreCache
         {
             PropertyId = propertyId,
             ProfileId = profileId,
             ScoringVersion = CurrentScoringVersion,
-            Score = calculatedScore,
+            TotalScore = (decimal)calculatedScore,
             Breakdown = JsonSerializer.Serialize(breakdownList),
-            CreatedAt = DateTime.UtcNow
+            ComputedAt = DateTime.UtcNow
         };
 
         _context.ScoreCaches.Add(newCache);

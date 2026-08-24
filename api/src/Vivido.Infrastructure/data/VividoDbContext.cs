@@ -35,34 +35,33 @@ public class VividoDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
         // ScoreCache için bileşik anahtar (Composite Key) tanımı
-         builder.Entity<ScoreCache>()
-        .HasKey(sc => new { sc.PropertyId, sc.ProfileId, sc.ScoringVersion });
+        builder.Entity<ScoreCache>()
+            .HasKey(sc => new { sc.PropertyId, sc.ProfileId, sc.ScoringVersion });
+
+        // PropertyPoiAccess için bileşik anahtar tanımı (Testin patlama sebebini çözen eksik parça)
+        builder.Entity<PropertyPoiAccess>(entity =>
+        {
+            entity.ToTable("property_poi_access");
+            entity.HasKey(e => new { e.PropertyId, e.CategoryCode });
+        });
 
         builder.Entity<User>(entity =>
         {
             entity.ToTable("users");
-
-            entity.Property(e => e.Email)
-                  .HasColumnType("citext");
-
-            entity.Property(e => e.CreatedAt)
-                  .HasDefaultValueSql("now()");
+            entity.Property(e => e.Email).HasColumnType("citext");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
         });
 
         builder.Entity<RefreshToken>(entity =>
         {
             entity.ToTable("refresh_tokens");
-
-            entity.Property(e => e.CreatedAt)
-                  .HasDefaultValueSql("now()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
         });
 
         builder.Entity<AuthCode>(entity =>
         {
-            // Tablo adı açıkça yazılıyor — 03-HAFTA-2-PLANI §6 BE-3 kuralı.
-            // Naming convention çoğullaştırma yapmaz, DbSet adına güvenmek
-            // sessizce `auth_code` üretebilir.
             entity.ToTable("auth_codes");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
@@ -72,52 +71,27 @@ public class VividoDbContext : DbContext
                   .HasForeignKey(e => e.UserId)
                   .OnDelete(DeleteBehavior.Cascade);
 
-            // Doğrulama her zaman "bu kullanıcının bu amaçlı en son kodu"nu
-            // arıyor; indeks db/schema/004 içindekiyle aynı.
             entity.HasIndex(e => new { e.UserId, e.Purpose, e.CreatedAt });
         });
 
         builder.Entity<Persona>(entity =>
         {
             entity.ToTable("personas");
-
-            // ⚠️ personas tablosunun PK'sı `code` (text). EF'in varsayılan
-            // konvansiyonu `Id` adlı bir özellik arar, bulamayınca TÜM model
-            // doğrulaması patlar ve veritabanına giden HER sorgu 500 döner —
-            // register dahil. Anahtarı açıkça bildirmek zorunlu.
-            //
-            // Not: Aynı düzeltme `yazilim` dalında da bağımsız olarak yapıldı;
-            // merge sırasında gerekçeyi taşıyan bu sürüm korundu.
             entity.HasKey(e => e.Code);
-
-            entity.Property(e => e.Code)
-                  .HasColumnName("code");
+            entity.Property(e => e.Code).HasColumnName("code");
         });
 
         // Persona yaşam kriterleri ve başlangıç önem seviyeleri
         builder.Entity<PersonaCategoryWeight>(entity =>
         {
             entity.ToTable("persona_category_weights");
+            
+            entity.HasKey(e => new { e.PersonaCode, e.CategoryCode });
+            
+            entity.Property(e => e.PersonaCode).HasColumnName("persona_code");
+            entity.Property(e => e.CategoryCode).HasColumnName("category_code");
+            entity.Property(e => e.Weight).HasColumnName("weight").HasColumnType("numeric(4,3)");
 
-            // Bu tabloda tek bir Id yok.
-            // Bir kaydı persona + kategori ikilisi benzersiz yapıyor.
-            entity.HasKey(e => new
-            {
-                e.PersonaCode,
-                e.CategoryCode
-            });
-
-            entity.Property(e => e.PersonaCode)
-                  .HasColumnName("persona_code");
-
-            entity.Property(e => e.CategoryCode)
-                  .HasColumnName("category_code");
-
-            entity.Property(e => e.Weight)
-                  .HasColumnName("weight")
-                  .HasColumnType("numeric(4,3)");
-
-            // Her ağırlık bir persona'ya aittir.
             entity.HasOne(e => e.Persona)
                   .WithMany()
                   .HasForeignKey(e => e.PersonaCode)
@@ -127,10 +101,8 @@ public class VividoDbContext : DbContext
         builder.Entity<UserProfile>(entity =>
         {
             entity.ToTable("user_profiles");
-
             entity.HasKey(e => e.Id);
 
-            // Persona ile ilişki
             entity.HasOne(e => e.Persona)
                   .WithMany()
                   .HasForeignKey(e => e.PersonaCode)
@@ -141,76 +113,50 @@ public class VividoDbContext : DbContext
         builder.Entity<UserProfileCategoryOrder>(entity =>
         {
             entity.ToTable("user_profile_category_order");
+            entity.HasKey(e => new { e.ProfileId, e.CategoryCode });
+            
+            entity.Property(e => e.ProfileId).HasColumnName("profile_id");
+            entity.Property(e => e.CategoryCode).HasColumnName("category_code");
+            entity.Property(e => e.Priority).HasColumnName("priority");
 
-            // Bir profil aynı kategoriyi yalnızca bir kez içerebilir.
-            entity.HasKey(e => new
-            {
-                e.ProfileId,
-                e.CategoryCode
-            });
-
-            entity.Property(e => e.ProfileId)
-                  .HasColumnName("profile_id");
-
-            entity.Property(e => e.CategoryCode)
-                  .HasColumnName("category_code");
-
-            entity.Property(e => e.Priority)
-                  .HasColumnName("priority");
-
-            // Her sıra kaydı bir kullanıcı profiline aittir.
             entity.HasOne(e => e.Profile)
                   .WithMany()
                   .HasForeignKey(e => e.ProfileId)
                   .OnDelete(DeleteBehavior.Cascade);
 
-            // Aynı profil içinde iki kriter aynı sırada olamaz.
-            entity.HasIndex(e => new
-            {
-                e.ProfileId,
-                e.Priority
-            })
-            .IsUnique();
+            entity.HasIndex(e => new { e.ProfileId, e.Priority }).IsUnique();
         });
 
         builder.Entity<Anchor>(entity =>
         {
             entity.ToTable("anchors");
-
             entity.HasKey(e => e.Id);
-
-            // UserProfile ile 1-N ilişki ve Cascade silme
+            
             entity.HasOne(e => e.Profile)
                   .WithMany(p => p.Anchors)
                   .HasForeignKey(e => e.ProfileId)
                   .OnDelete(DeleteBehavior.Cascade);
 
-            // PostGIS Point geometry alanı tanımı (NTS ile uyumlu)
-            entity.Property(e => e.Geom)
-                  .HasColumnType("geometry (Point, 4326)");
+            entity.Property(e => e.Geom).HasColumnType("geometry (Point, 4326)");
         });
+
         builder.Entity<Neighborhood>(entity =>
         {
             entity.ToTable("neighborhoods");
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.Geom)
-                  .HasColumnType("geometry (MultiPolygon, 4326)");
+            entity.Property(e => e.Geom).HasColumnType("geometry (MultiPolygon, 4326)");
         });
 
         builder.Entity<FavoriteProperty>(entity =>
         {
             entity.ToTable("favorite_properties");
-
-            // Composite Primary Key (user_id ve property_id birleşimi)
             entity.HasKey(e => new { e.UserId, e.PropertyId });
-
-            // User ile ilişki
+            
             entity.HasOne(e => e.User)
                   .WithMany()
                   .HasForeignKey(e => e.UserId)
                   .OnDelete(DeleteBehavior.Cascade);
-
-            // Tarih için varsayılan değer
+                  
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
         });
 
@@ -219,36 +165,23 @@ public class VividoDbContext : DbContext
             entity.ToTable("routes");
             entity.HasKey(e => e.Id);
 
-            // User ile ilişki
             entity.HasOne(e => e.User)
-                  .WithMany() // User tarafında liste tutmuyoruz
+                  .WithMany()
                   .HasForeignKey(e => e.UserId)
                   .OnDelete(DeleteBehavior.Cascade);
 
-            // NetTopologySuite ve JSON tiplerinin PostGIS karşılıkları
-            entity.Property(e => e.StartGeom)
-                  .HasColumnType("geometry(Point, 4326)");
-
-            entity.Property(e => e.Geometry)
-                  .HasColumnType("geometry(LineString, 4326)");
-
-            entity.Property(e => e.Steps)
-                  .HasColumnType("jsonb"); // OSRM manevra adımları için
-
+            entity.Property(e => e.StartGeom).HasColumnType("geometry(Point, 4326)");
+            entity.Property(e => e.Geometry).HasColumnType("geometry(LineString, 4326)");
+            entity.Property(e => e.Steps).HasColumnType("jsonb");
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
         });
 
         builder.Entity<RouteStop>(entity =>
         {
             entity.ToTable("route_stops");
-
-            // Composite Primary Key (route_id ve seq birleşimi)
             entity.HasKey(e => new { e.RouteId, e.Seq });
-
-            // Rota içindeki bir evin ikinci kez eklenmemesi için Unique kısıtlaması
             entity.HasIndex(e => new { e.RouteId, e.PropertyId }).IsUnique();
 
-            // Route ile 1-N ilişki
             entity.HasOne(e => e.Route)
                   .WithMany(r => r.Stops)
                   .HasForeignKey(e => e.RouteId)
