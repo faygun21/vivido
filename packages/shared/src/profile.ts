@@ -34,8 +34,11 @@ export interface UserProfile {
 
   personaCode: PersonaCode;
 
-  /** null → bütçe skoru devre dışı, Skor = YaşamSkoru. */
-  monthlyBudget: number | null;
+  /** null → minimum kira sınırı belirtilmemiş. */
+  minMonthlyBudget: number | null;
+
+  /** null → maksimum kira sınırı belirtilmemiş. */
+  maxMonthlyBudget: number | null;
 
   /**
    * Kullanıcının kişisel yaşam kriteri sırası.
@@ -55,7 +58,9 @@ export interface UpdateProfileRequest {
   lastName: string;
 
   personaCode: PersonaCode;
-  monthlyBudget: number | null;
+
+  minMonthlyBudget: number | null;
+  maxMonthlyBudget: number | null;
 
   /**
    * Yaşam kriterleri en önemliden
