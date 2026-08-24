@@ -28,35 +28,32 @@
 {$SITE_ADDRESS::80} {
 	encode zstd gzip
 
-	# ⭐ SERTİFİKA ZİNCİRİ — bunu kaldırma, site Windows'ta güvensiz görünür.
+	# ─── Sertifika zinciri: uyumluluk tercihi ───
 	#
 	# Let's Encrypt 7 Ocak 2026'da "Generation Y" hiyerarşisine geçti
-	# (Root YE / Root YR). Caddy varsayılan olarak o zinciri seçiyor, ama
-	# bu kökler HENÜZ hiçbir büyük güven deposunda yok. Sonuç:
+	# (Root YE = ECDSA, Root YR = RSA). Bu kökler henüz büyük güven
+	# depolarında yok; istemciler çapraz imzayla eski köke ulaşıyor:
 	#
-	#   OpenSSL         → Verification: OK
-	#   Windows Chrome  → NET::ERR_CERT_AUTHORITY_INVALID
-	#   iPhone Safari   → sorunsuz
+	#   varsayılan (ECDSA):  leaf ← YE2 ← Root YE ← ISRG Root X2 ← ISRG Root X1
+	#   rsa2048:             leaf ← YR2 ← Root YR ← ISRG Root X1
 	#
-	# Yani hata istemciye göre değişiyor ve "bende çalışıyor" tuzağının
-	# ders kitabı örneği. Zincirde ISRG Root X1'e çapraz imza olmasına
-	# rağmen Windows schannel o yoldan güvenilir köke ulaşamıyor.
+	# İkincisi bir halka kısa ve `ISRG Root X2`'ye hiç ihtiyaç duymuyor.
+	# X2 (2020) X1'e (2015) göre daha yeni, dolayısıyla eski/güncellenmemiş
+	# güven depolarında bulunmama ihtimali daha yüksek. Demo bir jürinin
+	# bilmediğimiz makinesinde açılacak; en geniş uyumlu zinciri seçiyoruz.
 	#
-	# ⭐ `key_type rsa2048` ASIL DÜZELTME, süs değil.
+	# ⚠️ TARİHSEL NOT — yanlış teşhis kaydı:
+	# Bu blok, Chrome'un NET::ERR_CERT_AUTHORITY_INVALID vermesi üzerine
+	# eklendi. Ölçümde bu ekibin Windows makinesinde `ISRG Root X1` olup
+	# `ISRG Root X2` olmadığı görüldü ve sebep o sanıldı. GERÇEK SEBEP
+	# BAŞKAYDI: hata yalnızca ŞİRKET AĞINDA çıkıyordu; aynı bilgisayar
+	# kişisel bağlantıya alınınca sorunsuz açıldı. Kurumsal güvenlik duvarı
+	# TLS'i araya girip kendi sertifikasıyla yeniden imzalıyor.
 	#
-	# Ölçülen durum: bu ekipteki Windows makinesinin güven deposunda
-	# `ISRG Root X1` VAR ama `ISRG Root X2` YOK. Varsayılan ECDSA anahtarla
-	# Let's Encrypt şu zinciri veriyor:
-	#
-	#     leaf ← YE2 ← Root YE ← ISRG Root X2 ← ISRG Root X1
-	#                            ^^^^^^^^^^^^ Windows bunu tanımıyor
-	#
-	# RSA anahtarla YR hiyerarşisi devreye giriyor ve doğrudan
-	# ISRG Root X1'e çapraz imzalı — X2 yolundan hiç geçmiyor.
-	#
-	# Bedeli: RSA imzalar ECDSA'dan biraz yavaş ve sertifika birkaç yüz
-	# bayt büyük. Bir demo sitesinde ölçülemez; "jürinin makinesinde kırmızı
-	# uyarı çıkması" riskinin yanında hiçbir şey.
+	# Yani bu ayar o hatayı ÇÖZMEDİ — o hata sunucuyla ilgili değildi.
+	# Yine de zinciri kısalttığı ve uyumluluğu artırdığı için duruyor.
+	# Kaldırmak da güvenli; ama kaldırmak yeni sertifika alımı demek ve
+	# Let's Encrypt haftada aynı alan adı için 5 sertifika sınırı koyuyor.
 	tls {
 		key_type rsa2048
 		issuer acme {
