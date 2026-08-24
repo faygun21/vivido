@@ -51,11 +51,6 @@ export function LoginPage() {
     }
   }
 
-  // Misafir olarak devam etme fonksiyonu
-  function handleGuestContinue() {
-    clearSession?.(); // Varsa önceki oturum kalıntılarını temizler
-    navigate('/explore');
-  }
 
   return (
     <div className="login-page-wrapper">
