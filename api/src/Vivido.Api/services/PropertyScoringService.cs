@@ -13,10 +13,9 @@ using Vivido.Scoring;
 public class PropertyScoringService
 {
     private readonly VividoDbContext _context;
-    // v1.1: yumuşak tavan (Yol A) eklendi — eski sürümle hesaplanmış skorlar
-    // artık geçersiz, versiyon farkı sayesinde cache'ten okunmayıp otomatik
-    // yeniden hesaplanıyorlar. (Bu sürüm numarası birkaç commit boyunca
-    // eklenecek zayıf halka cezası ve yoğunluk sinyalini de kapsayacak.)
+    // v1.1: yumuşak tavan (Yol A), zayıf halka cezası ve yoğunluk sinyali
+    // eklendi — eski sürümle hesaplanmış skorlar artık geçersiz, versiyon
+    // farkı sayesinde cache'ten okunmayıp otomatik yeniden hesaplanıyorlar.
     private const string CurrentScoringVersion = "v1.1";
 
     public PropertyScoringService(VividoDbContext context)
@@ -74,7 +73,9 @@ public class PropertyScoringService
                 Weight: weight,
                 TIdeal: (double)cat.TIdealMin,
                 THalf: (double)cat.THalfMin,
-                TCutoff: (double)cat.TCutoffMin
+                TCutoff: (double)cat.TCutoffMin,
+                PoiCountInRadius: access.PoiCountInRadius,
+                MinPoiCount: cat.MinPoiCount
             ));
 
             breakdownList.Add(new {
@@ -182,7 +183,9 @@ public class PropertyScoringService
                         Weight: weight,
                         TIdeal: (double)cat.TIdealMin,
                         THalf: (double)cat.THalfMin,
-                        TCutoff: (double)cat.TCutoffMin
+                        TCutoff: (double)cat.TCutoffMin,
+                        PoiCountInRadius: access.PoiCountInRadius,
+                        MinPoiCount: cat.MinPoiCount
                     ));
 
                     breakdownList.Add(new {
