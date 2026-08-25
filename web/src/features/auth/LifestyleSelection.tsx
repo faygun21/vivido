@@ -84,6 +84,7 @@ export default function LifestyleSelection() {
     };
   }, []);
 
+<<<<<<< Updated upstream
   async function handleNext() {
     setSaving(true);
     setError(null);
@@ -111,6 +112,11 @@ export default function LifestyleSelection() {
       setSaving(false);
     }
   }
+=======
+  const handleNext = () => {
+  navigate('/preferences'); 
+};
+>>>>>>> Stashed changes
 
   return (
     <div style={{
@@ -233,7 +239,10 @@ export default function LifestyleSelection() {
           })}
         </div>
 
-        <button style={{ background: 'none', border: 'none', color: '#78716c', fontSize: '13px', textDecoration: 'underline', textUnderlineOffset: '3px', cursor: 'pointer' }}>
+        <button 
+          onClick={handleNext}
+          style={{ background: 'none', border: 'none', color: '#78716c', fontSize: '13px', textDecoration: 'underline', textUnderlineOffset: '3px', cursor: 'pointer' }}
+        >
           Kendim Özelleştireceğim
         </button>
       </div>
