@@ -47,6 +47,11 @@ public class VividoDbContext : DbContext
             entity.HasKey(e => new { e.PropertyId, e.CategoryCode });
         });
 
+        builder.Entity<Property>(entity =>
+        {
+            entity.Property(e => e.Geom).HasColumnType("geometry (Point, 4326)");
+        });
+
         builder.Entity<User>(entity =>
         {
             entity.ToTable("users");
