@@ -1,8 +1,29 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '@/shared/api/client';
 import { useSessionQuery } from '@/shared/api/sessionQuery';
-import type { FavoriteResponse, RouteListResponse } from '@vivido/shared';
+import { useRouteStore } from '@/shared/route/routeStore';
+import {
+  formatRouteDistance,
+  formatRouteDuration,
+  travelModeLabel,
+} from '@/shared/route/routeFormat';
+import type { FavoriteResponse, RouteDetail, RouteListResponse } from '@vivido/shared';
 
+/**
+ * Profil → Kayıtlı Rotalarım (R-123).
+ *
+ * Bir rotaya tıklanınca `GET /routes/{id}` ile tam detay (çizgi + duraklar +
+ * bacaklar) çekilir, store'a yazılır ve kullanıcı haritaya yönlendirilir.
+ * Explore tarafı `useRouteStore.activeRoute`'u okuyup çizgiyi, numaralı
+ * durakları ve metrik kartını zaten çizer.
+ */
 export function FavoritesAndRoutesPanel() {
+  const navigate = useNavigate();
+  const setActiveRoute = useRouteStore((s) => s.setActiveRoute);
+  const [loadingRouteId, setLoadingRouteId] = useState<string | null>(null);
+  const [openError, setOpenError] = useState<string | null>(null);
+
   // Favorileri Çekme İsteği
   const { data: favorites, isLoading: isFavoritesLoading } = useSessionQuery({
     queryKey: ['favorites'],
@@ -14,6 +35,21 @@ export function FavoritesAndRoutesPanel() {
     queryKey: ['routes'],
     queryFn: () => api.get<RouteListResponse[]>('/routes'),
   });
+
+  async function openRoute(id: string) {
+    setOpenError(null);
+    setLoadingRouteId(id);
+    try {
+      const detail = await api.get<RouteDetail>(`/routes/${id}`);
+      setActiveRoute(detail);
+      navigate('/explore');
+    } catch {
+      // Rota silinmiş ya da ağ hatası — liste yerinde kalır, kullanıcı bilgilendirilir.
+      setOpenError('Rota açılamadı. Kısa süre sonra tekrar dene.');
+    } finally {
+      setLoadingRouteId(null);
+    }
+  }
 
   return (
     <section className="panel-container">
@@ -34,19 +70,50 @@ export function FavoritesAndRoutesPanel() {
 
       <div className="info-card mt-4">
         <h2>Kayıtlı Rotalarım</h2>
+        <p className="muted">
+          Bir rotaya tıklayınca haritada çizgi, numaralı duraklar ve metrikler açılır.
+        </p>
+
         {isRoutesLoading ? (
           <p className="muted">Rotalar yükleniyor…</p>
         ) : routes?.length ? (
           <ul className="item-list">
-            {routes.map((route) => (
-              <li key={route.id}>
-                <strong>{route.name}</strong> - {route.stopCount} Durak 
-                ({Math.round(route.totalDistanceM / 1000)} km)
-              </li>
-            ))}
+            {routes.map((route) => {
+              const loading = loadingRouteId === route.id;
+              return (
+                <li key={route.id}>
+                  <button
+                    className="saved-route-row"
+                    type="button"
+                    onClick={() => openRoute(route.id)}
+                    disabled={loadingRouteId !== null}
+                  >
+                    <span className="saved-route-main">
+                      <strong>{route.name}</strong>
+                      <span className="muted saved-route-sub">
+                        {route.stopCount} durak · {formatRouteDistance(route.totalDistanceM)} ·{' '}
+                        {formatRouteDuration(route.totalDurationS)}
+                      </span>
+                    </span>
+                    <span className="route-mode-badge">{travelModeLabel(route.mode)}</span>
+                    {loading && (
+                      <span className="muted" role="status">
+                        açılıyor…
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <p className="muted">Henüz oluşturulmuş bir rota yok.</p>
+        )}
+
+        {openError && (
+          <p className="route-error" role="alert">
+            {openError}
+          </p>
         )}
       </div>
     </section>

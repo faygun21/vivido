@@ -28,12 +28,15 @@ export function problem(
   });
 }
 
-/** Doğrulama hatası — ASP.NET Core'un ValidationProblemDetails yapısı. */
+/** Doğrulama hatası — ASP.NET Core'un ValidationProblemDetails yapısı.
+ *  Gerçek backend `ApiProblem.Validation` ile `code: VALIDATION_ERROR` de
+ *  koyar; arayüz code'a dallandığı için mock da aynısını döndürmeli. */
 export function validationProblem(errors: Record<string, string[]>) {
   const body: ProblemDetails = {
     type: 'https://vivido.dev/errors/validation',
     title: 'Doğrulama hatası',
     status: 400,
+    code: 'VALIDATION_ERROR',
     errors,
   };
   return HttpResponse.json(body, {

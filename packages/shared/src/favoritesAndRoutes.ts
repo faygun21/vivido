@@ -4,11 +4,14 @@ export interface FavoriteResponse {
   createdAt: string;
 }
 
-// Rotalar İçin
+// Rotalar İçin — backend `RouteListResponse` ile senkron.
+import type { TravelMode } from './common';
+
 export interface RouteListResponse {
   id: string;
   name: string;
-  mode: string;
+  /** 'car' | 'foot' — backend enum'ı string olarak serileşir. */
+  mode: TravelMode;
   totalDistanceM: number;
   totalDurationS: number;
   createdAt: string;

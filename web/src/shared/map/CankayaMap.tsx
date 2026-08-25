@@ -28,7 +28,7 @@ import {
   createAnalysisAreaPolygon,
   type AnalysisRadiusKm,
 } from './analysisArea';
-import type { Poi } from '@vivido/shared';
+import type { Poi, RouteDetail, RouteStop } from '@vivido/shared';
 import { poiCategoryColor, POI_CATEGORY_COLORS, POI_FALLBACK_COLOR } from './poiColors';
 
 /**
@@ -108,6 +108,10 @@ export interface MapMarker extends MapPoint {
   label: string;
   /** 1 = en önemli. Pin üzerinde numara olarak görünür. */
   priority?: number;
+  /** CSS sınıfı — varsayılan `map-pin`; rota seçimi gibi farklı renkler için. */
+  className?: string;
+  /** Pin metni — `priority`'ye üstün gelir (ör. rota başlangıcı için "A"). */
+  text?: string;
 }
 
 export interface MapFocus extends MapPoint {
@@ -171,6 +175,12 @@ interface CankayaMapProps {
   poiCategoryNames?: Record<string, string>;
   /** Harita taşındığında görünüm alanını (bbox) yukarı bildirir. */
   onBoundsChange?: (bounds: MapBounds) => void;
+  /**
+   * R-121 — oluşturulmuş ziyaret rotası. Verilirse `rota` GeoJSON kaynağına
+   * çizgi yazılır, duraklar numaralı mavi pinlerle basılır ve harita rotanın
+   * tamamını kapsayacak şekilde yakınlaştırılır. `null` çizgiyi kaldırır.
+   */
+  route?: RouteDetail | null;
 }
 
 const GEO_DISTRICT = '/geo/cankaya.geojson';
@@ -354,6 +364,12 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
       clusterMaxZoom: 15,
       clusterRadius: 45,
     },
+    // R-121 — oluşturulan rota çizgisi. Kaynak bir kez kurulur; veri `setData`
+    // ile güncellenir (diğer GeoJSON kaynaklarıyla aynı StrictMode kuralı).
+    rota: {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+    },
   };
 
   const layers: unknown[] = [
@@ -514,6 +530,28 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
         'circle-color': poiCategoryColorExpression(),
         'circle-stroke-color': '#ffffff',
         'circle-stroke-width': 1.5,
+      },
+    },
+  );
+
+  // R-121 — rota çizgisi: geniş koyu gölge şerit + üstte parlak mavi çizgi.
+  // Kaynak boşken hiçbir şey çizilmez; `setData` ile dolunca görünür olur.
+  layers.push(
+    {
+      id: 'rota-cizgi-golge',
+      type: 'line',
+      source: 'rota',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': '#1e3a8a', 'line-width': 9, 'line-opacity': 0.35 },
+    },
+    {
+      id: 'rota-cizgi',
+      type: 'line',
+      source: 'rota',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': '#2563eb',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4, 16, 7],
       },
     },
   );
@@ -719,6 +757,23 @@ function poiPopupHtml(name: string, categoryName: string, categoryCode: string):
     </div>`;
 }
 
+/** R-121 — rota durağı popup içeriği (konut özeti + bacak bilgisi). */
+function routeStopPopupHtml(stop: RouteStop): string {
+  const property = stop.property;
+  const rent = property.monthlyRent.toLocaleString('tr-TR');
+  const area = property.areaM2 != null ? `${property.areaM2} m²` : '';
+  const score = stop.score != null ? `Skor ${Math.round(stop.score)}/100` : 'Skor —';
+  const leg = stop.legDistanceM != null ? `${Math.round(stop.legDistanceM / 100) / 10} km` : '';
+  return `
+    <div class="vivido-popup">
+      <div class="vivido-popup-title">${stop.seq}. durak · ${escapeHtml(property.roomCount)}</div>
+      <div class="vivido-popup-category">
+        ${escapeHtml(property.neighborhood ?? '')}${area ? ` · ${area}` : ''} · ${rent} ₺<br />
+        ${score}${leg ? ` · ${leg}` : ''}
+      </div>
+    </div>`;
+}
+
 export function CankayaMap({
   onMapClick,
   onPropertyClick,
@@ -734,12 +789,16 @@ export function CankayaMap({
   pois,
   poiCategoryNames,
   onBoundsChange,
+  route = null,
 }: CankayaMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerObjectsRef = useRef<Marker[]>([]);
   const analysisMarkerRef = useRef<Marker | null>(null);
   const userLocationMarkerRef = useRef<Marker | null>(null);
+  // R-121 — rota durağı pinleri (anchor pin deseni) ve fit-zoom tekrar koruması.
+  const routeStopMarkersRef = useRef<Marker[]>([]);
+  const lastRouteIdRef = useRef<string | null>(null);
   // Harita bir kez kuruluyor; kurulum anındaki padding'i efektin bağımlılık
   // listesine sokmadan okuyabilmek için ref'te tutuyoruz.
   const padLeftRef = useRef(padLeft);
@@ -974,8 +1033,8 @@ useEffect(() => {
 
     for (const marker of markers) {
       const el = document.createElement('div');
-      el.className = 'map-pin';
-      el.textContent = marker.priority ? String(marker.priority) : '•';
+      el.className = marker.className ?? 'map-pin';
+      el.textContent = marker.text ?? (marker.priority ? String(marker.priority) : '•');
       el.title = marker.label;
 
       markerObjectsRef.current.push(
@@ -1063,6 +1122,76 @@ useEffect(() => {
     });
     // `status` şart: kaynak asenkron kurulur, harita hazır olmadan `getSource` boş döner.
   }, [properties, status]);
+
+  // ─── R-121 — rota çizgisi (`rota` GeoJSON kaynağına setData) ───
+  useEffect(() => {
+    const source = mapRef.current?.getSource('rota') as GeoJSONSource | undefined;
+    if (!source || status !== 'hazir') return;
+
+    const coords = route?.geometry.coordinates ?? [];
+    source.setData({
+      type: 'FeatureCollection',
+      features:
+        coords.length >= 2
+          ? [
+              {
+                type: 'Feature',
+                properties: {},
+                geometry: { type: 'LineString', coordinates: coords },
+              },
+            ]
+          : [],
+    });
+  }, [route, status]);
+
+  // ─── R-121 — numaralı durak pinleri (anchor `map-pin` deseni yeniden kullanılır) ───
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== 'hazir') return;
+
+    for (const m of routeStopMarkersRef.current) m.remove();
+    routeStopMarkersRef.current = [];
+
+    if (!route) return;
+
+    for (const stop of route.stops) {
+      const el = document.createElement('div');
+      el.className = 'map-pin map-pin--route';
+      el.textContent = String(stop.seq);
+      el.title = `${stop.seq}. durak · ${stop.property.roomCount} · ${stop.property.neighborhood ?? ''}`;
+
+      routeStopMarkersRef.current.push(
+        new Marker({ element: el })
+          .setLngLat([stop.property.lon, stop.property.lat])
+          .setPopup(new Popup({ offset: 24, closeButton: false }).setHTML(routeStopPopupHtml(stop)))
+          .addTo(map),
+      );
+    }
+  }, [route, status]);
+
+  // ─── R-121 — rota değişince tamamını görünüme sığdır (her rota id'si bir kez) ───
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== 'hazir') return;
+
+    if (!route) {
+      lastRouteIdRef.current = null;
+      return;
+    }
+    if (lastRouteIdRef.current === route.id) return;
+    lastRouteIdRef.current = route.id;
+
+    const coords = route.geometry.coordinates;
+    if (coords.length === 0) return;
+
+    const bounds = new LngLatBounds();
+    for (const coord of coords) bounds.extend(coord);
+    map.fitBounds(bounds, {
+      padding: { top: 80, right: 80, bottom: 80, left: 80 + padLeftRef.current },
+      maxZoom: 15,
+      duration: 900,
+    });
+  }, [route, status]);
 
   // İmleci tıklanabilirlik durumuna göre değiştir.
   useEffect(() => {

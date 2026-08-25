@@ -1018,3 +1018,199 @@ button svg,
     transform: translateY(100%);
   }
 }
+
+/* ── Rota oluşturucu ve metrik kartı (R-120/121) ── */
+
+/* Rota pinleri — anchor `map-pin` deseninin mavi varyantı. */
+.map-pin--route {
+  background: #2563eb;
+  color: #fff;
+  font-weight: 700;
+  border: 2px solid #fff;
+  cursor: pointer;
+}
+
+.map-pin--route:hover { background: #1d4ed8; }
+
+/* Rota başlangıç noktası — yeşil "A" pin. */
+.map-pin--route-start {
+  background: #047857;
+  color: #fff;
+  font-weight: 700;
+  border: 2px solid #fff;
+}
+
+.route-count {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+.route-list,
+.route-stops {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0 0 0.6rem;
+  padding: 0;
+  list-style: none;
+}
+
+.route-list li,
+.route-stops li {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.7rem;
+  background: var(--input-bg);
+  font-size: 0.85rem;
+}
+
+.route-stops { list-style: none; counter-reset: route-stop; }
+
+/* Numara rozeti — sırayı (1..n) taşır. */
+.route-seq {
+  display: inline-grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.route-item-main {
+  display: grid;
+  gap: 0.05rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.route-item-sub {
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.route-item-leg { color: var(--ink-muted); font-weight: 600; }
+
+.route-item-score {
+  flex: none;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.route-remove {
+  flex: none;
+  color: var(--ink-muted);
+  font-size: 0.8rem;
+}
+
+.route-remove:hover { color: var(--accent); }
+
+.route-start {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.route-start-label {
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.route-hint {
+  margin: 0 0 0.4rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, #2563eb 10%, var(--surface));
+  color: #1d4ed8;
+  font-size: 0.82rem;
+}
+
+.route-mode-toggle {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.route-error {
+  margin: 0 0 0.7rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, #b91c1c 8%, var(--surface));
+  color: #b91c1c;
+  font-size: 0.82rem;
+}
+
+.route-metrics-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.route-metrics-head h2 { text-transform: none; letter-spacing: 0; font-size: 0.95rem; color: var(--ink); }
+
+.route-mode-badge {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, #2563eb 10%, var(--surface));
+  color: #1d4ed8;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+
+/* ── Kayıtlı rotalar listesi (R-123) ── */
+
+.saved-route-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 0.7rem;
+  background: var(--input-bg);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.saved-route-row:hover {
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--line) 50%, transparent);
+}
+
+.saved-route-row:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.saved-route-main {
+  display: grid;
+  gap: 0.05rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.saved-route-sub {
+  font-size: 0.78rem;
+}
+
