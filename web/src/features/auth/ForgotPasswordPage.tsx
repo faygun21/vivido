@@ -75,10 +75,23 @@ export function ForgotPasswordPage() {
       setError('Kod 6 haneli olmalı.');
       return;
     }
-    if (password.length < 8) {
-      setError('Yeni parola en az 8 karakter olmalı.');
-      return;
-    }
+    const hasUppercase = /[A-Z]/.test(password);
+const hasLowercase = /[a-z]/.test(password);
+const hasNumber = /\d/.test(password);
+const hasSpecialCharacter = /[^A-Za-z0-9]/.test(password);
+
+if (
+  password.length < 8 ||
+  !hasUppercase ||
+  !hasLowercase ||
+  !hasNumber ||
+  !hasSpecialCharacter
+) {
+  setError(
+    'Yeni parola en az 8 karakter olmalı; büyük harf, küçük harf, rakam ve özel karakter içermeli.',
+  );
+  return;
+}
     if (password !== passwordAgain) {
       setError('Parolalar birbiriyle uyuşmuyor. İki alanı da kontrol edin.');
       return;

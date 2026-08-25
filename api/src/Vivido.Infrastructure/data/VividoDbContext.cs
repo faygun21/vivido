@@ -48,6 +48,11 @@ public class VividoDbContext : DbContext
             entity.HasKey(e => new { e.PropertyId, e.CategoryCode });
         });
 
+        // NOT: `Property` yapılandırması aşağıda, `Poi` ile aynı blokta
+        // (tablo adı + anahtar + geometry tipi bir arada). Burada ikinci kez
+        // tanımlanmıyor — iki ayrı `Entity<Property>` bloğu okuyanı hangisinin
+        // geçerli olduğu konusunda yanıltıyor.
+
         builder.Entity<User>(entity =>
         {
             entity.ToTable("users");

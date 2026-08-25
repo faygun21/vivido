@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using NetTopologySuite.Geometries;
 
+// Diğer entity'ler bu ad alanında; `Property` global ad alanında kalmıştı.
 namespace Vivido.Domain.Entities;
 
 [Table("properties")]

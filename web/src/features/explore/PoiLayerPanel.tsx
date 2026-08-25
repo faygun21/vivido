@@ -24,10 +24,11 @@ export function PoiLayerPanel({
   propertiesVisible,
   onToggleProperties,
 }: PoiLayerPanelProps) {
+  // Ne `drawer-section` ne de kendi `h2`'si var: bu panel çekmecedeki
+  // "Harita katmanları" bölümünün İÇİNDE duruyor. İkisi de olunca aynı
+  // başlık iki kez yazılıyor ve iç içe iki bölüm ayracı çiziliyordu.
   return (
-    <div className="drawer-section poi-layer-panel">
-      <h2>Harita Katmanları</h2>
-
+    <div className="poi-layer-panel">
       <label className="poi-layer-row">
         <input
           type="checkbox"

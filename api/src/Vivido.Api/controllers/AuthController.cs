@@ -56,7 +56,8 @@ public class AuthController : ControllerBase
 
         var errors = new Dictionary<string, string[]>();
         if (!IsValidEmail(email)) errors["email"] = ["Geçerli bir e-posta adresi girin."];
-        if ((request.Password ?? "").Length < 8) errors["password"] = ["Parola en az 8 karakter olmalı."];
+        if (!IsValidPassword(request.Password))
+    errors["password"] = ["Parola en az 8 karakter olmalı; büyük harf, küçük harf, rakam ve özel karakter içermeli."];
         if (errors.Count > 0) return ApiProblem.Validation(errors);
 
         // citext sütunu büyük/küçük harf duyarsız karşılaştırır; NormalizeEmail
@@ -275,13 +276,13 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> ResetPassword(
         [FromBody] ResetPasswordRequest request, CancellationToken ct)
     {
-        if ((request.NewPassword ?? "").Length < 8)
-        {
-            return ApiProblem.Validation(new()
-            {
-                ["newPassword"] = ["Parola en az 8 karakter olmalı."],
-            });
-        }
+       if (!IsValidPassword(request.NewPassword))
+{
+    return ApiProblem.Validation(new()
+    {
+        ["newPassword"] = ["Parola en az 8 karakter olmalı; büyük harf, küçük harf, rakam ve özel karakter içermeli."],
+    });
+}
 
         var email = NormalizeEmail(request.Email);
         var user = await _context.Users.SingleOrDefaultAsync(u => u.Email == email, ct);
@@ -362,7 +363,16 @@ public class AuthController : ControllerBase
         AuthCodeService.VerifyResult.TooManyAttempts => ApiProblem.TooManyAttempts(),
         _ => ApiProblem.InvalidCode(),
     };
+private static bool IsValidPassword(string? password)
+{
+    if (string.IsNullOrEmpty(password) || password.Length < 8)
+        return false;
 
+    return password.Any(char.IsUpper)
+        && password.Any(char.IsLower)
+        && password.Any(char.IsDigit)
+        && password.Any(ch => !char.IsLetterOrDigit(ch));
+}
     /// <summary>
     /// Baştaki/sondaki boşluğu atar.
     ///
