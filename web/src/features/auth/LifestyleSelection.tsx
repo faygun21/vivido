@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Check, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { api } from '@/shared/api/client';
+import { useAuthStore } from '@/features/auth/authStore';
 
 interface Persona {
   id: string;
@@ -10,6 +13,8 @@ interface Persona {
   subIcons: string[];
 }
 
+// id'ler `personas.code` (backend) ile birebir aynı olmalı — aksi hâlde
+// PUT /profile personaCode'u tanımıyor demektir.
 const personas: Persona[] = [
   {
     id: 'student',
@@ -19,21 +24,21 @@ const personas: Persona[] = [
     subIcons: ['/bus.svg', '/school.svg', '/cafe.svg'],
   },
   {
-    id: 'remote',
+    id: 'remote_worker',
     title: 'Uzaktan Çalışan',
     description: 'Cafe, spor ve sosyal alanlar öncelikli',
     mainIcon: '/pc.svg',
     subIcons: ['/cafe.svg', '/sport_kahve.svg', '/park.svg'],
   },
   {
-    id: 'family',
+    id: 'family_kids',
     title: 'Çocuklu Aile',
     description: 'Eğitim, market ve park alanları öncelikli',
     mainIcon: '/family.svg',
     subIcons: ['/school.svg', '/avm.svg', '/park.svg'],
   },
   {
-    id: 'retired',
+    id: 'elderly',
     title: 'Emekli',
     description: 'Sağlık, günlük ihtiyaçlar ve sakin yaşam öncelikli',
     mainIcon: '/glasses.svg',
@@ -41,9 +46,36 @@ const personas: Persona[] = [
   },
 ];
 
+/**
+ * Kayıt formu ad+soyadı `${firstName} ${lastName}`.trim() olarak TEK bir
+ * `displayName`'de birleştirip gönderiyor (bkz. RegisterPage.tsx). Burada
+ * tersini yapıp ayırıyoruz — kullanıcıya adını tekrar SORMAMAK için.
+ * Soyadı yoksa (tek kelimelik displayName) boş bırakıyoruz; backend
+ * LastName'i zorunlu istiyor, boş string kabul ediyor.
+ */
+function splitDisplayName(displayName: string | null | undefined): {
+  firstName: string;
+  lastName: string;
+} {
+  const trimmed = (displayName ?? '').trim();
+  if (trimmed === '') return { firstName: '', lastName: '' };
+
+  const spaceIndex = trimmed.indexOf(' ');
+  if (spaceIndex === -1) return { firstName: trimmed, lastName: '' };
+
+  return {
+    firstName: trimmed.slice(0, spaceIndex),
+    lastName: trimmed.slice(spaceIndex + 1).trim(),
+  };
+}
+
 export default function LifestyleSelection() {
-  const [selectedId, setSelectedId] = useState<string>('remote');
+  const [selectedId, setSelectedId] = useState<string>('remote_worker');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const displayName = useAuthStore((s) => s.user?.displayName);
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -52,9 +84,33 @@ export default function LifestyleSelection() {
     };
   }, []);
 
-  const handleNext = () => {
-    navigate('/onboarding');
-  };
+  async function handleNext() {
+    setSaving(true);
+    setError(null);
+    try {
+      const { firstName, lastName } = splitDisplayName(displayName);
+      await api.put('/profile', {
+        firstName,
+        lastName,
+        personaCode: selectedId,
+      });
+      // Onboarding'in kendi profil sorgusu bayat kalmasın — az önce
+      // yazdığımız persona'yı hemen görsün.
+      await queryClient.invalidateQueries({ queryKey: ['profile'] });
+      // Bütçe/anchor gibi geri kalan alanlar hâlâ eksik; onboarding formu
+      // onları tamamlıyor. NOT: OnboardingPage şu an persona seçimini var
+      // olan profilden ÖNCEDEN DOLDURMUYOR (selectedPersona her zaman null
+      // başlıyor) — kullanıcı burada seçtiği persona'yı orada bir kez daha
+      // seçmek zorunda kalacak. Sorun değil (DB'de zaten kayıtlı, formu
+      // atlarsa da persona kaybolmaz) ama kullanıcı deneyimi için
+      // OnboardingPage'e persona ön-doldurma eklemek ayrı bir iyileştirme.
+      navigate('/onboarding');
+    } catch {
+      setError('Kaydedilemedi, lütfen tekrar deneyin.');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div style={{
@@ -183,16 +239,22 @@ export default function LifestyleSelection() {
       </div>
 
       {/* ALT KISIM: Navigasyon Butonları */}
-      <div style={{ maxWidth: '720px', margin: '0 auto', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '16px', borderTop: '1px solid #e7e5e4' }}>
-        <button style={{ padding: '8px 22px', borderRadius: '8px', border: '1px solid #d6d3d1', backgroundColor: 'transparent', color: '#44403c', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}>
-          Geri
-        </button>
-        <button 
-          onClick={handleNext}
-          style={{ padding: '8px 24px', borderRadius: '8px', backgroundColor: '#C26927', color: '#ffffff', fontSize: '14px', fontWeight: 500, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-        >
-          Devam Et <ArrowRight size={16} />
-        </button>
+      <div style={{ maxWidth: '720px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '16px', borderTop: '1px solid #e7e5e4' }}>
+        {error && (
+          <p style={{ color: '#b91c1c', fontSize: '13px', margin: 0, textAlign: 'center' }}>{error}</p>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <button style={{ padding: '8px 22px', borderRadius: '8px', border: '1px solid #d6d3d1', backgroundColor: 'transparent', color: '#44403c', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}>
+            Geri
+          </button>
+          <button
+            onClick={handleNext}
+            disabled={saving}
+            style={{ padding: '8px 24px', borderRadius: '8px', backgroundColor: '#C26927', color: '#ffffff', fontSize: '14px', fontWeight: 500, border: 'none', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            {saving ? 'Kaydediliyor…' : 'Devam Et'} <ArrowRight size={16} />
+          </button>
+        </div>
       </div>
 
     </div>
