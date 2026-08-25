@@ -739,6 +739,7 @@ export function CankayaMap({
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerObjectsRef = useRef<Marker[]>([]);
   const analysisMarkerRef = useRef<Marker | null>(null);
+  const userLocationMarkerRef = useRef<Marker | null>(null);
   // Harita bir kez kuruluyor; kurulum anındaki padding'i efektin bağımlılık
   // listesine sokmadan okuyabilmek için ref'te tutuyoruz.
   const padLeftRef = useRef(padLeft);
@@ -932,6 +933,37 @@ export function CankayaMap({
     };
   }, []);
 
+
+  // ── Kullanıcının GPS konumu ──
+useEffect(() => {
+  if (!navigator.geolocation) return;
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+
+      const map = mapRef.current;
+      if (!map) return;
+
+      const el = document.createElement('div');
+      el.className = 'user-location-marker';
+
+      userLocationMarkerRef.current?.remove();
+
+      userLocationMarkerRef.current = new Marker({ element: el })
+        .setLngLat([lon, lat])
+        .setPopup(
+          new Popup({ offset: 16 }).setText('Mevcut konum')
+        )
+        .addTo(map);
+    },
+    (error) => {
+      console.warn('Konum alınamadı:', error.message);
+    }
+  );
+}, []);
+  
   // ─── İşaretçiler (anchor'lar) ───
   useEffect(() => {
     const map = mapRef.current;
