@@ -6,12 +6,11 @@ import { RegisterPage } from '@/features/auth/RegisterPage';
 import { VerifyEmailPage } from '@/features/auth/VerifyEmailPage';
 import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage';
 import { OnboardingPage } from '@/features/onboarding/OnboardingPage';
+import LifestyleSelection from "@/features/auth/LifestyleSelection";
 import { ExplorePage } from '@/features/explore/ExplorePage';
 import { ProfilePage } from '@/features/profile/ProfilePage';
 import { NotFoundPage } from '@/features/NotFoundPage';
-/**
- * Route tanımları — SAHİBİ: Kişi 1
- */
+
 export const router = createBrowserRouter([
   // BANNER OLMAYAN TAM EKRAN SAYFALAR 
   { path: 'auth/login', element: <LoginPage /> },
@@ -24,7 +23,17 @@ export const router = createBrowserRouter([
     path: '/',
     element: <RootLayout />,
     children: [
+      // Ana kök dizine gelenleri doğrudan giriş sayfasına yönlendiriyoruz
       { index: true, element: <Navigate to="/auth/login" replace /> },
+      
+      {
+        path: 'lifestyle',
+        element: (
+          <ProtectedRoute>
+            <LifestyleSelection />
+          </ProtectedRoute>
+        ),
+      },
       {
         path: 'onboarding',
         element: (

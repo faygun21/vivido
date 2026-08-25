@@ -3,14 +3,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { AuthResponse } from '@vivido/shared';
 import { ApiError, apiFetch } from '@/shared/api/client';
 import { useAuthStore } from '@/features/auth/authStore';
-import { describeAuthError, routeAfterAuth } from '@/features/auth/authFlow';
+import { describeAuthError } from '@/features/auth/authFlow';
 
 export function RegisterPage() {
   const navigate = useNavigate();
   const setSession = useAuthStore((s) => s.setSession);
   const enterGuest = useAuthStore((s) => s.enterGuest);
 
-  // Ad ve Soyad'ı ayrı ayrı tutuyoruz, API'ye gönderirken birleştireceğiz
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -76,7 +75,8 @@ if (
       }
 
       setSession(data);
-      await routeAfterAuth(navigate);
+      // Kayıt başarılı olunca doğrudan yaşam tarzı seçimine yönlendiriyoruz
+      navigate('/lifestyle', { replace: true });
     } catch (err) {
       if (err instanceof ApiError && err.problem.code === 'EMAIL_ALREADY_EXISTS') {
         setError('Bu e-posta zaten kayıtlı. Giriş yapın ya da şifrenizi sıfırlayın.');
@@ -90,11 +90,8 @@ if (
 
   return (
     <div className="login-page-wrapper">
-      {/* Sol Taraf: Kayıt Formu */}
       <div className="login-right">
-        {/* marginTop'u TAMAMEN KALDIRDIK. Kendi kendine ortalanacak. */}
         <div className="login-form-container">
-          
           <img
             src="/images/logo.svg"
             alt="Vivido Logo"
@@ -114,7 +111,6 @@ if (
           <form className="login-form" onSubmit={handleSubmit} noValidate>
             {error && <p className="form-error" role="alert">{error}</p>}
 
-            {/* Ad Soyad */}
             <div style={{ display: 'flex', gap: '1rem', width: '100%' }}>
               <div className="login-input-group">
                 <input
@@ -138,7 +134,6 @@ if (
               </div>
             </div>
 
-            {/* E-posta */}
             <div className="login-input-group">
               <input
                 type="email"
@@ -156,7 +151,6 @@ if (
               </span>
             </div>
 
-            {/* Şifre */}
             <div className="login-input-group">
               <input
                 type="password"
@@ -174,7 +168,6 @@ if (
               </span>
             </div>
 
-            {/* Şifre Tekrar */}
             <div className="login-input-group">
               <input
                 type="password"
@@ -204,12 +197,10 @@ if (
             </button>
           </form>
 
-          {/* Veya kısmının boşluğunu daralttık */}
           <div className="login-or" style={{ margin: '1rem 0' }}>
             <span>veya</span>
           </div>
 
-          {/* Misafir Olarak Devam Et Butonu */}
           <button
             type="button"
             onClick={() => {
@@ -221,14 +212,12 @@ if (
             Misafir olarak devam et
           </button>
 
-          {/* Üst boşluğunu biraz daralttık ki ekrana rahat sığsın */}
           <p className="login-register-text" style={{ marginTop: '1.25rem', marginBottom: '0' }}>
             Hesabın var mı? <Link to="/auth/login">Giriş Yap</Link>
           </p>
         </div>
       </div>
 
-      {/* Sağ Taraf: Video Alanı (Turuncu Arkaplan) */}
       <div className="login-left">
         <div className="login-video-box" style={{ backgroundColor: '#E27250' }}>
           <video autoPlay loop muted playsInline>

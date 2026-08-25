@@ -9,12 +9,9 @@
   --accent-ink: #FFFFFF;
   --input-bg: #ECEAE6;
 
-  /* Yükseklikler tek yerde: keşfet ekranı haritayı
-     `100dvh − başlık − alt bilgi` ile tam ekrana yayıyor. */
   --header-h: 3.75rem;
   --footer-h: 2.75rem;
 
-  /* Yükseltme (elevation) — panel/harita katmanları tutarlı gölgelensin. */
   --shadow-sm: 0 1px 2px rgb(51 51 51 / 0.06), 0 1px 3px rgb(51 51 51 / 0.08);
   --shadow-md: 0 4px 14px rgb(51 51 51 / 0.10);
   --shadow-lg: 0 10px 34px rgb(51 51 51 / 0.16);
@@ -25,7 +22,6 @@
   background: var(--bg);
 }
 
-/* Tasarım bütünlüğü için dark mode şimdilik ana palete sabitlendi */
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #F9F4ED;
@@ -110,9 +106,6 @@ a { color: var(--accent); }
 
 .app-nav a { text-decoration: none; }
 
-/* ── Gezinme düğmeleri ──
-   Bağlantılar düğme gibi görünür: hedef alanı büyür, birincil eylem
-   (Kayıt ol) dolu, diğerleri hayalet. */
 .nav-btn {
   display: inline-flex;
   align-items: center;
@@ -635,14 +628,6 @@ button svg,
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   KEŞFET EKRANI
-   ───────────────────────────────────────────────────────────────────
-   Harita bir "panel" değil, ekranın kendisidir. Profil, konum analizi ve
-   harita bilgisi sol üstteki ☰ düğmesinin açtığı çekmecede yüzer; panel
-   açıkken de harita tam genişlikte kalır (yana itmez, üstünü örter).
-   ═══════════════════════════════════════════════════════════════════ */
-
 .explore {
   position: relative;
   height: calc(100vh - var(--header-h) - var(--footer-h));
@@ -665,8 +650,6 @@ button svg,
   display: flex;
   align-items: flex-start;
   gap: 0.6rem;
-  /* Şeridin kendisi tıklamayı geçirir, çocukları yakalar — aksi halde
-     görünmez bir bant haritanın üstünü kaplar ve tıklamaları yerdi. */
   pointer-events: none;
   transition: left 0.22s ease;
 }
@@ -679,8 +662,6 @@ button svg,
   max-width: 30rem;
 }
 
-/* LocationSearch kendini haritaya konumluyordu; şeridin içindeyken akışa
-   girer, yoksa ☰ düğmesinin altında kaybolurdu. */
 .map-topbar-search .location-search {
   position: static;
   width: 100%;
@@ -896,8 +877,6 @@ button svg,
 .drawer-section .field { margin-bottom: 0.7rem; }
 .drawer-section .field > span { display: block; font-size: 0.8rem; }
 
-/* Form alanları giriş ekranı için 1rem iç boşlukla tasarlandı; panelde
-   o ölçü iki seçim kutusuyla ekranı doldurur. */
 .drawer-section .field input,
 .drawer-section .field select {
   padding: 0.6rem 0.75rem;
@@ -907,9 +886,6 @@ button svg,
 
 .drawer-actions { display: grid; gap: 0.5rem; }
 
-/* ── Küçük düğme boyları ──
-   `.btn-primary` / `.btn-secondary` giriş formları için 1.1rem punto ve
-   1rem iç boşlukla tasarlandı; panel içinde o ölçü ekranı yiyor. */
 .btn-sm {
   padding: 0.55rem 0.9rem;
   border-radius: 0.7rem;
@@ -970,9 +946,6 @@ button svg,
 
 .legend li { display: flex; align-items: center; gap: 0.5rem; }
 
-/* Renkler haritadaki KATMANLARIN aynısı olmalı — efsane, gerçeği anlatır.
-   Değerler `CankayaMap.tsx` içindeki `analiz-alani-*` / `yurume-alani-*`
-   katmanlarından birebir alındı; orada değişirse burası da değişmeli. */
 .area-key {
   width: 0.95rem;
   height: 0.95rem;
@@ -1021,9 +994,6 @@ button svg,
 
 .locked-list .lock { flex: none; }
 
-/* ── Dar ekran ──
-   21.5rem'lik panel telefonda haritanın üstünde yüzemez; alttan açılan
-   bir sayfa (bottom sheet) hâline gelir. */
 @media (max-width: 899px) {
   .explore-drawer {
     top: auto;
