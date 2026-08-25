@@ -273,11 +273,26 @@ class ApiClient {
       throw ApiException(
         statusCode: response.statusCode,
         title: problem['title'] as String? ?? 'İstek tamamlanamadı',
-        detail: problem['detail'] as String?,
+        detail: _problemDetail(problem),
         code: problem['code'] as String?,
       );
     }
     return (status: response.statusCode, body: decoded);
+  }
+
+  String? _problemDetail(Map<String, dynamic> problem) {
+    final detail = problem['detail'];
+    if (detail is String && detail.trim().isNotEmpty) return detail;
+
+    final errors = problem['errors'];
+    if (errors is! Map<String, dynamic>) return null;
+    for (final messages in errors.values) {
+      if (messages is! List<dynamic>) continue;
+      for (final message in messages) {
+        if (message is String && message.trim().isNotEmpty) return message;
+      }
+    }
+    return null;
   }
 
   Uri _resolve(String path) =>

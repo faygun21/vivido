@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/models/models.dart';
 import '../../application/session_controller.dart';
+import '../../domain/password_policy.dart';
 import 'login_page.dart';
 import 'verify_email_page.dart';
 
@@ -242,6 +243,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
                       // Şifre Alanı
                       TextFormField(
+                        key: const ValueKey('register-password'),
                         controller: _passwordController,
                         obscureText: _obscurePassword,
                         textInputAction: TextInputAction.done,
@@ -249,6 +251,9 @@ class _RegisterPageState extends State<RegisterPage> {
                         onFieldSubmitted: (_) => _submit(),
                         decoration: InputDecoration(
                           hintText: 'Şifre',
+                          helperText: strongPasswordRequirements,
+                          helperMaxLines: 2,
+                          errorMaxLines: 3,
                           hintStyle: TextStyle(color: Colors.grey.shade600),
                           filled: true,
                           fillColor: inputFillColor,
@@ -286,11 +291,7 @@ class _RegisterPageState extends State<RegisterPage> {
                             ),
                           ),
                         ),
-                        validator:
-                            (value) =>
-                                (value ?? '').length < 8
-                                    ? 'Parola en az 8 karakter olmalı.'
-                                    : null,
+                        validator: validateStrongPassword,
                       ),
 
                       if (widget.controller.errorMessage case final error?) ...[

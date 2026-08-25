@@ -1,7 +1,7 @@
 # Mobil Gereksinim Durum Raporu
 
 > **Tarih:** 2026-08-25
-> **İncelenen branch:** `feat/mobile-konum-analiz-alanlari`
+> **İncelenen branch:** `feat/mobile-password-rules`
 > **Kapsam kaynağı:** Kullanıcının paylaştığı son mobil gereksinim listesi (`R-1`–`R-78`)
 
 Bu raporda yalnızca son paylaşılan 78 mobil gereksinim kabul kapsamı olarak
@@ -12,8 +12,8 @@ değerlendirmesinde ölçüt olarak kullanılmamıştır.
 
 | Durum | Adet | Toplam içindeki oran |
 |---|---:|---:|
-| ✅ Yapıldı | **20** | **%25,6** |
-| 🟡 Yarım yapıldı | **22** | **%28,2** |
+| ✅ Yapıldı | **21** | **%26,9** |
+| 🟡 Yarım yapıldı | **21** | **%26,9** |
 | ❌ Yapılmadı | **36** | **%46,2** |
 | **Toplam** | **78** | **%100** |
 
@@ -44,6 +44,7 @@ varsa “Yarım yapıldı” olarak işaretlenmiştir.
 | **R-24** | Ana Menü | Kullanıcının bulunduğu aktif ekran alt menüde ayırt edilebilir şekilde gösterilmelidir. | Flutter `NavigationBar` seçili sekmeyi farklı renk ve ikonla gösteriyor. |
 | **R-26** | Harita | Kullanıcı harita üzerinde yakınlaştırma, uzaklaştırma ve sürükleme işlemleri yapabilmelidir. | MapLibre'ın yakınlaştırma ve kaydırma hareketleri aktiftir. |
 | **R-58** | Kullanıcı İşlemleri | Kullanıcı Profilim ekranından hesabından çıkış yapabilmelidir. | Profil ekranındaki “Çıkış yap” işlemi oturumu kapatıyor. |
+| **R-59** | Şifre Güvenliği | Şifre en az 8 karakter; büyük harf, küçük harf, rakam ve özel karakter içermelidir. | Mobil kayıt ve şifre sıfırlama formları ortak parola politikasıyla bütün kuralları doğruluyor; backend de kayıt ve sıfırlama isteklerinde aynı kuralları zorunlu tutuyor. |
 | **R-62** | Oturum Güvenliği | Kullanıcı çıkış yaptıktan sonra hesabına özel ekranlara yetkisiz erişim sağlanamamalıdır. | Güvenli depodaki oturum siliniyor, uygulama guest aşamasına dönüyor ve korumalı API endpoint'leri JWT istiyor. |
 | **R-70** | Sistem Yapısı | Mobil kullanıcı arayüzü, Backend ve Data bileşenleri birbirinden ayrılmış geliştirilebilir yapıda olmalıdır. | Mobilde `core/features`, backend'de Application/Domain/Infrastructure/API katmanları ayrılmıştır. |
 
@@ -62,7 +63,6 @@ varsa “Yarım yapıldı” olarak işaretlenmiştir.
 | **R-27** | Harita | Konut ve POI gösterimleri yakınlaştırma seviyesine göre düzenlenmeli; uzak görünümde gizlenmeli/gruplanmalı, yakında detaylanmalıdır. | Bina katmanı yalnızca yüksek zoom seviyesinde açılıyor. | Konut ve POI katmanları, clustering ve detay seviyeleri yok. |
 | **R-35** | Uygunluk Skoru | Profil, bütçe, tercihler, özel konumlar ve çevre analiziyle kişiselleştirilmiş konut uygunluk skoru oluşturulmalıdır. | Backend'e POI erişim süreleri ve persona ağırlıklarından 0–100 skor üreten servis, endpoint ve cache eklendi. | Kaydedilen kriter sırası, kira aralığı ve özel konumlar hesaplamaya katılmıyor; mobil skor entegrasyonu yok. |
 | **R-38** | Erişim Analizi | Konut ile çevresindeki hizmet noktaları arasındaki mesafe ve erişim süresi gösterilmelidir. | Kullanıcının haritadan veya aramadan seçtiği nokta çevresinde 0,5–5 km analiz alanı ile 5–30 dakikalık yaklaşık yürüme erişim alanı jeodezik poligon olarak gösteriliyor. | Kiralık konut ve POI seçimi ile her hizmet noktası için gerçek yol mesafesi/erişim süresi verisi ve sonuç listesi henüz yok. |
-| **R-59** | Şifre Güvenliği | Şifre en az 8 karakter; büyük harf, küçük harf, rakam ve özel karakter içermelidir. | Mobil form minimum 8 karakteri kontrol ediyor. | Büyük/küçük harf, rakam ve özel karakter kuralları mobilde ve backend'de uygulanmıyor. |
 | **R-60** | Yetkilendirme | Kullanıcı yalnızca kendi profil, tercih, favori ve kayıtlı rota bilgilerine erişebilmelidir. | Profil ve anchor endpoint'leri JWT kullanıcısına göre veri döndürüyor. | Tercih, favori ve rota kaynakları henüz bulunmuyor. |
 | **R-63** | Performans | Harita, konut, rota ve detay ekranları kullanıcıyı uzun süre bekletmeden yüklenmelidir. | Mevcut harita ve profil ekranları çalışır durumda. | Konut/rota/detay ekranları yok; ölçülmüş performans kabul testi bulunmuyor. |
 | **R-64** | CBS Performansı | Haritada kullanılan konut, POI ve rota verileri performanslı ve zoom seviyesine göre optimize edilmelidir. | Vektör tile kullanılıyor; bina katmanında `minzoom` uygulanıyor. | Konut, POI ve rota katmanları/optimizasyonları yok. |
@@ -119,6 +119,7 @@ varsa “Yarım yapıldı” olarak işaretlenmiştir.
 
 - Açılış ve oturum aşamaları: [`mobile/lib/app/app.dart`](../mobile/lib/app/app.dart)
 - Giriş/kayıt/şifre yenileme akışları: [`mobile/lib/features/auth/presentation/pages`](../mobile/lib/features/auth/presentation/pages)
+- Ortak güçlü parola politikası: [`mobile/lib/features/auth/domain/password_policy.dart`](../mobile/lib/features/auth/domain/password_policy.dart)
 - Oturum, profil ve hata yönetimi: [`mobile/lib/features/auth/application/session_controller.dart`](../mobile/lib/features/auth/application/session_controller.dart)
 - Güvenli token saklama: [`mobile/lib/core/storage/token_store.dart`](../mobile/lib/core/storage/token_store.dart)
 - Profil, bütçe ve tercih düzenleme: [`mobile/lib/features/home/presentation/pages/home_page.dart`](../mobile/lib/features/home/presentation/pages/home_page.dart)
@@ -141,4 +142,4 @@ Bağımlılıklar dikkate alındığında önerilen geliştirme sırası:
 4. **Favoriler:** R-40–R-42
 5. **Rota ve Rotalarım:** R-43–R-50
 6. **Navigasyon ve ziyaret takibi:** R-51–R-57
-7. **Misafir/güvenlik/gizlilik/offline tamamlamaları:** R-11, R-59, R-66, R-74–R-78
+7. **Misafir/güvenlik/gizlilik/offline tamamlamaları:** R-11, R-66, R-74–R-78
