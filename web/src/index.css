@@ -392,6 +392,8 @@ button {
 .map-wrap { position: relative; width: 100%; }
 .map-canvas { position: absolute; inset: 0; }
 .map-pin { display: grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--accent); color: var(--accent-ink); border: 2px solid #fff; box-shadow: 0 1px 4px rgb(0 0 0 / 0.35); font-size: 0.8rem; font-weight: 700; cursor: default; }
+.map-pin--property { background: #ea580c; cursor: pointer; }
+.map-pin--property:hover { background: #c2410c; }
 .anchor-map { height: 320px; border: 1px solid var(--line); border-radius: 1rem; overflow: hidden; margin-bottom: 0.5rem; }
 .anchor-form { display: grid; gap: 0.75rem; padding: 0.9rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--surface); margin-bottom: 1rem; }
 .anchor-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
@@ -755,6 +757,30 @@ button svg,
 }
 
 .map-banner .btn-chip:hover { background: color-mix(in srgb, #fff 30%, transparent); }
+
+/* Bir konut pin'ine tıklanınca haritanın üstünde yüzen detay kartı. */
+.property-detail-card {
+  position: absolute;
+  z-index: 8;
+  bottom: 1.2rem;
+  right: 1.2rem;
+  width: min(20rem, calc(100vw - 2.4rem));
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.property-detail-card header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.property-detail-card h3 { margin: 0; font-size: 1rem; }
 
 /* ── Çekmece ── */
 

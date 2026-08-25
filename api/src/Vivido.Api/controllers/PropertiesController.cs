@@ -54,26 +54,24 @@ public class PropertiesController : ControllerBase
         }
 
         var properties = await query.ToListAsync();
-        var mapItems = new List<PropertyMapItemDto>();
 
-        foreach (var prop in properties)
-        {
-            // Orijinal servis metodunu kullanıyoruz
-            var score = await _scoringService.ScorePropertyAsync(prop.Id, profile.Id);
+        // Tek tek ScorePropertyAsync çağırmak N+1 sorgu demekti (profil,
+        // ağırlık ve kategori her konut için ayrı ayrı çekiliyordu) — geniş
+        // bütçe aralıklarında binlerce sıralı sorguya çıkıp isteği saniyelerce
+        // kilitliyordu. Toplu metot bunları tek seferde çekip bellekte
+        // eşliyor.
+        var scores = await _scoringService.ScorePropertiesAsync(
+            properties.Select(p => p.Id).ToList(), profile.Id);
 
-            double lat = 39.9208; // Çankaya merkez örnek koordinat
-            double lon = 32.8541;
-
-            mapItems.Add(new PropertyMapItemDto(
-                prop.Id.ToString(),
-                prop.MonthlyRent,
-                prop.AreaM2,
-                prop.RoomCount,
-                lat,
-                lon,
-                score
-            ));
-        }
+        var mapItems = properties.Select(prop => new PropertyMapItemDto(
+            prop.Id.ToString(),
+            prop.MonthlyRent,
+            prop.AreaM2,
+            prop.RoomCount,
+            prop.Geom.Y, // enlem
+            prop.Geom.X, // boylam
+            scores.GetValueOrDefault(prop.Id, 0.0)
+        ));
 
         // Skorlarına göre yüksekten düşüğe sıralama (R-114)
         var sortedItems = mapItems.OrderByDescending(x => x.TotalScore).ToList();
@@ -108,17 +106,14 @@ public class PropertiesController : ControllerBase
 
         var score = await _scoringService.ScorePropertyAsync(property.Id, profile.Id);
 
-        double lat = 39.9208;
-        double lon = 32.8541;
-
         var detailDto = new PropertyDetailDto(
             property.Id.ToString(),
             property.ExternalRef,
             property.MonthlyRent,
             property.AreaM2,
             property.RoomCount,
-            lat,
-            lon,
+            property.Geom.Y, // enlem
+            property.Geom.X, // boylam
             score,
             new Dictionary<string, double>()
         );

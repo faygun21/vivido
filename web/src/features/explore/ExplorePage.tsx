@@ -6,7 +6,13 @@ import { api } from '@/shared/api/client';
 import { useSessionQuery } from '@/shared/api/sessionQuery';
 import { useAuthStore } from '@/features/auth/authStore';
 import { AnchorEditor } from '@/features/anchors/AnchorEditor';
-import { CankayaMap, type MapFocus, type MapMarker, type MapPoint } from '@/shared/map/CankayaMap';
+import {
+  CankayaMap,
+  type MapFocus,
+  type MapMarker,
+  type MapPoint,
+  type PropertyPoint,
+} from '@/shared/map/CankayaMap';
 import { LocationSearch } from './LocationSearch';
 import {
   DEFAULT_WALKING_MINUTES,
@@ -40,6 +46,27 @@ import {
  */
 
 type DrawerTab = 'profil' | 'analiz' | 'harita';
+
+/** `PropertyMapItemDto` — bütçeye göre süzülmüş, skorlanmış konut özeti. */
+interface PropertyMapItem {
+  id: string;
+  monthlyRent: number;
+  areaM2: number;
+  roomCount: string;
+  latitude: number;
+  longitude: number;
+  totalScore: number;
+}
+
+/** `PropertyDetailDto` — pin'e tıklanınca açılan detay panelinin verisi. */
+interface PropertyDetail {
+  id: string;
+  externalRef: string;
+  monthlyRent: number;
+  areaM2: number;
+  roomCount: string;
+  totalScore: number;
+}
 
 /** CSS'teki `21.5rem` + kenar boşluğunun piksel karşılığı (16px kök punto). */
 const DRAWER_WIDTH_PX = 21.5 * 16 + 29;
@@ -90,6 +117,7 @@ export function ExplorePage() {
    */
   const [picking, setPicking] = useState(false);
   const [pendingAnchor, setPendingAnchor] = useState<MapPoint | null>(null);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
 
   const isGuest = useAuthStore((s) => s.isGuest);
   const status = useAuthStore((s) => s.status);
@@ -109,6 +137,20 @@ export function ExplorePage() {
   const { data: personas = [] } = useSessionQuery({
     queryKey: ['personas'],
     queryFn: () => api.get<Persona[]>('/personas'),
+  });
+
+  // Profile bağlı: bütçe aralığı sunucu tarafında `UserProfile` üzerinden
+  // okunuyor, burada ayrıca göndermemiz gerekmiyor. `useSessionQuery` zaten
+  // misafirken bu korumalı uca isteği hiç atmıyor (401 zincirini engeller).
+  const { data: properties = [] } = useSessionQuery({
+    queryKey: ['properties', 'map'],
+    queryFn: () => api.get<PropertyMapItem[]>('/properties'),
+  });
+
+  const { data: selectedProperty = null } = useSessionQuery({
+    queryKey: ['properties', 'detail', selectedPropertyId],
+    queryFn: () => api.get<PropertyDetail>(`/properties/${selectedPropertyId}`),
+    enabled: selectedPropertyId !== null,
   });
 
   const persona = personas.find((p) => p.code === profile?.personaCode);
@@ -137,6 +179,19 @@ export function ExplorePage() {
       ? [{ id: '__yeni', lat: pendingAnchor.lat, lon: pendingAnchor.lon, label: 'Yeni yer' }]
       : []),
   ];
+
+  // Konutlar `markers`'a DEĞİL, ayrı bir cluster kaynağına gider — bkz.
+  // CankayaMap'teki `konutlar` GeoJSON source (R-109: yakınlaştırma
+  // seviyesine göre gruplanma/ayrılma).
+  const propertyPoints: PropertyPoint[] = properties.map((p) => ({
+    id: p.id,
+    lat: p.latitude,
+    lon: p.longitude,
+  }));
+
+  function handlePropertyClick(id: string) {
+    setSelectedPropertyId(id);
+  }
 
   function handleMapClick(point: MapPoint) {
     if (picking) {
@@ -175,8 +230,10 @@ export function ExplorePage() {
     <section className={`explore${drawerOpen ? ' explore--drawer-open' : ''}`}>
       <CankayaMap
         markers={markers}
+        properties={propertyPoints}
         focus={mapFocus}
         onMapClick={handleMapClick}
+        onPropertyClick={handlePropertyClick}
         selectedLocation={selectedLocation}
         walkingMinutes={walkingMinutes}
         analysisRadiusKm={analysisRadiusKm}
@@ -184,6 +241,31 @@ export function ExplorePage() {
         // bildiriyoruz ki ilçe sınırı panelin altında kalmasın.
         padLeft={drawerOpen && wideScreen ? DRAWER_WIDTH_PX : 0}
       />
+
+      {selectedProperty && (
+        <div className="property-detail-card" role="dialog" aria-label="Konut detayları">
+          <header>
+            <h3>{selectedProperty.roomCount} · {selectedProperty.areaM2} m²</h3>
+            <button
+              className="btn-icon"
+              type="button"
+              onClick={() => setSelectedPropertyId(null)}
+              aria-label="Kapat"
+            >
+              ✕
+            </button>
+          </header>
+          <dl className="kv">
+            <dt>Aylık kira</dt>
+            <dd>{selectedProperty.monthlyRent.toLocaleString('tr-TR')} ₺</dd>
+            <dt>Uygunluk skoru</dt>
+            <dd>{Math.round(selectedProperty.totalScore)} / 100</dd>
+            <dt>Referans</dt>
+            <dd>{selectedProperty.externalRef}</dd>
+          </dl>
+          <p className="data-badge">Konut verisi sentetiktir</p>
+        </div>
+      )}
 
       {/* Harita üstü kontroller: ☰ + konum arama aynı satırda durur ki
           çekmece düğmesi arama kutusunun altında kaybolmasın. */}
@@ -392,10 +474,25 @@ export function ExplorePage() {
                 Çankaya ilçe sınırı ve <strong>124 mahalle</strong> poligonu gösteriliyor.
                 Mahalle üzerine gelince adı görünür.
               </p>
-              <p className="muted">
-                Skorlanmış kiralık ev noktaları, filtreler ve gerekçe tablosu Hafta
-                2&apos;nin kalan işleri.
-              </p>
+              {authenticated && !isGuest && (
+                <p className="muted">
+                  Bütçene uygun <strong>{properties.length} konut</strong> haritada 🏠 ile
+                  işaretli. Bir pin&apos;e tıklayınca kira ve uygunluk skoru açılır.
+                </p>
+              )}
+              <ul className="legend">
+                <li>
+                  <span className="map-pin" style={{ position: 'static', width: '1.2rem', height: '1.2rem' }} />
+                  Düzenli gittiğin yer
+                </li>
+                <li>
+                  <span
+                    className="map-pin map-pin--property"
+                    style={{ position: 'static', width: '1.2rem', height: '1.2rem', fontSize: '0.7rem' }}
+                  />
+                  Bütçene uygun konut
+                </li>
+              </ul>
               <p className="data-badge">Konut verisi sentetiktir</p>
             </section>
           )}

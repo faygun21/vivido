@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using NetTopologySuite.Geometries;
 
 [Table("properties")]
 public class Property
@@ -10,6 +11,9 @@ public class Property
 
     [Column("external_ref")]
     public string ExternalRef { get; set; } = null!;
+
+    [Column("geom")]
+    public Point Geom { get; set; } = null!;
 
     [Column("monthly_rent")]
     public decimal MonthlyRent { get; set; }

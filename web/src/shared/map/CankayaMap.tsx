@@ -112,10 +112,24 @@ export interface MapFocus extends MapPoint {
   bounds?: { south: number; west: number; north: number; east: number } | null;
 }
 
+/**
+ * Bir konut noktası — R-109 gereği tek tek `Marker` DOM elemanı DEĞİL,
+ * `konutlar` GeoJSON kaynağına yazılıp MapLibre'ın kendi cluster
+ * motoruyla çizilir (bkz. `buildStyle`). Yüzlerce/binlerce nokta için
+ * tek yol bu; DOM marker'lar bu ölçekte tarayıcıyı kilitler.
+ */
+export interface PropertyPoint extends MapPoint {
+  id: string;
+}
+
 interface CankayaMapProps {
   /** Verilirse haritaya tıklanabilir hale gelir (anchor ekleme akışı). */
   onMapClick?: (point: MapPoint) => void;
+  /** Kümelenmemiş bir konut noktasına tıklandığında id'siyle çağrılır. */
+  onPropertyClick?: (id: string) => void;
   markers?: MapMarker[];
+  /** Bütçeye uygun konutlar — haritada kümeli olarak gösterilir. */
+  properties?: PropertyPoint[];
   /** Arama sonucu değiştiğinde haritayı bu konuma taşır. */
   focus?: MapFocus | null;
   /** Harita kabının yüksekliği (CSS değeri). */
@@ -240,6 +254,40 @@ function vectorLabelLayers(): unknown[] {
   ];
 }
 
+/**
+ * Kümelenmemiş konut noktası için ev ikonu — canvas'ta çizilip
+ * `map.addImage`'a ham piksel olarak verilir. `text-field`/emoji YERİNE
+ * bunu kullanıyoruz: emoji glyph'leri de MapLibre'ın `glyphs` uç noktasına
+ * (harita karo sunucusu) muhtaç, sunucu yoksa hiç görünmez. Tarayıcının
+ * kendi 2D canvas'ı ise fontu HER ZAMAN çizebiliyor, sunucudan bağımsız.
+ */
+function drawHouseIcon(size = 36): ImageData {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  const cx = size / 2;
+  const cy = size / 2;
+  const r = size / 2 - 2;
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#ea580c';
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#fff';
+  ctx.stroke();
+
+  ctx.font = `${Math.round(size * 0.55)}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fff';
+  ctx.fillText('🏠', cx, cy + 1);
+
+  return ctx.getImageData(0, 0, size, size);
+}
+
 function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): MapStyle {
   const sources: Record<string, unknown> = {
     ilce: { type: 'geojson', data: district },
@@ -256,6 +304,19 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
     'yurume-merkezi': {
       type: 'geojson',
       data: { type: 'FeatureCollection', features: [] },
+    },
+    // Konut noktaları — R-109: yakınlaştırma seviyesine göre gruplanmalı.
+    // Yüzlerce/binlerce konutu tek tek DOM `Marker` elemanı olarak basmak
+    // (eskiden yapıldığı gibi) hem tarayıcıyı kilitliyor hem de üst üste
+    // binen pin'ler tek bir nokta gibi görünüyordu. MapLibre'ın kendi
+    // GeoJSON cluster desteği ikisini birden çözüyor: uzakta tek küme
+    // dairesi, yakınlaşınca gerçek noktalar — hepsi GPU'da çiziliyor.
+    konutlar: {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+      cluster: true,
+      clusterMaxZoom: 15,
+      clusterRadius: 45,
     },
   };
 
@@ -359,10 +420,65 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
       source: 'ilce',
       paint: { 'line-color': '#0b3d35', 'line-width': 2.4 },
     },
+    // Küme dairesi — çaptaki basamaklar içindeki konut sayısına göre büyür.
+    {
+      id: 'konut-kumeleri',
+      type: 'circle',
+      source: 'konutlar',
+      filter: ['has', 'point_count'],
+      paint: {
+        'circle-color': '#ea580c',
+        'circle-opacity': 0.85,
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#fff',
+        'circle-radius': [
+          'step',
+          ['get', 'point_count'],
+          16, // < 25 konut
+          25, 20,
+          100, 26,
+          500, 32,
+        ],
+      },
+    },
+    // Kümelenmemiş tek konut — yeterince yakınlaşınca kümenin yerini alır.
+    // `icon-image` kullanıyoruz (düz daire değil): resim `map.addImage` ile
+    // canvas'ta ÇİZİLİP eklendiği için MapLibre'ın `glyphs` uç noktasına
+    // (karo sunucusu) bağlı değil — sunucu olmasa da ev ikonu görünür.
+    {
+      id: 'konut-noktalar',
+      type: 'symbol',
+      source: 'konutlar',
+      filter: ['!', ['has', 'point_count']],
+      layout: {
+        'icon-image': 'ev-ikon',
+        'icon-size': 1,
+        'icon-allow-overlap': true,
+      },
+    },
   );
 
   // Etiketler her şeyin üstünde kalmalı.
   if (hasVectorTiles) layers.push(...vectorLabelLayers());
+
+  // Küme içindeki konut sayısı — `text-field` gerektirdiği için `glyphs`
+  // uç noktası şart (yalnızca karo sunucusu varken tanımlı, bkz. yukarısı).
+  // Sunucu yoksa küme dairesi (zaten eklendi) sayı olmadan görünür — bina
+  // adları için kullanılan hover-rozeti yaklaşımıyla aynı kısıt.
+  if (hasVectorTiles) {
+    layers.push({
+      id: 'konut-kume-sayisi',
+      type: 'symbol',
+      source: 'konutlar',
+      filter: ['has', 'point_count'],
+      layout: {
+        'text-field': ['get', 'point_count_abbreviated'],
+        'text-font': ['Noto Sans Regular'],
+        'text-size': 12,
+      },
+      paint: { 'text-color': '#fff' },
+    });
+  }
 
   // Stil koşullu kurulduğu için TypeScript `type: 'raster'` gibi alanları
   // string-literal birleşimine daraltamıyor. Tek noktada dönüştürüyoruz;
@@ -401,7 +517,9 @@ function boundsOf(geojson: GeoCollection): LngLatBounds {
 
 export function CankayaMap({
   onMapClick,
+  onPropertyClick,
   markers = [],
+  properties = [],
   focus,
   height = '100%',
   selectedLocation = null,
@@ -420,6 +538,8 @@ export function CankayaMap({
   // bağlamak yerine ref üzerinden güncel tutuyoruz.
   const clickHandlerRef = useRef(onMapClick);
   clickHandlerRef.current = onMapClick;
+  const propertyClickHandlerRef = useRef(onPropertyClick);
+  propertyClickHandlerRef.current = onPropertyClick;
 
   const [hoveredName, setHoveredName] = useState<string | null>(null);
   const [status, setStatus] = useState<'yukleniyor' | 'hazir' | 'hata'>('yukleniyor');
@@ -468,6 +588,14 @@ export function CankayaMap({
         });
         mapRef.current = map;
 
+        // Ev ikonu `konut-noktalar` katmanının `icon-image`'ı — stil tam
+        // yüklenmeden `addImage` "Style is not done loading" ile patlıyor,
+        // o yüzden `load` olayını bekliyoruz.
+        map.on('load', () => {
+          if (!map || map.hasImage('ev-ikon')) return;
+          map.addImage('ev-ikon', drawHouseIcon());
+        });
+
         map.addControl(new NavigationControl({ showCompass: false }), 'top-right');
         // ODbL: atıf kapatılamaz olmalı.
         map.addControl(
@@ -481,7 +609,50 @@ export function CankayaMap({
           setErrorText(e.error?.message ?? 'Bilinmeyen harita hatası');
         });
 
+        // Kümelenmemiş bir konuta tıklanınca detay açılır; genel harita
+        // tıklaması (konum analizi) bu durumda TETİKLENMEMELİ — ikisi aynı
+        // canvas üzerinde olduğu için önce konut katmanını sorguluyoruz.
+        map.on('click', 'konut-noktalar', (e) => {
+          const feature = e.features?.[0];
+          const id = feature?.properties?.id as string | undefined;
+          if (id) propertyClickHandlerRef.current?.(id);
+        });
+
+        // Kümeye tıklayınca o küme açılana kadar yakınlaştır (R-109: "yakınlaştıkça görünür").
+        map.on('click', 'konut-kumeleri', (e) => {
+          const feature = e.features?.[0];
+          const clusterId = feature?.properties?.cluster_id as number | undefined;
+          const source = map?.getSource('konutlar') as GeoJSONSource | undefined;
+          if (clusterId === undefined || !source || !map) return;
+
+          source.getClusterExpansionZoom(clusterId).then((zoom) => {
+            const geometry = feature?.geometry;
+            if (!map || !geometry || geometry.type !== 'Point') return;
+            const [lon, lat] = geometry.coordinates as [number, number];
+            map.easeTo({ center: [lon, lat], zoom, duration: 400 });
+          }).catch(() => {});
+        });
+
+        for (const layerId of ['konut-kumeleri', 'konut-noktalar']) {
+          map.on('mouseenter', layerId, () => {
+            const canvas = map?.getCanvas();
+            if (canvas) canvas.style.cursor = 'pointer';
+          });
+          map.on('mouseleave', layerId, () => {
+            const canvas = map?.getCanvas();
+            if (canvas) canvas.style.cursor = clickHandlerRef.current ? 'crosshair' : '';
+          });
+        }
+
         map.on('click', (e) => {
+          // Konut/küme katmanına isabet ettiyse yukarıdaki özel dinleyiciler
+          // zaten devrede — genel harita tıklamasını (konum analizi) burada
+          // tekrar tetiklemeyelim.
+          const hits = map?.queryRenderedFeatures(e.point, {
+            layers: ['konut-kumeleri', 'konut-noktalar'],
+          });
+          if (hits && hits.length > 0) return;
+
           clickHandlerRef.current?.({ lat: e.lngLat.lat, lon: e.lngLat.lng });
         });
 
@@ -578,6 +749,22 @@ export function CankayaMap({
       map.flyTo({ center: [focus.lon, focus.lat], zoom: 16, duration: 700 });
     }
   }, [focus, status]);
+
+  // ─── Konut noktaları (cluster kaynağı) ───
+  useEffect(() => {
+    const source = mapRef.current?.getSource('konutlar') as GeoJSONSource | undefined;
+    if (!source) return;
+
+    source.setData({
+      type: 'FeatureCollection',
+      features: properties.map((p) => ({
+        type: 'Feature',
+        properties: { id: p.id },
+        geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
+      })),
+    });
+    // `status` şart: kaynak asenkron kurulur, harita hazır olmadan `getSource` boş döner.
+  }, [properties, status]);
 
   // İmleci tıklanabilirlik durumuna göre değiştir.
   useEffect(() => {
