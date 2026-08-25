@@ -8,8 +8,20 @@ import '../../../../core/config/app_config.dart';
 import '../../../../core/models/models.dart';
 import '../../../location_analysis/domain/location_analysis.dart';
 import '../../../location_search/domain/location_search_models.dart';
+import '../../../map_data/domain/map_data_models.dart';
+import '../../../map_data/presentation/poi_category_colors.dart';
 
 typedef MapPointCallback = void Function(double lat, double lon);
+typedef MapBoundsCallback = void Function(MapViewportBounds bounds);
+typedef PoiTapCallback = void Function(PoiMapItem poi);
+typedef PropertyTapCallback = void Function(PropertyMapItem property);
+
+const _poiSourceId = 'vivido-pois';
+const _propertySourceId = 'vivido-properties';
+const _poiPointLayerId = 'vivido-poi-points';
+const _poiClusterLayerId = 'vivido-poi-clusters';
+const _propertyPointLayerId = 'vivido-property-points';
+const _propertyClusterLayerId = 'vivido-property-clusters';
 
 class CankayaMap extends StatefulWidget {
   const CankayaMap({
@@ -20,6 +32,11 @@ class CankayaMap extends StatefulWidget {
     this.analysisCenter,
     this.walkingMinutes = defaultWalkingMinutes,
     this.analysisRadiusKm = defaultAnalysisRadiusKm,
+    this.pois = const [],
+    this.properties = const [],
+    this.onBoundsChanged,
+    this.onPoiTap,
+    this.onPropertyTap,
     super.key,
   });
 
@@ -30,6 +47,11 @@ class CankayaMap extends StatefulWidget {
   final AnalysisCoordinate? analysisCenter;
   final int walkingMinutes;
   final double analysisRadiusKm;
+  final List<PoiMapItem> pois;
+  final List<PropertyMapItem> properties;
+  final MapBoundsCallback? onBoundsChanged;
+  final PoiTapCallback? onPoiTap;
+  final PropertyTapCallback? onPropertyTap;
 
   @override
   State<CankayaMap> createState() => _CankayaMapState();
@@ -37,6 +59,7 @@ class CankayaMap extends StatefulWidget {
 
 class _CankayaMapState extends State<CankayaMap> {
   MapController? _mapController;
+  StyleController? _styleController;
 
   @override
   void didUpdateWidget(covariant CankayaMap oldWidget) {
@@ -44,6 +67,103 @@ class _CankayaMapState extends State<CankayaMap> {
     if (oldWidget.focus?.id != widget.focus?.id) {
       _focusOnResult();
     }
+    if (!identical(oldWidget.pois, widget.pois) ||
+        !identical(oldWidget.properties, widget.properties)) {
+      unawaited(_updateMapSources());
+    }
+  }
+
+  Future<void> _updateMapSources() async {
+    final style = _styleController;
+    if (style == null) return;
+
+    try {
+      await Future.wait([
+        style.updateGeoJsonSource(
+          id: _poiSourceId,
+          data: _poiFeatureCollection(widget.pois),
+        ),
+        style.updateGeoJsonSource(
+          id: _propertySourceId,
+          data: _propertyFeatureCollection(widget.properties),
+        ),
+      ]);
+    } on Object {
+      // Stil yeniden yüklenirken eski controller kısa süreliğine geçersiz
+      // olabilir. Yeni onStyleLoaded çağrısı güncel veriyi tekrar yazar.
+    }
+  }
+
+  void _reportBounds() {
+    final controller = _mapController;
+    if (controller == null || widget.onBoundsChanged == null) return;
+    try {
+      final bounds = controller.getVisibleRegion();
+      widget.onBoundsChanged!(
+        MapViewportBounds(
+          west: bounds.longitudeWest,
+          south: bounds.latitudeSouth,
+          east: bounds.longitudeEast,
+          north: bounds.latitudeNorth,
+        ),
+      );
+    } on Object {
+      // Native harita ilk kareyi çizmeden visible region hazır olmayabilir.
+    }
+  }
+
+  void _handleMapClick(MapEventClick event) {
+    final controller = _mapController;
+    if (controller == null) {
+      widget.onMapTap?.call(event.point.lat, event.point.lon);
+      return;
+    }
+
+    final propertyHits = controller.featuresAtPoint(
+      event.screenPoint,
+      layerIds: const [_propertyPointLayerId],
+    );
+    final propertyId = propertyHits.firstOrNull?.properties['id']?.toString();
+    if (propertyId != null) {
+      for (final property in widget.properties) {
+        if (property.id == propertyId) {
+          widget.onPropertyTap?.call(property);
+          return;
+        }
+      }
+    }
+
+    final poiHits = controller.featuresAtPoint(
+      event.screenPoint,
+      layerIds: const [_poiPointLayerId],
+    );
+    final poiId = poiHits.firstOrNull?.properties['id']?.toString();
+    if (poiId != null) {
+      for (final poi in widget.pois) {
+        if (poi.id == poiId) {
+          widget.onPoiTap?.call(poi);
+          return;
+        }
+      }
+    }
+
+    final clusterHits = controller.featuresAtPoint(
+      event.screenPoint,
+      layerIds: const [_propertyClusterLayerId, _poiClusterLayerId],
+    );
+    if (clusterHits.isNotEmpty) {
+      final camera = controller.getCamera();
+      unawaited(
+        controller.animateCamera(
+          center: event.point,
+          zoom: (camera.zoom + 2).clamp(8, 18).toDouble(),
+          nativeDuration: const Duration(milliseconds: 400),
+        ),
+      );
+      return;
+    }
+
+    widget.onMapTap?.call(event.point.lat, event.point.lon);
   }
 
   void _focusOnResult() {
@@ -168,6 +288,11 @@ class _CankayaMapState extends State<CankayaMap> {
             _mapController = controller;
             _focusOnResult();
           },
+          onStyleLoaded: (style) {
+            _styleController = style;
+            unawaited(_updateMapSources());
+            _reportBounds();
+          },
           options: MapOptions(
             initStyle: _mapStyle,
             initCenter: Geographic(lon: 32.85, lat: 39.87),
@@ -177,8 +302,10 @@ class _CankayaMapState extends State<CankayaMap> {
             androidForegroundLoadColor: const Color(0xFFE8F0ED),
           ),
           onEvent: (event) {
-            if (event case MapEventClick(:final point)) {
-              widget.onMapTap?.call(point.lat, point.lon);
+            if (event is MapEventClick) {
+              _handleMapClick(event);
+            } else if (event is MapEventCameraIdle) {
+              _reportBounds();
             }
           },
           layers: [
@@ -249,6 +376,55 @@ class _AnchorPin extends StatelessWidget {
   }
 }
 
+String _poiFeatureCollection(List<PoiMapItem> pois) => jsonEncode({
+  'type': 'FeatureCollection',
+  'features': [
+    for (final poi in pois)
+      {
+        'type': 'Feature',
+        'properties': {
+          'id': poi.id,
+          'name': poi.name,
+          'category': poi.categoryCode,
+        },
+        'geometry': {
+          'type': 'Point',
+          'coordinates': [poi.longitude, poi.latitude],
+        },
+      },
+  ],
+});
+
+String _propertyFeatureCollection(List<PropertyMapItem> properties) =>
+    jsonEncode({
+      'type': 'FeatureCollection',
+      'features': [
+        for (final property in properties)
+          {
+            'type': 'Feature',
+            'properties': {'id': property.id},
+            'geometry': {
+              'type': 'Point',
+              'coordinates': [property.longitude, property.latitude],
+            },
+          },
+      ],
+    });
+
+List<Object> _poiColorExpression() {
+  final expression = <Object>[
+    'match',
+    <Object>['get', 'category'],
+  ];
+  for (final code in poiCategoryColors.keys) {
+    expression
+      ..add(code)
+      ..add(poiCategoryColorHex(code));
+  }
+  expression.add(poiCategoryColorHex('unknown'));
+  return expression;
+}
+
 String get _mapStyle => jsonEncode({
   'version': 8,
   'name': 'Vivido Çankaya',
@@ -259,6 +435,20 @@ String get _mapStyle => jsonEncode({
       'minzoom': 0,
       'maxzoom': 14,
       'attribution': '© OpenStreetMap katkıcıları · © OpenMapTiles',
+    },
+    _poiSourceId: {
+      'type': 'geojson',
+      'data': {'type': 'FeatureCollection', 'features': <Object>[]},
+      'cluster': true,
+      'clusterMaxZoom': 14,
+      'clusterRadius': 42,
+    },
+    _propertySourceId: {
+      'type': 'geojson',
+      'data': {'type': 'FeatureCollection', 'features': <Object>[]},
+      'cluster': true,
+      'clusterMaxZoom': 15,
+      'clusterRadius': 45,
     },
   },
   'layers': [
@@ -334,6 +524,82 @@ String get _mapStyle => jsonEncode({
           16,
           5,
         ],
+      },
+    },
+    {
+      'id': _propertyClusterLayerId,
+      'type': 'circle',
+      'source': _propertySourceId,
+      'filter': ['has', 'point_count'],
+      'paint': {
+        'circle-color': '#ea580c',
+        'circle-opacity': 0.85,
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#ffffff',
+        'circle-radius': [
+          'step',
+          ['get', 'point_count'],
+          16,
+          25,
+          20,
+          100,
+          26,
+          500,
+          32,
+        ],
+      },
+    },
+    {
+      'id': _propertyPointLayerId,
+      'type': 'circle',
+      'source': _propertySourceId,
+      'filter': [
+        '!',
+        ['has', 'point_count'],
+      ],
+      'paint': {
+        'circle-radius': 8,
+        'circle-color': '#c2410c',
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': 2,
+      },
+    },
+    {
+      'id': _poiClusterLayerId,
+      'type': 'circle',
+      'source': _poiSourceId,
+      'filter': ['has', 'point_count'],
+      'maxzoom': 14,
+      'paint': {
+        'circle-color': '#7c3aed',
+        'circle-opacity': 0.76,
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#ffffff',
+        'circle-radius': [
+          'step',
+          ['get', 'point_count'],
+          16,
+          10,
+          20,
+          50,
+          26,
+        ],
+      },
+    },
+    {
+      'id': _poiPointLayerId,
+      'type': 'circle',
+      'source': _poiSourceId,
+      'filter': [
+        '!',
+        ['has', 'point_count'],
+      ],
+      'minzoom': 14,
+      'paint': {
+        'circle-radius': 6,
+        'circle-color': _poiColorExpression(),
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': 1.5,
       },
     },
   ],
