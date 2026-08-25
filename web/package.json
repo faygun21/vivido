@@ -17,6 +17,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@tanstack/react-query": "^5.101.4",
     "@vivido/shared": "workspace:*",
+    "lucide-react": "^1.33.0",
     "maplibre-gl": "^6.4.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
