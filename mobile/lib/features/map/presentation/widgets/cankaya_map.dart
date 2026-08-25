@@ -6,6 +6,7 @@ import 'package:maplibre/maplibre.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/models/models.dart';
+import '../../../location_analysis/domain/location_analysis.dart';
 import '../../../location_search/domain/location_search_models.dart';
 
 typedef MapPointCallback = void Function(double lat, double lon);
@@ -16,6 +17,9 @@ class CankayaMap extends StatefulWidget {
     this.onMapTap,
     this.pendingPoint,
     this.focus,
+    this.analysisCenter,
+    this.walkingMinutes = defaultWalkingMinutes,
+    this.analysisRadiusKm = defaultAnalysisRadiusKm,
     super.key,
   });
 
@@ -23,6 +27,9 @@ class CankayaMap extends StatefulWidget {
   final MapPointCallback? onMapTap;
   final Geographic? pendingPoint;
   final LocationSearchResult? focus;
+  final AnalysisCoordinate? analysisCenter;
+  final int walkingMinutes;
+  final double analysisRadiusKm;
 
   @override
   State<CankayaMap> createState() => _CankayaMapState();
@@ -73,6 +80,25 @@ class _CankayaMapState extends State<CankayaMap> {
 
   @override
   Widget build(BuildContext context) {
+    final analysisCenter = widget.analysisCenter;
+    final analysisPolygons =
+        analysisCenter == null
+            ? const <Feature<Polygon>>[]
+            : <Feature<Polygon>>[
+              _polygonFeature(
+                center: analysisCenter,
+                radiusMetres: widget.analysisRadiusKm * 1000,
+              ),
+            ];
+    final walkingPolygons =
+        analysisCenter == null
+            ? const <Feature<Polygon>>[]
+            : <Feature<Polygon>>[
+              _polygonFeature(
+                center: analysisCenter,
+                radiusMetres: walkingRadiusMetres(widget.walkingMinutes),
+              ),
+            ];
     final markers = <Marker>[
       for (final anchor in widget.anchors)
         Marker(
@@ -113,6 +139,24 @@ class _CankayaMapState extends State<CankayaMap> {
             ],
           ),
         ),
+      if (analysisCenter != null)
+        Marker(
+          point: Geographic(
+            lon: analysisCenter.longitude,
+            lat: analysisCenter.latitude,
+          ),
+          size: const Size.square(22),
+          alignment: Alignment.center,
+          child: const DecoratedBox(
+            decoration: BoxDecoration(
+              color: Color(0xFFF59E0B),
+              shape: BoxShape.circle,
+              border: Border.fromBorderSide(
+                BorderSide(color: Color(0xFF7C2D12), width: 2),
+              ),
+            ),
+          ),
+        ),
     ];
 
     return ClipRRect(
@@ -137,11 +181,38 @@ class _CankayaMapState extends State<CankayaMap> {
               widget.onMapTap?.call(point.lat, point.lon);
             }
           },
+          layers: [
+            PolygonLayer(
+              polygons: analysisPolygons,
+              color: const Color(0x1A0F766E),
+              outlineColor: const Color(0xFF0F766E),
+            ),
+            PolygonLayer(
+              polygons: walkingPolygons,
+              color: const Color(0x38F59E0B),
+              outlineColor: const Color(0xFFB45309),
+            ),
+          ],
           children: [WidgetLayer(markers: markers), const SourceAttribution()],
         ),
       ),
     );
   }
+}
+
+Feature<Polygon> _polygonFeature({
+  required AnalysisCoordinate center,
+  required double radiusMetres,
+}) {
+  final ring = createRadiusRing(center: center, radiusMetres: radiusMetres);
+  return Feature(
+    geometry: Polygon.from([
+      [
+        for (final point in ring)
+          Geographic(lon: point.longitude, lat: point.latitude),
+      ],
+    ]),
+  );
 }
 
 class _AnchorPin extends StatelessWidget {
