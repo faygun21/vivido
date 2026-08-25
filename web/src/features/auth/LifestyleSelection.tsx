@@ -84,7 +84,6 @@ export default function LifestyleSelection() {
     };
   }, []);
 
-<<<<<<< Updated upstream
   async function handleNext() {
     setSaving(true);
     setError(null);
@@ -98,25 +97,15 @@ export default function LifestyleSelection() {
       // Onboarding'in kendi profil sorgusu bayat kalmasın — az önce
       // yazdığımız persona'yı hemen görsün.
       await queryClient.invalidateQueries({ queryKey: ['profile'] });
-      // Bütçe/anchor gibi geri kalan alanlar hâlâ eksik; onboarding formu
-      // onları tamamlıyor. NOT: OnboardingPage şu an persona seçimini var
-      // olan profilden ÖNCEDEN DOLDURMUYOR (selectedPersona her zaman null
-      // başlıyor) — kullanıcı burada seçtiği persona'yı orada bir kez daha
-      // seçmek zorunda kalacak. Sorun değil (DB'de zaten kayıtlı, formu
-      // atlarsa da persona kaybolmaz) ama kullanıcı deneyimi için
-      // OnboardingPage'e persona ön-doldurma eklemek ayrı bir iyileştirme.
-      navigate('/onboarding');
+      
+      // Doğrudan Tercihler sayfasına yönlendiriyoruz
+      navigate('/preferences');
     } catch {
       setError('Kaydedilemedi, lütfen tekrar deneyin.');
     } finally {
       setSaving(false);
     }
   }
-=======
-  const handleNext = () => {
-  navigate('/preferences'); 
-};
->>>>>>> Stashed changes
 
   return (
     <div style={{
