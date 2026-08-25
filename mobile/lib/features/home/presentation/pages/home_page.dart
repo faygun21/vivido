@@ -7,6 +7,8 @@ import '../../../location_search/application/location_search_controller.dart';
 import '../../../location_search/data/api_location_search_gateway.dart';
 import '../../../location_search/domain/location_search_models.dart';
 import '../../../location_search/presentation/widgets/location_search_panel.dart';
+import '../../../location_analysis/domain/location_analysis.dart';
+import '../../../location_analysis/presentation/widgets/location_analysis_controls.dart';
 import '../../../map/presentation/widgets/cankaya_map.dart';
 import '../../../preferences/domain/life_criteria.dart';
 import '../../../preferences/presentation/widgets/life_criteria_order_list.dart';
@@ -94,6 +96,9 @@ class _MapOverview extends StatefulWidget {
 class _MapOverviewState extends State<_MapOverview> {
   late final LocationSearchController _searchController;
   LocationSearchResult? _mapFocus;
+  AnalysisCoordinate? _analysisCenter;
+  double _analysisRadiusKm = defaultAnalysisRadiusKm;
+  int _walkingMinutes = defaultWalkingMinutes;
 
   @override
   void initState() {
@@ -166,7 +171,22 @@ class _MapOverviewState extends State<_MapOverview> {
               child: Stack(
                 children: [
                   Positioned.fill(
-                    child: CankayaMap(anchors: anchors, focus: _mapFocus),
+                    child: CankayaMap(
+                      anchors: anchors,
+                      focus: _mapFocus,
+                      analysisCenter: _analysisCenter,
+                      analysisRadiusKm: _analysisRadiusKm,
+                      walkingMinutes: _walkingMinutes,
+                      onMapTap: (latitude, longitude) {
+                        setState(() {
+                          _mapFocus = null;
+                          _analysisCenter = AnalysisCoordinate(
+                            latitude: latitude,
+                            longitude: longitude,
+                          );
+                        });
+                      },
+                    ),
                   ),
                   Positioned(
                     top: 12,
@@ -175,10 +195,35 @@ class _MapOverviewState extends State<_MapOverview> {
                     child: LocationSearchPanel(
                       controller: _searchController,
                       onSelected: (result) {
-                        setState(() => _mapFocus = result);
+                        setState(() {
+                          _mapFocus = result;
+                          _analysisCenter = AnalysisCoordinate(
+                            latitude: result.latitude,
+                            longitude: result.longitude,
+                          );
+                        });
                       },
                       onCleared: () {
                         setState(() => _mapFocus = null);
+                      },
+                    ),
+                  ),
+                  Positioned(
+                    left: 12,
+                    right: 12,
+                    bottom: 12,
+                    child: LocationAnalysisControls(
+                      hasSelectedLocation: _analysisCenter != null,
+                      analysisRadiusKm: _analysisRadiusKm,
+                      walkingMinutes: _walkingMinutes,
+                      onAnalysisRadiusChanged: (value) {
+                        setState(() => _analysisRadiusKm = value);
+                      },
+                      onWalkingMinutesChanged: (value) {
+                        setState(() => _walkingMinutes = value);
+                      },
+                      onClear: () {
+                        setState(() => _analysisCenter = null);
                       },
                     ),
                   ),
