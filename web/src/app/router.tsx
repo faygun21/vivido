@@ -10,9 +10,7 @@ import LifestyleSelection from "@/features/auth/LifestyleSelection";
 import { ExplorePage } from '@/features/explore/ExplorePage';
 import { ProfilePage } from '@/features/profile/ProfilePage';
 import { NotFoundPage } from '@/features/NotFoundPage';
-/**
- * Route tanımları — SAHİBİ: Kişi 1
- */
+
 export const router = createBrowserRouter([
   // BANNER OLMAYAN TAM EKRAN SAYFALAR 
   { path: 'auth/login', element: <LoginPage /> },
@@ -60,17 +58,6 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
-<<<<<<< Updated upstream
-=======
-      {
-        path: 'properties',
-        element: (
-          <ProtectedRoute>
-            <PropertiesMapView />
-          </ProtectedRoute>
-        ),
-      },
->>>>>>> Stashed changes
       { path: '*', element: <NotFoundPage /> },
     ],
   },
