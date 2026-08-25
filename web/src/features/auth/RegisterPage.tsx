@@ -25,10 +25,25 @@ export function RegisterPage() {
     event.preventDefault();
     setError(null);
 
-    if (password.length < 8) {
-      setError('Parola en az 8 karakter olmalı.');
-      return;
-    }
+    // Sunucu da doğruluyor (400 + errors), ama kullanıcıyı ağ turuna
+    // sokmadan söylemek daha hızlı.
+ const hasUppercase = /[A-Z]/.test(password);
+const hasLowercase = /[a-z]/.test(password);
+const hasNumber = /\d/.test(password);
+const hasSpecialCharacter = /[^A-Za-z0-9]/.test(password);
+
+if (
+  password.length < 8 ||
+  !hasUppercase ||
+  !hasLowercase ||
+  !hasNumber ||
+  !hasSpecialCharacter
+) {
+  setError(
+    'Parola en az 8 karakter olmalı; büyük harf, küçük harf, rakam ve özel karakter içermeli.',
+  );
+  return;
+}
     if (password !== passwordAgain) {
       setError('Parolalar birbiriyle uyuşmuyor.');
       return;
