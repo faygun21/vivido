@@ -22,6 +22,8 @@ public class VividoDbContext : DbContext
     public DbSet<UserProfile> UserProfiles { get; set; }
     public DbSet<Anchor> Anchors { get; set; }
     public DbSet<Neighborhood> Neighborhoods { get; set; }
+    public DbSet<Poi> Pois { get; set; } = null!;
+    public DbSet<Property> Properties { get; set; } = null!;
     public DbSet<FavoriteProperty> FavoriteProperties { get; set; }
     public DbSet<Route> Routes { get; set; }
     public DbSet<RouteStop> RouteStops { get; set; }
@@ -154,6 +156,20 @@ public class VividoDbContext : DbContext
             entity.ToTable("neighborhoods");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Geom).HasColumnType("geometry (MultiPolygon, 4326)");
+        });
+
+        builder.Entity<Poi>(entity =>
+        {
+            entity.ToTable("pois");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Geom).HasColumnType("geometry(Point, 4326)");
+        });
+
+        builder.Entity<Property>(entity =>
+        {
+            entity.ToTable("properties");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Geom).HasColumnType("geometry(Point, 4326)");
         });
 
         builder.Entity<FavoriteProperty>(entity =>

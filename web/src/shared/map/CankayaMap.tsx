@@ -6,7 +6,10 @@ import {
   Map as MapLibreMap,
   Marker,
   NavigationControl,
+  Popup,
   setWorkerUrl,
+  type GeoJSONSource,
+  type MapGeoJSONFeature,
   type MapOptions,
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -16,6 +19,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 // olarak kopyalansa o import çözülemezdi.
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { GLYPHS_URL, MAP_ATTRIBUTION, TILE_URL, USE_RASTER_BASEMAP } from '@/shared/config';
+import type { MapProperty, Poi } from '@vivido/shared';
+import { POI_CATEGORY_COLORS, POI_FALLBACK_COLOR, poiCategoryColor } from './poiColors';
 
 /**
  * ⭐ ÜRETİM DERLEMESİNDE HARİTAYI BOŞ ÇİZEN HATANIN DÜZELTMESİ
@@ -102,6 +107,14 @@ export interface MapFocus extends MapPoint {
   bounds?: { south: number; west: number; north: number; east: number } | null;
 }
 
+/** Haritanın görünüm alanı (R-108/109 — bbox bazlı veri çekme için). */
+export interface MapBounds {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
+
 interface CankayaMapProps {
   /** Verilirse haritaya tıklanabilir hale gelir (anchor ekleme akışı). */
   onMapClick?: (point: MapPoint) => void;
@@ -110,6 +123,17 @@ interface CankayaMapProps {
   focus?: MapFocus | null;
   /** Harita kabının yüksekliği (CSS değeri). */
   height?: string;
+  /**
+   * R-108/109/110 — haritada gösterilecek POI'ler (kategori filtresi API'de
+   * uygulanmış halde gelir; burada yalnızca çizilir).
+   */
+  pois?: Poi[];
+  /** R-109/110 — haritada gösterilecek konutlar. */
+  properties?: MapProperty[];
+  /** POI popup'ında Türkçe kategori adı göstermek için kod → ad haritası. */
+  poiCategoryNames?: Record<string, string>;
+  /** Harita taşındığında görünüm alanını (bbox) yukarı bildirir. */
+  onBoundsChange?: (bounds: MapBounds) => void;
 }
 
 const GEO_DISTRICT = '/geo/cankaya.geojson';
@@ -326,7 +350,293 @@ function boundsOf(geojson: GeoCollection): LngLatBounds {
   return bounds;
 }
 
-export function CankayaMap({ onMapClick, markers = [], focus, height = '100%' }: CankayaMapProps) {
+// ─────────────────────────────────────────────────────────────────────────
+//  R-108/109/110 — POI & konut katmanları
+//
+//  Zoom kuralı (R-109): z < 14'te noktalar küme (cluster) olarak çizilir,
+//  z ≥ 14'te tekil noktalar görünür. Katmanlardaki `maxzoom`/`minzoom` ve
+//  kaynağın `clusterMaxZoom: 14` değeri bu geçişi sağlar.
+//
+//  Veri filtreleme (kategori + bbox) API'de yapılır; buraya yalnızca çizime
+//  hazır veri gelir.
+// ─────────────────────────────────────────────────────────────────────────
+
+const EMPTY_COLLECTION: GeoCollection = { type: 'FeatureCollection', features: [] };
+
+/** POI listesini MapLibre GeoJSON kaynağına çevirir. */
+function toPoiFeatureCollection(pois: Poi[]): GeoCollection {
+  return {
+    type: 'FeatureCollection',
+    features: pois.map((poi) => ({
+      type: 'Feature',
+      properties: {
+        id: poi.id,
+        name: poi.name,
+        category: poi.categoryCode,
+      },
+      geometry: { type: 'Point', coordinates: [poi.longitude, poi.latitude] },
+    })),
+  };
+}
+
+/** Konut listesini MapLibre GeoJSON kaynağına çevirir. */
+function toPropertyFeatureCollection(properties: MapProperty[]): GeoCollection {
+  return {
+    type: 'FeatureCollection',
+    features: properties.map((p) => ({
+      type: 'Feature',
+      properties: {
+        id: p.id,
+        externalRef: p.externalRef,
+        monthlyRent: p.monthlyRent,
+        areaM2: p.areaM2,
+        roomCount: p.roomCount,
+        buildingAge: p.buildingAge,
+        hasElevator: p.hasElevator,
+        isSynthetic: p.isSynthetic,
+      },
+      geometry: { type: 'Point', coordinates: [p.longitude, p.latitude] },
+    })),
+  };
+}
+
+/** POI nokta rengi: kategori bazlı `match` ifadesi. */
+function poiCategoryColorExpression(): unknown {
+  const pairs = Object.entries(POI_CATEGORY_COLORS).flat();
+  return ['match', ['get', 'category'], ...pairs, POI_FALLBACK_COLOR];
+}
+
+function clusterFillLayer(id: string, source: string, color: string): unknown {
+  return {
+    id,
+    type: 'circle',
+    source,
+    filter: ['has', 'point_count'],
+    maxzoom: 14,
+    paint: {
+      'circle-color': color,
+      'circle-opacity': 0.75,
+      'circle-radius': ['step', ['get', 'point_count'], 16, 10, 20, 50, 26],
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 2,
+    },
+  };
+}
+
+function clusterCountLayer(id: string, source: string): unknown {
+  return {
+    id,
+    type: 'symbol',
+    source,
+    filter: ['has', 'point_count'],
+    maxzoom: 14,
+    layout: {
+      'text-field': ['get', 'point_count_abbreviated'],
+      'text-size': 12,
+    },
+    paint: { 'text-color': '#ffffff' },
+  };
+}
+
+/** POI/konut kaynaklarını ve katmanlarını bir kez kurar (idempotent). */
+function ensurePoiLayers(map: MapLibreMap): void {
+  if (map.getSource('pois')) return;
+
+  map.addSource('pois', {
+    type: 'geojson',
+    data: EMPTY_COLLECTION,
+    cluster: true,
+    clusterRadius: 50,
+    clusterMaxZoom: 14,
+    generateId: true,
+  } as never);
+  map.addSource('properties', {
+    type: 'geojson',
+    data: EMPTY_COLLECTION,
+    cluster: true,
+    clusterRadius: 40,
+    clusterMaxZoom: 14,
+    generateId: true,
+  } as never);
+
+  // ── POI katmanları (R-108: kategori rengi, R-109: zoom kuralı) ──
+  map.addLayer(clusterFillLayer('poi-cluster-dolgu', 'pois', '#7c3aed') as never);
+  map.addLayer(clusterCountLayer('poi-cluster-sayi', 'pois') as never);
+  map.addLayer({
+    id: 'poi-nokta',
+    type: 'circle',
+    source: 'pois',
+    filter: ['!', ['has', 'point_count']],
+    minzoom: 14,
+    paint: {
+      'circle-radius': 6,
+      'circle-color': poiCategoryColorExpression(),
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 1.5,
+    },
+  } as never);
+
+  // ── Konut katmanları (R-109/R-110) ──
+  map.addLayer(clusterFillLayer('konut-cluster-dolgu', 'properties', '#c2410c') as never);
+  map.addLayer(clusterCountLayer('konut-cluster-sayi', 'properties') as never);
+  map.addLayer({
+    id: 'konut-nokta',
+    type: 'circle',
+    source: 'properties',
+    filter: ['!', ['has', 'point_count']],
+    minzoom: 14,
+    paint: {
+      'circle-radius': 5.5,
+      'circle-color': '#c2410c',
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 1.5,
+    },
+  } as never);
+}
+
+/** POI/konut verisi değiştiğinde GeoJSON kaynaklarını günceller. */
+function updatePointSources(map: MapLibreMap, pois: Poi[], properties: MapProperty[]): void {
+  if (!map.isStyleLoaded()) return;
+  ensurePoiLayers(map);
+
+  const poiSource = map.getSource('pois') as GeoJSONSource | undefined;
+  poiSource?.setData(toPoiFeatureCollection(pois) as never);
+
+  const propertySource = map.getSource('properties') as GeoJSONSource | undefined;
+  propertySource?.setData(toPropertyFeatureCollection(properties) as never);
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (ch) => {
+    const map: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    };
+    return map[ch];
+  });
+}
+
+/** R-110 — POI popup içeriği (ad + kategori + temel bilgi). */
+function poiPopupHtml(name: string, categoryName: string, categoryCode: string): string {
+  return `
+    <div class="vivido-popup">
+      <div class="vivido-popup-title">${escapeHtml(name)}</div>
+      <div class="vivido-popup-category">
+        <span class="vivido-popup-dot" style="background:${poiCategoryColor(categoryCode)}"></span>
+        ${escapeHtml(categoryName)}
+      </div>
+      <div class="vivido-popup-meta">Kategori kodu: ${escapeHtml(categoryCode)}</div>
+    </div>`;
+}
+
+/** R-110 — konut popup içeriği (kira, oda, alan, bina yaşı, asansör). */
+function propertyPopupHtml(props: Record<string, unknown>): string {
+  const rent = typeof props.monthlyRent === 'number'
+    ? `${props.monthlyRent.toLocaleString('tr-TR')} ₺/ay`
+    : 'kira bilinmiyor';
+  const area = typeof props.areaM2 === 'number' ? `${props.areaM2} m²` : '';
+  const rooms = String(props.roomCount ?? '');
+  const age = typeof props.buildingAge === 'number' ? `${props.buildingAge} yıl` : 'bilinmiyor';
+  const lift = props.hasElevator ? 'var' : 'yok';
+
+  return `
+    <div class="vivido-popup">
+      <div class="vivido-popup-title">${escapeHtml(String(props.externalRef ?? 'Konut'))}</div>
+      <div class="vivido-popup-meta">${escapeHtml(rooms)}${rooms && area ? ' · ' : ''}${escapeHtml(area)}</div>
+      <div class="vivido-popup-meta vivido-popup-rent">${escapeHtml(rent)}</div>
+      <div class="vivido-popup-meta">Bina yaşı: ${escapeHtml(age)} · Asansör: ${escapeHtml(lift)}</div>
+    </div>`;
+}
+
+/** Küme tıklanınca kümenin yayılımına yakınlaşır (R-109). */
+function zoomToCluster(map: MapLibreMap, sourceId: string, feature: MapGeoJSONFeature): void {
+  const clusterId = feature.properties?.cluster_id;
+  if (typeof clusterId !== 'number') return;
+
+  const source = map.getSource(sourceId) as GeoJSONSource | undefined;
+  if (!source) return;
+
+  const coordinates = (feature.geometry as { coordinates?: [number, number] }).coordinates;
+  if (!coordinates) return;
+
+  // maplibre-gl v6: getClusterExpansionZoom Promise döner (callback API kaldırıldı).
+  void source.getClusterExpansionZoom(clusterId).then((zoom) => {
+    map.easeTo({ center: coordinates, zoom: zoom + 1 });
+  });
+}
+
+/** POI/konut etkileşimlerini bir kez bağlar: imleç, popup, küme zoom'u. */
+function wirePoiInteractions(
+  map: MapLibreMap,
+  categoryNames: React.MutableRefObject<Record<string, string>>,
+): void {
+  const hoverLayers = ['poi-nokta', 'konut-nokta', 'poi-cluster-dolgu', 'konut-cluster-dolgu'];
+  for (const layer of hoverLayers) {
+    map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
+  }
+
+  // R-110 — POI popup'ı
+  map.on('click', 'poi-nokta', (e) => {
+    const feature = e.features?.[0];
+    if (!feature || !map) return;
+    const props = feature.properties as Record<string, unknown>;
+    const name = typeof props.name === 'string' && props.name ? props.name : 'İsimsiz hizmet noktası';
+    const categoryCode = String(props.category ?? '');
+    const categoryName = categoryNames.current[categoryCode] ?? categoryCode;
+    const coordinates = (feature.geometry as { coordinates?: [number, number] }).coordinates;
+    if (!coordinates) return;
+
+    new Popup({ offset: 18, closeButton: false })
+      .setLngLat(coordinates)
+      .setHTML(poiPopupHtml(name, categoryName, categoryCode))
+      .addTo(map);
+  });
+
+  // R-110 — konut popup'ı
+  map.on('click', 'konut-nokta', (e) => {
+    const feature = e.features?.[0];
+    if (!feature || !map) return;
+    const coordinates = (feature.geometry as { coordinates?: [number, number] }).coordinates;
+    if (!coordinates) return;
+
+    new Popup({ offset: 18, closeButton: false })
+      .setLngLat(coordinates)
+      .setHTML(propertyPopupHtml(feature.properties as Record<string, unknown>))
+      .addTo(map);
+  });
+
+  // R-109 — küme tıklaması: yakınlaş
+  map.on('click', 'poi-cluster-dolgu', (e) => {
+    const feature = e.features?.[0];
+    if (feature) zoomToCluster(map, 'pois', feature);
+  });
+  map.on('click', 'konut-cluster-dolgu', (e) => {
+    const feature = e.features?.[0];
+    if (feature) zoomToCluster(map, 'properties', feature);
+  });
+}
+
+/** Görünüm alanını (bbox) yukarı bildirir (R-108 — bbox bazlı veri çekme). */
+function reportBounds(map: MapLibreMap, cb?: (bounds: MapBounds) => void): void {
+  if (!cb) return;
+  const b = map.getBounds();
+  cb({ south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() });
+}
+
+export function CankayaMap({
+  onMapClick,
+  markers = [],
+  focus,
+  height = '100%',
+  pois,
+  properties,
+  poiCategoryNames,
+  onBoundsChange,
+}: CankayaMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerObjectsRef = useRef<Marker[]>([]);
@@ -334,6 +644,17 @@ export function CankayaMap({ onMapClick, markers = [], focus, height = '100%' }:
   // bağlamak yerine ref üzerinden güncel tutuyoruz.
   const clickHandlerRef = useRef(onMapClick);
   clickHandlerRef.current = onMapClick;
+
+  // R-108/109/110 — POI/konut verisi ve kategori adları da listener'lar
+  // kurulduktan sonra değişebilir; ref'ler üzerinden güncel tutulur.
+  const poiDataRef = useRef<Poi[]>([]);
+  poiDataRef.current = pois ?? [];
+  const propertyDataRef = useRef<MapProperty[]>([]);
+  propertyDataRef.current = properties ?? [];
+  const categoryNamesRef = useRef<Record<string, string>>({});
+  categoryNamesRef.current = poiCategoryNames ?? {};
+  const boundsHandlerRef = useRef(onBoundsChange);
+  boundsHandlerRef.current = onBoundsChange;
 
   const [hoveredName, setHoveredName] = useState<string | null>(null);
   const [status, setStatus] = useState<'yukleniyor' | 'hazir' | 'hata'>('yukleniyor');
@@ -393,6 +714,17 @@ export function CankayaMap({ onMapClick, markers = [], focus, height = '100%' }:
         map.on('click', (e) => {
           clickHandlerRef.current?.({ lat: e.lngLat.lat, lon: e.lngLat.lng });
         });
+
+        // ─── R-108/109/110: POI & konut katmanları, popup, bbox bildirimi ───
+        map.on('load', () => {
+          if (!map) return;
+          updatePointSources(map, poiDataRef.current, propertyDataRef.current);
+          reportBounds(map, boundsHandlerRef.current);
+        });
+        map.on('moveend', () => {
+          if (map) reportBounds(map, boundsHandlerRef.current);
+        });
+        wirePoiInteractions(map, categoryNamesRef);
 
         // ─── Mahalle vurgulama ───
         let hoveredId: string | number | undefined;
@@ -469,6 +801,15 @@ export function CankayaMap({ onMapClick, markers = [], focus, height = '100%' }:
     // `status` bağımlılığı şart: harita asenkron kurulduğu için ilk render'da
     // mapRef henüz boş olabiliyor, hazır olunca işaretçiler yeniden basılır.
   }, [markers, focus, status]);
+
+  // ─── R-108/109/110: POI & konut verisi değişince GeoJSON kaynaklarını güncelle ───
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== 'hazir') return;
+    // Stil yüklenmediyse kaynak eklenemez; `load` handler'ı da bu fonksiyonu
+    // çağırdığı için veri burada kaybolmaz.
+    updatePointSources(map, poiDataRef.current, propertyDataRef.current);
+  }, [pois, properties, status]);
 
   // ─── Konum arama sonucu ───
   useEffect(() => {

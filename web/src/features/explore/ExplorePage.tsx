@@ -1,11 +1,24 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import type { LocationSearchResult, UserProfile, Persona } from '@vivido/shared';
+import type {
+  LocationSearchResult,
+  UserProfile,
+  Persona,
+  Poi,
+  PoiCategory,
+  MapProperty,
+} from '@vivido/shared';
 import { api } from '@/shared/api/client';
 import { useAuthStore } from '@/features/auth/authStore';
-import { CankayaMap, type MapFocus, type MapMarker } from '@/shared/map/CankayaMap';
+import {
+  CankayaMap,
+  type MapFocus,
+  type MapMarker,
+  type MapBounds,
+} from '@/shared/map/CankayaMap';
 import { LocationSearch } from './LocationSearch';
+import { PoiLayerPanel } from './PoiLayerPanel';
 
 /**
  * Ana ekran — Çankaya haritası.
@@ -43,6 +56,75 @@ export function ExplorePage() {
   });
 
   const persona = personas.find((p) => p.code === profile?.personaCode);
+
+  // ─── R-108/109/110 — POI & konut katmanları ───
+  const [bounds, setBounds] = useState<MapBounds | null>(null);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [propertiesVisible, setPropertiesVisible] = useState(true);
+  const selectionInitialized = useRef(false);
+  const boundsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Kategorileri tek sefer çeker; paneldeki isimler ve renkler buradan gelir.
+  const { data: poiCategories = [] } = useQuery({
+    queryKey: ['poi-categories'],
+    queryFn: () => api.get<PoiCategory[]>('/pois/categories'),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // İlk yüklemede tüm kategorileri açık başlat; kullanıcı sonradan kapatırsa
+  // geri dönüp hepsini yeniden seçme.
+  useEffect(() => {
+    if (poiCategories.length > 0 && !selectionInitialized.current) {
+      selectionInitialized.current = true;
+      setSelectedCategories(poiCategories.map((c) => c.code));
+    }
+  }, [poiCategories]);
+
+  // Harita taşındıkça gelen bbox'ı debounce ile sorguya işle.
+  function handleBoundsChange(next: MapBounds) {
+    if (boundsTimer.current) clearTimeout(boundsTimer.current);
+    boundsTimer.current = setTimeout(() => setBounds(next), 250);
+  }
+
+  const boundsKey = bounds
+    ? `${bounds.west.toFixed(4)},${bounds.south.toFixed(4)},${bounds.east.toFixed(4)},${bounds.north.toFixed(4)}`
+    : null;
+
+  const categoryParam = selectedCategories.join(',');
+
+  const { data: pois = [] } = useQuery({
+    queryKey: ['pois', boundsKey, categoryParam],
+    queryFn: () =>
+      api.get<Poi[]>(
+        `/pois?west=${bounds!.west}&south=${bounds!.south}&east=${bounds!.east}` +
+          `&north=${bounds!.north}&categories=${encodeURIComponent(categoryParam)}`,
+      ),
+    enabled: bounds != null && selectedCategories.length > 0,
+    staleTime: 30_000,
+  });
+
+  const { data: properties = [] } = useQuery({
+    queryKey: ['map-properties', boundsKey],
+    queryFn: () =>
+      api.get<MapProperty[]>(
+        `/properties?west=${bounds!.west}&south=${bounds!.south}&east=${bounds!.east}` +
+          `&north=${bounds!.north}`,
+      ),
+    enabled: bounds != null && propertiesVisible,
+    staleTime: 30_000,
+  });
+
+  const poiCategoryNames = Object.fromEntries(
+    poiCategories.map((c) => [c.code, c.displayNameTr]),
+  );
+
+  function toggleCategory(code: string) {
+    setSelectedCategories((current) =>
+      current.includes(code)
+        ? current.filter((c) => c !== code)
+        : [...current, code],
+    );
+  }
 
   const markers: MapMarker[] = (profile?.anchors ?? []).map((a) => ({
     id: a.id,
@@ -132,16 +214,31 @@ export function ExplorePage() {
           </p>
 
           <p className="muted">
-            Skorlanmış kiralık ev noktaları, filtreler ve gerekçe tablosu
-            Hafta 2&apos;nin kalan işleri.
+            Hizmet noktaları ve konutlar haritada küme olarak çizilir; yakınlaşınca
+            tek tek noktalara ayrışır. Noktaya tıklayınca bilgi penceresi açılır.
           </p>
         </div>
+
+        <PoiLayerPanel
+          categories={poiCategories}
+          selectedCategories={selectedCategories}
+          onToggleCategory={toggleCategory}
+          propertiesVisible={propertiesVisible}
+          onToggleProperties={() => setPropertiesVisible((v) => !v)}
+        />
 
         <p className="data-badge">Konut verisi sentetiktir</p>
       </aside>
 
       <div className="explore-map">
-        <CankayaMap markers={markers} focus={mapFocus} />
+        <CankayaMap
+          markers={markers}
+          focus={mapFocus}
+          pois={pois}
+          properties={propertiesVisible ? properties : []}
+          poiCategoryNames={poiCategoryNames}
+          onBoundsChange={handleBoundsChange}
+        />
 
         {authenticated && (
           <LocationSearch
