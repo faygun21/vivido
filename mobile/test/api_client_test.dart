@@ -114,6 +114,38 @@ void main() {
       expect(client.session, isNull);
     });
 
+    test('alan bazlı doğrulama hatasının açıklamasını korur', () async {
+      final client = ApiClient(
+        baseUrl: 'http://localhost/api/v1',
+        tokenStore: MemoryTokenStore(),
+        httpClient: MockClient(
+          (_) async => _jsonResponse({
+            'title': 'Gönderilen bilgiler geçersiz',
+            'code': 'VALIDATION_ERROR',
+            'errors': {
+              'password': [
+                'Parola büyük harf, rakam ve özel karakter içermeli.',
+              ],
+            },
+          }, statusCode: 400),
+        ),
+      );
+      addTearDown(client.close);
+
+      await expectLater(
+        client.register(email: 'test@vivido.app', password: 'weak'),
+        throwsA(
+          isA<ApiException>()
+              .having((error) => error.code, 'code', 'VALIDATION_ERROR')
+              .having(
+                (error) => error.detail,
+                'detail',
+                'Parola büyük harf, rakam ve özel karakter içermeli.',
+              ),
+        ),
+      );
+    });
+
     test('doğrulama kodu kabul edilirse oturum açılır', () async {
       final store = MemoryTokenStore();
       final mock = MockClient((request) async {

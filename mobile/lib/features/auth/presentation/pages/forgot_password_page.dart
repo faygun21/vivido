@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../application/session_controller.dart';
+import '../../domain/password_policy.dart';
 import '../widgets/code_field.dart';
 
 /// Şifre sıfırlama — K-09.
@@ -196,11 +197,15 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           CodeField(controller: _codeController, label: 'Sıfırlama kodu'),
           const SizedBox(height: 14),
           TextFormField(
+            key: const ValueKey('reset-password'),
             controller: _passwordController,
             obscureText: _obscure,
             autofillHints: const [AutofillHints.newPassword],
             decoration: InputDecoration(
               labelText: 'Yeni parola',
+              helperText: strongPasswordRequirements,
+              helperMaxLines: 2,
+              errorMaxLines: 3,
               prefixIcon: const Icon(Icons.key_outlined),
               suffixIcon: IconButton(
                 onPressed: () => setState(() => _obscure = !_obscure),
@@ -211,12 +216,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 ),
               ),
             ),
-            validator: (value) {
-              if ((value ?? '').length < 8) {
-                return 'Parola en az 8 karakter olmalı.';
-              }
-              return null;
-            },
+            validator: validateStrongPassword,
           ),
           const SizedBox(height: 14),
           TextFormField(
