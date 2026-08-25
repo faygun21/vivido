@@ -5,52 +5,39 @@ import { ApiError, apiFetch } from '@/shared/api/client';
 import { useAuthStore } from '@/features/auth/authStore';
 import { describeAuthError, routeAfterAuth } from '@/features/auth/authFlow';
 
-/**
- * Kayıt sayfası — W1
- *
- * İki olası sonuç var (K-09):
- *   · 202  →  e-posta doğrulama zorunlu. Token GELMEZ; kullanıcı
- *             /auth/verify-email ekranına gider ve 6 haneli kodu girer.
- *   · 201  →  doğrulama kapalı (Auth:RequireEmailVerification=false).
- *             Eski davranış: token gelir, doğrudan onboarding'e gidilir.
- *
- * Sözleşme: vivido-api-sozlesmesi.md §4
- */
 export function RegisterPage() {
   const navigate = useNavigate();
   const setSession = useAuthStore((s) => s.setSession);
+  const enterGuest = useAuthStore((s) => s.enterGuest);
 
-  const [displayName, setDisplayName] = useState('');
+  // Ad ve Soyad'ı ayrı ayrı tutuyoruz, API'ye gönderirken birleştireceğiz
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordAgain, setPasswordAgain] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Kullanıcı ikinci alana yazmaya BAŞLADIKTAN sonra uyarıyoruz. İlk
-  // karakterde "şifreler uyuşmuyor" basmak, henüz yazarken hata gösterip
-  // formu suçlayıcı yapıyor.
   const mismatch = passwordAgain.length > 0 && password !== passwordAgain;
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
 
-    // Sunucu da doğruluyor (400 + errors), ama kullanıcıyı ağ turuna
-    // sokmadan söylemek daha hızlı.
     if (password.length < 8) {
       setError('Parola en az 8 karakter olmalı.');
       return;
     }
     if (password !== passwordAgain) {
-      setError('Parolalar birbiriyle uyuşmuyor. İki alanı da kontrol edin.');
+      setError('Parolalar birbiriyle uyuşmuyor.');
       return;
     }
 
     setBusy(true);
     try {
-      // `apiFetch` doğrudan çağrılıyor (api.post değil): 201 ile 202'yi
-      // ayırmak için durum koduna ihtiyacımız var.
+      const combinedName = `${firstName.trim()} ${lastName.trim()}`.trim();
+      
       const { status, data } = await apiFetch<AuthResponse>(
         '/auth/register',
         {
@@ -58,7 +45,7 @@ export function RegisterPage() {
           body: {
             email: email.trim(),
             password,
-            displayName: displayName.trim() === '' ? undefined : displayName.trim(),
+            displayName: combinedName === '' ? undefined : combinedName,
           },
           skipAuth: true,
         },
@@ -66,8 +53,6 @@ export function RegisterPage() {
       );
 
       if (status === 202) {
-        // Doğrulama bekleniyor — e-postayı bir sonraki ekrana taşı ki
-        // kullanıcı adresini ikinci kez yazmak zorunda kalmasın.
         navigate('/auth/verify-email', {
           replace: true,
           state: { email: email.trim() },
@@ -78,8 +63,6 @@ export function RegisterPage() {
       setSession(data);
       await routeAfterAuth(navigate);
     } catch (err) {
-      // Zaten kayıtlı ama doğrulanmamış bir hesap 409 DEĞİL 202 döner,
-      // yani buraya düşen 409 gerçekten "bu hesap aktif" demektir.
       if (err instanceof ApiError && err.problem.code === 'EMAIL_ALREADY_EXISTS') {
         setError('Bu e-posta zaten kayıtlı. Giriş yapın ya da şifrenizi sıfırlayın.');
       } else {
@@ -91,76 +74,153 @@ export function RegisterPage() {
   }
 
   return (
-    <section className="page auth-page">
-      <h1>Kayıt ol</h1>
-
-      <form className="form-card" onSubmit={handleSubmit} noValidate>
-        {error && <p className="form-error" role="alert">{error}</p>}
-
-        <label className="field">
-          <span>Ad <span className="muted">(isteğe bağlı)</span></span>
-          <input
-            type="text"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            autoComplete="name"
+    <div className="login-page-wrapper">
+      {/* Sol Taraf: Kayıt Formu */}
+      <div className="login-right">
+        {/* marginTop'u TAMAMEN KALDIRDIK. Kendi kendine ortalanacak. */}
+        <div className="login-form-container">
+          
+          <img
+            src="/images/logo.svg"
+            alt="Vivido Logo"
+            className="login-logo"
+            style={{ height: '4.5rem', marginBottom: '0.25rem' }} 
           />
-        </label>
 
-        <label className="field">
-          <span>E-posta</span>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-            required
-          />
-          <span className="field-hint">
-            Doğrulama kodu bu adrese gönderilecek — erişebildiğiniz bir adres girin.
-          </span>
-        </label>
+          <p className="login-slogan" style={{ margin: '0 0 0.5rem 0' }}>
+            hayalinizdeki eve giden yol
+          </p>
+          <div className="login-divider" style={{ marginBottom: '1rem' }}></div>
 
-        <label className="field">
-          <span>Parola <span className="muted">(en az 8 karakter)</span></span>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="new-password"
-            required
-          />
-        </label>
+          <h1 className="login-title" style={{ marginTop: '0', marginBottom: '1rem' }}>
+            Kayıt Ol
+          </h1>
 
-        <label className="field">
-          <span>Parola (tekrar)</span>
-          <input
-            type="password"
-            value={passwordAgain}
-            onChange={(e) => setPasswordAgain(e.target.value)}
-            autoComplete="new-password"
-            required
-            aria-invalid={mismatch}
-            aria-describedby={mismatch ? 'parola-uyusmazlik' : undefined}
-          />
-          {mismatch && (
-            <span className="field-error" id="parola-uyusmazlik" role="alert">
-              Parolalar uyuşmuyor.
-            </span>
-          )}
-          {!mismatch && passwordAgain.length > 0 && (
-            <span className="field-ok">Parolalar eşleşiyor.</span>
-          )}
-        </label>
+          <form className="login-form" onSubmit={handleSubmit} noValidate>
+            {error && <p className="form-error" role="alert">{error}</p>}
 
-        <button className="btn-primary" type="submit" disabled={busy || mismatch}>
-          {busy ? 'Kaydediliyor…' : 'Kayıt ol'}
-        </button>
-      </form>
+            {/* Ad Soyad */}
+            <div style={{ display: 'flex', gap: '1rem', width: '100%' }}>
+              <div className="login-input-group">
+                <input
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="Ad"
+                  autoComplete="given-name"
+                  className="login-input"
+                />
+              </div>
+              <div className="login-input-group">
+                <input
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Soyad"
+                  autoComplete="family-name"
+                  className="login-input"
+                />
+              </div>
+            </div>
 
-      <p className="muted">
-        Zaten hesabın var mı? <Link to="/auth/login">Giriş yap</Link>
-      </p>
-    </section>
+            {/* E-posta */}
+            <div className="login-input-group">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="E-posta adresi"
+                autoComplete="email"
+                required
+                className="login-input"
+              />
+              <span className="login-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </span>
+            </div>
+
+            {/* Şifre */}
+            <div className="login-input-group">
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Şifre"
+                autoComplete="new-password"
+                required
+                className="login-input"
+              />
+              <span className="login-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </span>
+            </div>
+
+            {/* Şifre Tekrar */}
+            <div className="login-input-group">
+              <input
+                type="password"
+                value={passwordAgain}
+                onChange={(e) => setPasswordAgain(e.target.value)}
+                placeholder="Şifre Tekrar"
+                autoComplete="new-password"
+                required
+                className="login-input"
+                style={mismatch ? { borderColor: '#b3261e' } : {}}
+              />
+              <span className="login-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </span>
+            </div>
+            
+            {mismatch && (
+              <span style={{ color: '#b3261e', fontSize: '0.85rem', marginTop: '-0.5rem', fontWeight: 600 }}>
+                Parolalar uyuşmuyor.
+              </span>
+            )}
+
+            <button type="submit" disabled={busy || mismatch} className="login-submit">
+              {busy ? 'Kaydediliyor…' : 'Kayıt Ol'}
+            </button>
+          </form>
+
+          {/* Veya kısmının boşluğunu daralttık */}
+          <div className="login-or" style={{ margin: '1rem 0' }}>
+            <span>veya</span>
+          </div>
+
+          {/* Misafir Olarak Devam Et Butonu */}
+          <button
+            type="button"
+            onClick={() => {
+              enterGuest();
+              navigate('/explore');
+            }}
+            className="login-guest-btn"
+          >
+            Misafir olarak devam et
+          </button>
+
+          {/* Üst boşluğunu biraz daralttık ki ekrana rahat sığsın */}
+          <p className="login-register-text" style={{ marginTop: '1.25rem', marginBottom: '0' }}>
+            Hesabın var mı? <Link to="/auth/login">Giriş Yap</Link>
+          </p>
+        </div>
+      </div>
+
+      {/* Sağ Taraf: Video Alanı (Turuncu Arkaplan) */}
+      <div className="login-left">
+        <div className="login-video-box" style={{ backgroundColor: '#E27250' }}>
+          <video autoPlay loop muted playsInline>
+            <source src="/video/vivido_giris_video.mp4" type="video/mp4" />
+          </video>
+        </div>
+      </div>
+    </div>
   );
 }
