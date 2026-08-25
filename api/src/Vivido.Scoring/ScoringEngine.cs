@@ -15,6 +15,22 @@ public static class ScoringEngine
     /// </summary>
     private const double CeilingSoftening = 8.0;
 
+    /// <summary>
+    /// Zayıf halka cezası — bir kategori kullanıcının önemsediği bir alanda
+    /// çok kötüyse (örn. ulaşıma çok uzak), diğer kategoriler bunu ağırlıklı
+    /// ortalamayla tam telafi edemesin diye son skoru bu kadara kadar
+    /// kısabilir. 0.5 = en kötü durumda (en zayıf kategori 0) skor en fazla
+    /// yarıya iner; en zayıf kategori 100 ise hiç ceza yok.
+    /// </summary>
+    private const double WeakLinkPenaltyFloor = 0.5;
+
+    /// <summary>
+    /// Cezaya hangi kategoriler dahil olur — kullanıcının persona'sında
+    /// ağırlığı bu eşiğin altındaki kategoriler (örn. öğrenci için okul,
+    /// ağırlık 0) hiç önemsenmiyor demektir; oraya uzak olmak cezalandırmaz.
+    /// </summary>
+    private const double WeakLinkWeightThreshold = 0.05;
+
     public record CategoryInput(
         double DurationMinutes,
         double Weight,
@@ -27,6 +43,11 @@ public static class ScoringEngine
     {
         double totalScore = 0.0;
         double totalWeightUsed = 0.0;
+
+        // Zayıf halka cezası için: yalnızca kullanıcının gerçekten önemsediği
+        // (ağırlığı eşiğin üstünde) kategoriler arasındaki en kötüsü izlenir.
+        double worstConsideredScore = 100.0;
+        bool anyConsidered = false;
 
         foreach (var input in inputs)
         {
@@ -41,14 +62,23 @@ public static class ScoringEngine
 
             totalScore += categoryScore * input.Weight;
             totalWeightUsed += input.Weight;
+
+            if (input.Weight >= WeakLinkWeightThreshold)
+            {
+                anyConsidered = true;
+                if (categoryScore < worstConsideredScore) worstConsideredScore = categoryScore;
+            }
         }
 
-        if (totalWeightUsed > 0)
-        {
-            return Math.Round(totalScore / totalWeightUsed, 2);
-        }
+        if (totalWeightUsed <= 0) return 0.0;
 
-        return 0.0;
+        double weightedAverage = totalScore / totalWeightUsed;
+
+        double penaltyFactor = anyConsidered
+            ? WeakLinkPenaltyFloor + (1.0 - WeakLinkPenaltyFloor) * (worstConsideredScore / 100.0)
+            : 1.0;
+
+        return Math.Round(weightedAverage * penaltyFactor, 2);
     }
 
     private static double CalculateDecayScore(double duration, double tIdeal, double tHalf, double tCutoff)
