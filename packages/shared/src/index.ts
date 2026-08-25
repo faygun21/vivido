@@ -15,6 +15,7 @@
  *   auth.ts      Kişi 1
  *   persona.ts   Kişi 2
  *   profile.ts   Kişi 3   (anchor dahil)
+ *   poi.ts       R-108    POI ve harita konutu sözleşmeleri
  *   property.ts  Hafta 2
  *   score.ts     Hafta 2
  *   route.ts     Hafta 3
@@ -30,6 +31,7 @@ export * from './auth';
 export * from './persona';
 export * from './profile';
 export * from './location';
+export * from './poi';
 export * from './property';
 export * from './score';
 export * from './route';
