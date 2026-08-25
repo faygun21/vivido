@@ -387,6 +387,8 @@ button {
 .map-pin { display: grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--accent); color: var(--accent-ink); border: 2px solid #fff; box-shadow: 0 1px 4px rgb(0 0 0 / 0.35); font-size: 0.8rem; font-weight: 700; cursor: default; }
 .map-pin--property { background: #ea580c; cursor: pointer; }
 .map-pin--property:hover { background: #c2410c; }
+.map-pin--analysis { background: #f59e0b; color: #7c2d12; cursor: grab; touch-action: none; }
+.map-pin--analysis:active { cursor: grabbing; }
 .anchor-map { height: 320px; border: 1px solid var(--line); border-radius: 1rem; overflow: hidden; margin-bottom: 0.5rem; }
 .anchor-form { display: grid; gap: 0.75rem; padding: 0.9rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--surface); margin-bottom: 1rem; }
 .anchor-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }

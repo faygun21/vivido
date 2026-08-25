@@ -147,6 +147,8 @@ interface CankayaMapProps {
   /** Harita kabının yüksekliği (CSS değeri). */
   height?: string;
   selectedLocation?: WalkingLocation | null;
+  /** Analiz merkezindeki sürüklenebilir işaretçi bırakıldığında yeni konumu bildirir. */
+  onSelectedLocationChange?: (location: WalkingLocation) => void;
   walkingMinutes?: WalkingMinutes;
   analysisRadiusKm?: AnalysisRadiusKm;
   /**
@@ -725,6 +727,7 @@ export function CankayaMap({
   focus,
   height = '100%',
   selectedLocation = null,
+  onSelectedLocationChange,
   walkingMinutes = 15,
   analysisRadiusKm = 2,
   padLeft = 0,
@@ -735,6 +738,7 @@ export function CankayaMap({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerObjectsRef = useRef<Marker[]>([]);
+  const analysisMarkerRef = useRef<Marker | null>(null);
   // Harita bir kez kuruluyor; kurulum anındaki padding'i efektin bağımlılık
   // listesine sokmadan okuyabilmek için ref'te tutuyoruz.
   const padLeftRef = useRef(padLeft);
@@ -745,6 +749,8 @@ export function CankayaMap({
   clickHandlerRef.current = onMapClick;
   const propertyClickHandlerRef = useRef(onPropertyClick);
   propertyClickHandlerRef.current = onPropertyClick;
+  const selectedLocationChangeHandlerRef = useRef(onSelectedLocationChange);
+  selectedLocationChangeHandlerRef.current = onSelectedLocationChange;
 
   // R-108/109/110 — POI/konut verisi ve kategori adları da listener'lar
   // kurulduktan sonra değişebilir; ref'ler üzerinden güncel tutulur.
@@ -919,6 +925,8 @@ export function CankayaMap({
 
     return () => {
       cancelled = true;
+      analysisMarkerRef.current?.remove();
+      analysisMarkerRef.current = null;
       map?.remove();
       mapRef.current = null;
     };
@@ -955,6 +963,40 @@ export function CankayaMap({
     // `status` bağımlılığı şart: harita asenkron kurulduğu için ilk render'da
     // mapRef henüz boş olabiliyor, hazır olunca işaretçiler yeniden basılır.
   }, [markers, focus, status]);
+
+  // Analiz ve yürüme alanlarının ortak merkezi. İşaretçi sürüklendiğinde iki alan
+  // da aynı state üzerinden yeni konumda yeniden hesaplanır.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== 'hazir') return;
+
+    if (!selectedLocation) {
+      analysisMarkerRef.current?.remove();
+      analysisMarkerRef.current = null;
+      return;
+    }
+
+    let marker = analysisMarkerRef.current;
+    if (!marker) {
+      const element = document.createElement('div');
+      element.className = 'map-pin map-pin--analysis';
+      element.textContent = '↕';
+      element.title = 'Analiz konumunu sürükle';
+
+      marker = new Marker({ element, draggable: true })
+        .setLngLat([selectedLocation.lon, selectedLocation.lat])
+        .addTo(map);
+      marker.on('drag', () => {
+        const location = marker?.getLngLat();
+        if (location) {
+          selectedLocationChangeHandlerRef.current?.({ lat: location.lat, lon: location.lng });
+        }
+      });
+      analysisMarkerRef.current = marker;
+    } else {
+      marker.setLngLat([selectedLocation.lon, selectedLocation.lat]);
+    }
+  }, [selectedLocation, status]);
 
   // ─── Konum arama sonucu ───
   useEffect(() => {

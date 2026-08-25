@@ -83,6 +83,9 @@ const DRAWER_WIDTH_PX = 21.5 * 16 + 29;
 /** Çekmecenin yüzen panel mi yoksa alttan açılan sayfa mı olduğu eşiği. */
 const WIDE_SCREEN = '(min-width: 900px)';
 
+/** Analiz sekmesi ilk açıldığında alanların yerleştirileceği Çankaya merkezi. */
+const DEFAULT_ANALYSIS_LOCATION: WalkingLocation = { lat: 39.87, lon: 32.85 };
+
 function matchesWide(): boolean {
   return typeof window !== 'undefined' && window.matchMedia(WIDE_SCREEN).matches;
 }
@@ -311,6 +314,13 @@ export function ExplorePage() {
     setSelectedLocation({ lat: location.latitude, lon: location.longitude });
   }
 
+  function selectTab(nextTab: DrawerTab) {
+    setTab(nextTab);
+    if (nextTab === 'analiz' && !selectedLocation) {
+      setSelectedLocation(DEFAULT_ANALYSIS_LOCATION);
+    }
+  }
+
   const anchorCount = profile?.anchors.length ?? 0;
 
   return (
@@ -323,7 +333,8 @@ export function ExplorePage() {
         focus={mapFocus}
         onMapClick={handleMapClick}
         onPropertyClick={handlePropertyClick}
-        selectedLocation={selectedLocation}
+        selectedLocation={tab === 'analiz' ? selectedLocation : null}
+        onSelectedLocationChange={setSelectedLocation}
         walkingMinutes={walkingMinutes}
         analysisRadiusKm={analysisRadiusKm}
         pois={pois}
@@ -425,7 +436,7 @@ export function ExplorePage() {
               type="button"
               className={`drawer-tab${tab === value ? ' is-active' : ''}`}
               aria-current={tab === value}
-              onClick={() => setTab(value)}
+              onClick={() => selectTab(value)}
             >
               {title}
             </button>
