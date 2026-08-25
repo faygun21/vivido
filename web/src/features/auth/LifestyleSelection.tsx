@@ -97,14 +97,9 @@ export default function LifestyleSelection() {
       // Onboarding'in kendi profil sorgusu bayat kalmasın — az önce
       // yazdığımız persona'yı hemen görsün.
       await queryClient.invalidateQueries({ queryKey: ['profile'] });
-      // Bütçe/anchor gibi geri kalan alanlar hâlâ eksik; onboarding formu
-      // onları tamamlıyor. NOT: OnboardingPage şu an persona seçimini var
-      // olan profilden ÖNCEDEN DOLDURMUYOR (selectedPersona her zaman null
-      // başlıyor) — kullanıcı burada seçtiği persona'yı orada bir kez daha
-      // seçmek zorunda kalacak. Sorun değil (DB'de zaten kayıtlı, formu
-      // atlarsa da persona kaybolmaz) ama kullanıcı deneyimi için
-      // OnboardingPage'e persona ön-doldurma eklemek ayrı bir iyileştirme.
-      navigate('/onboarding');
+      
+      // Doğrudan Tercihler sayfasına yönlendiriyoruz
+      navigate('/preferences');
     } catch {
       setError('Kaydedilemedi, lütfen tekrar deneyin.');
     } finally {
@@ -233,7 +228,10 @@ export default function LifestyleSelection() {
           })}
         </div>
 
-        <button style={{ background: 'none', border: 'none', color: '#78716c', fontSize: '13px', textDecoration: 'underline', textUnderlineOffset: '3px', cursor: 'pointer' }}>
+        <button 
+          onClick={handleNext}
+          style={{ background: 'none', border: 'none', color: '#78716c', fontSize: '13px', textDecoration: 'underline', textUnderlineOffset: '3px', cursor: 'pointer' }}
+        >
           Kendim Özelleştireceğim
         </button>
       </div>

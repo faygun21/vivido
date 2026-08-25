@@ -10,6 +10,7 @@ import LifestyleSelection from "@/features/auth/LifestyleSelection";
 import { ExplorePage } from '@/features/explore/ExplorePage';
 import { ProfilePage } from '@/features/profile/ProfilePage';
 import { NotFoundPage } from '@/features/NotFoundPage';
+import PreferencesRanking from "@/features/auth/PreferencesRanking";
 
 export const router = createBrowserRouter([
   // BANNER OLMAYAN TAM EKRAN SAYFALAR 
@@ -23,9 +24,16 @@ export const router = createBrowserRouter([
     path: '/',
     element: <RootLayout />,
     children: [
-      // Ana kök dizine gelenleri doğrudan giriş sayfasına yönlendiriyoruz
       { index: true, element: <Navigate to="/auth/login" replace /> },
       
+      {
+        path: 'preferences',
+        element: (
+          <ProtectedRoute>
+            <PreferencesRanking />
+          </ProtectedRoute>
+        ),
+      },
       {
         path: 'lifestyle',
         element: (
