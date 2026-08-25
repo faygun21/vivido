@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using NetTopologySuite.Geometries;
 using Vivido.Api.services; // PropertyScoringService namespace'i
 using Vivido.Application.dtos.property; // DTO'ların
 using Vivido.Infrastructure.Data;
@@ -13,6 +14,7 @@ namespace Vivido.Api.Controllers;
 [Authorize]
 public class PropertiesController : ControllerBase
 {
+    private const int MaximumPropertyCount = 2000;
     private readonly VividoDbContext _context;
     private readonly PropertyScoringService _scoringService;
 
@@ -152,5 +154,59 @@ public class PropertiesController : ControllerBase
         {
             return StatusCode(500, new { Message = "Skor hesaplanırken sunucu tarafında bir hata oluştu.", Details = ex.Message });
         }
+    }
+
+    /// <summary>
+    /// R-109/R-110 — harita görünüm alanındaki (bbox) konutları döndürür.
+    /// Konut noktaları herkese açık harita verisidir ([AllowAnonymous]);
+    /// skor hesaplama ayrıca <c>profileId</c> ister.
+    /// </summary>
+    [HttpGet("map")]
+    [AllowAnonymous]
+    [ProducesResponseType<List<MapPropertyDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetPropertiesForMapByBounds(
+        [FromQuery] double west,
+        [FromQuery] double south,
+        [FromQuery] double east,
+        [FromQuery] double north,
+        CancellationToken cancellationToken)
+    {
+        if (west < -180 || east > 180 || south < -90 || north > 90 || west >= east || south >= north)
+        {
+            ModelState.AddModelError("bbox",
+                "Geçerli bir sınırlayıcı kutu gerekli: -180 ≤ west < east ≤ 180 ve -90 ≤ south < north ≤ 90.");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return ApiProblem.Validation(ModelState.ToDictionary(
+                kvp => kvp.Key,
+                kvp => kvp.Value!.Errors.Select(e => e.ErrorMessage).ToArray()));
+        }
+
+        // SRID 4326'da bbox poligonu: GiST indeksini kullanan ST_Intersects ile eşleşir.
+        var boundsGeom = new GeometryFactory(new PrecisionModel(), 4326)
+            .ToGeometry(new Envelope(west, east, south, north));
+
+        var items = await _context.Properties
+            .AsNoTracking()
+            .Where(p => p.Geom.Intersects(boundsGeom))
+            .OrderBy(p => p.Id)
+            .Take(MaximumPropertyCount)
+            .Select(p => new MapPropertyDto(
+                p.Id,
+                p.ExternalRef,
+                p.Geom.Y,
+                p.Geom.X,
+                p.MonthlyRent,
+                p.AreaM2,
+                p.RoomCount,
+                p.BuildingAge,
+                p.HasElevator,
+                p.IsSynthetic))
+            .ToListAsync(cancellationToken);
+
+        return Ok(items);
     }
 }
