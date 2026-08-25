@@ -10,6 +10,10 @@ import '../../../location_search/presentation/widgets/location_search_panel.dart
 import '../../../location_analysis/domain/location_analysis.dart';
 import '../../../location_analysis/presentation/widgets/location_analysis_controls.dart';
 import '../../../map/presentation/widgets/cankaya_map.dart';
+import '../../../map_data/application/map_data_controller.dart';
+import '../../../map_data/data/api_map_data_gateway.dart';
+import '../../../map_data/presentation/widgets/map_item_details_sheet.dart';
+import '../../../map_data/presentation/widgets/map_layer_button.dart';
 import '../../../preferences/domain/life_criteria.dart';
 import '../../../preferences/presentation/widgets/life_criteria_order_list.dart';
 import '../../../../shared/widgets/budget_range_fields.dart';
@@ -95,6 +99,7 @@ class _MapOverview extends StatefulWidget {
 
 class _MapOverviewState extends State<_MapOverview> {
   late final LocationSearchController _searchController;
+  late final MapDataController _mapDataController;
   LocationSearchResult? _mapFocus;
   AnalysisCoordinate? _analysisCenter;
   double _analysisRadiusKm = defaultAnalysisRadiusKm;
@@ -106,11 +111,17 @@ class _MapOverviewState extends State<_MapOverview> {
     _searchController = LocationSearchController(
       ApiLocationSearchGateway(widget.controller.client),
     );
+    _mapDataController = MapDataController(
+      gateway: ApiMapDataGateway(widget.controller.client),
+      authenticated: true,
+    );
+    _mapDataController.initialize();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _mapDataController.dispose();
     super.dispose();
   }
 
@@ -171,21 +182,43 @@ class _MapOverviewState extends State<_MapOverview> {
               child: Stack(
                 children: [
                   Positioned.fill(
-                    child: CankayaMap(
-                      anchors: anchors,
-                      focus: _mapFocus,
-                      analysisCenter: _analysisCenter,
-                      analysisRadiusKm: _analysisRadiusKm,
-                      walkingMinutes: _walkingMinutes,
-                      onMapTap: (latitude, longitude) {
-                        setState(() {
-                          _mapFocus = null;
-                          _analysisCenter = AnalysisCoordinate(
-                            latitude: latitude,
-                            longitude: longitude,
-                          );
-                        });
-                      },
+                    child: AnimatedBuilder(
+                      animation: _mapDataController,
+                      builder:
+                          (context, _) => CankayaMap(
+                            anchors: anchors,
+                            focus: _mapFocus,
+                            analysisCenter: _analysisCenter,
+                            analysisRadiusKm: _analysisRadiusKm,
+                            walkingMinutes: _walkingMinutes,
+                            pois: _mapDataController.pois,
+                            properties:
+                                _mapDataController.propertiesVisible
+                                    ? _mapDataController.properties
+                                    : const [],
+                            onBoundsChanged: _mapDataController.updateViewport,
+                            onPoiTap: (poi) {
+                              showPoiDetailsSheet(
+                                context,
+                                poi: poi,
+                                category: _mapDataController.categoryFor(
+                                  poi.categoryCode,
+                                ),
+                              );
+                            },
+                            onPropertyTap:
+                                (property) =>
+                                    showPropertyDetailsSheet(context, property),
+                            onMapTap: (latitude, longitude) {
+                              setState(() {
+                                _mapFocus = null;
+                                _analysisCenter = AnalysisCoordinate(
+                                  latitude: latitude,
+                                  longitude: longitude,
+                                );
+                              });
+                            },
+                          ),
                     ),
                   ),
                   Positioned(
@@ -207,6 +240,11 @@ class _MapOverviewState extends State<_MapOverview> {
                         setState(() => _mapFocus = null);
                       },
                     ),
+                  ),
+                  Positioned(
+                    top: 76,
+                    right: 12,
+                    child: MapLayerButton(controller: _mapDataController),
                   ),
                   Positioned(
                     left: 12,

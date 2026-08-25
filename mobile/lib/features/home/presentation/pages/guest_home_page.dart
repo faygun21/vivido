@@ -5,6 +5,10 @@ import '../../../auth/application/session_controller.dart';
 import '../../../auth/presentation/pages/login_page.dart';
 import '../../../auth/presentation/pages/register_page.dart';
 import '../../../map/presentation/widgets/cankaya_map.dart';
+import '../../../map_data/application/map_data_controller.dart';
+import '../../../map_data/data/api_map_data_gateway.dart';
+import '../../../map_data/presentation/widgets/map_item_details_sheet.dart';
+import '../../../map_data/presentation/widgets/map_layer_button.dart';
 
 /// Misafir ana ekranı — W0.
 ///
@@ -14,20 +18,43 @@ import '../../../map/presentation/widgets/cankaya_map.dart';
 ///
 /// Kilitli özellikleri gizlemek yerine GÖSTERİP sebebini yazıyoruz —
 /// "burada ne kaçırıyorum?" sorusunun cevabı kayıt olmanın tek gerekçesi.
-class GuestHomePage extends StatelessWidget {
+class GuestHomePage extends StatefulWidget {
   const GuestHomePage({required this.controller, super.key});
 
   final SessionController controller;
 
+  @override
+  State<GuestHomePage> createState() => _GuestHomePageState();
+}
+
+class _GuestHomePageState extends State<GuestHomePage> {
+  late final MapDataController _mapDataController;
+
+  @override
+  void initState() {
+    super.initState();
+    _mapDataController = MapDataController(
+      gateway: ApiMapDataGateway(widget.controller.client),
+      authenticated: false,
+    );
+    _mapDataController.initialize();
+  }
+
+  @override
+  void dispose() {
+    _mapDataController.dispose();
+    super.dispose();
+  }
+
   void _openAuth(BuildContext context, {required bool register}) {
-    controller.clearError();
+    widget.controller.clearError();
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder:
             (_) =>
                 register
-                    ? RegisterPage(controller: controller)
-                    : LoginPage(controller: controller),
+                    ? RegisterPage(controller: widget.controller)
+                    : LoginPage(controller: widget.controller),
       ),
     );
   }
@@ -67,7 +94,47 @@ class GuestHomePage extends StatelessWidget {
             children: [
               // Misafirde anchor yok — boş liste geçiyoruz, harita bileşeni
               // giriş yapmış kullanıcıdakiyle birebir aynı kalıyor.
-              const Expanded(child: CankayaMap(anchors: <Anchor>[])),
+              Expanded(
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: AnimatedBuilder(
+                        animation: _mapDataController,
+                        builder:
+                            (context, _) => CankayaMap(
+                              anchors: const <Anchor>[],
+                              pois: _mapDataController.pois,
+                              properties:
+                                  _mapDataController.propertiesVisible
+                                      ? _mapDataController.properties
+                                      : const [],
+                              onBoundsChanged:
+                                  _mapDataController.updateViewport,
+                              onPoiTap: (poi) {
+                                showPoiDetailsSheet(
+                                  context,
+                                  poi: poi,
+                                  category: _mapDataController.categoryFor(
+                                    poi.categoryCode,
+                                  ),
+                                );
+                              },
+                              onPropertyTap:
+                                  (property) => showPropertyDetailsSheet(
+                                    context,
+                                    property,
+                                  ),
+                            ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 12,
+                      right: 12,
+                      child: MapLayerButton(controller: _mapDataController),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 12),
               _LockedFeaturesCard(
                 onRegister: () => _openAuth(context, register: true),
