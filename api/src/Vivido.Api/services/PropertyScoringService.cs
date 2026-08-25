@@ -13,7 +13,11 @@ using Vivido.Scoring;
 public class PropertyScoringService
 {
     private readonly VividoDbContext _context;
-    private const string CurrentScoringVersion = "v1.0"; 
+    // v1.1: yumuşak tavan (Yol A) eklendi — eski sürümle hesaplanmış skorlar
+    // artık geçersiz, versiyon farkı sayesinde cache'ten okunmayıp otomatik
+    // yeniden hesaplanıyorlar. (Bu sürüm numarası birkaç commit boyunca
+    // eklenecek zayıf halka cezası ve yoğunluk sinyalini de kapsayacak.)
+    private const string CurrentScoringVersion = "v1.1";
 
     public PropertyScoringService(VividoDbContext context)
     {
