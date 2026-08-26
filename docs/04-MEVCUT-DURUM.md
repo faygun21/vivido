@@ -607,3 +607,108 @@ pnpm db:check
 | 7 | **Skor cache yok** | Bilinçli — 3 haftalık plan Redis'i kesti. `redis` servisi kökteki compose'da duruyor ama **kod hiç kullanmıyor**; staging'de hiç açılmıyor |
 | 8 | **Test kapsamı düşük** | `Category=Golden` / `Invariant` trait'i taşıyan tek test yok; kapılar boşa çalışıyor. Playwright kurulu değil |
 | 9 | **Mobil derlenmedi** | Flutter geliştirme makinesinde kurulu değil; `flutter analyze` ve `flutter test` **çalıştırılamadı**. Kod yazıldı, doğrulanmadı |
+
+### 5.15 🔴 Staging'de rota oluşturma hiç çalışmadı — iki ayrı yapılandırma eksiği
+
+**Tarih:** 2026-08-26 · **Düzeltildi**
+
+Rota özelliği yerelde sorunsuz çalışıyordu; `https://vividoapp.xyz` üzerinde
+"Rota Oluştur" her seferinde başarısız oluyordu. İki bağımsız sebep vardı ve
+**ikisi de kod değil, `deploy/docker-compose.prod.yml`**:
+
+**1. OSRM konteynerleri hiç başlamıyordu.** `osrm-foot` ve `osrm-car`
+servisleri `profiles: ["routing"]` altındaydı ve üstünde *"Hafta 3'te rota
+devreye girince açılacak"* notu duruyordu. Deploy iş akışı düz
+`docker compose up -d` çalıştırıyor; profil adı verilmeyen bir servis ayağa
+kalkmaz, compose ikisini de **sessizce atlıyordu**.
+
+**2. API, OSRM'in adresini bilmiyordu.** Prod compose'da api servisine
+`Routing__CarUrl` / `Routing__FootUrl` **hiç verilmemişti**. `OsrmOptions`
+varsayılanı `http://localhost:5002` — konteynerin içinde `localhost` API'nin
+KENDİSİ demek. İstek bağlantı reddine düşüyor, `RoutesController`
+`ApiProblem.OsrmUnavailable()` ile **503** dönüyordu. Kökteki
+`docker-compose.yml` bu iki satırı taşıyordu; prod dosyasına hiç geçmemişti.
+
+**Neden hiçbir alarm çalmadı:** duman testi `/health/ready`, `/`,
+`/tiles/data/v3.json` ve worker parçasına bakıyordu — hepsi 200. Site
+tamamen sağlıklı görünürken yalnızca tek bir düğme çalışmıyordu.
+[K-13](02-KARARLAR.md#k-13)'ün *"ayakta olmak ile çalışıyor olmak aynı şey
+değil"* dersinin ikinci tekrarı.
+
+**Düzeltme:** iki `Routing__*` satırı eklendi, `profiles: ["routing"]`
+kaldırıldı ve duman testine **API konteynerinden `osrm-car`'a curl** atan
+bir adım eklendi — bu sınıf arıza bir daha yeşil görünemez.
+
+> ⚠️ Kalan ön koşul: sunucuda `./data/artifacts/osrm/{foot,car}/cankaya.osrm.*`
+> bulunmalı (`data-v1` release'i). Yoksa OSRM konteyneri açılışta ölür ve rota
+> yine 503 döner — duman testi artık bunu da yakalar.
+
+### 5.16 🟠 Canlı konum hiç görünmüyordu ve rota çizgisi çizilmiyordu — aynı kök neden
+
+**Tarih:** 2026-08-26 · **Düzeltildi**
+
+İki ayrı belirti, tek sınıf hata: **"hazır" sanılan bir bayrağa dayanan efekt
+bir kez çalışıp sessizce vazgeçiyor ve bir daha denenmiyor.**
+
+**(a) Canlı konum.** `CankayaMap` içindeki GPS efekti `[]` bağımlılığıyla
+yalnızca mount'ta çalışıyor ve `if (!map) return` ile çıkıyordu. Harita
+asenkron kuruluyor (iki GeoJSON `fetch`'i), dolayısıyla mount anında `mapRef`
+boş. İzin ÖNCEDEN verilmişse tarayıcı hiç sormaz, geri çağrı anında döner,
+harita hazır değildir ve işaretçi **bir daha denenmeden düşer**. Kullanıcının
+bildirdiği tablo tam olarak buydu: *"izin istemedi ve konumumu görmedim."*
+
+**(b) Rota çizgisi.** `setStatus('hazir')` `setup()` sonunda **senkron**
+kuruluyordu; oysa MapLibre stili asenkron yükler ve `getSource(...)` stil
+yüklenene kadar `undefined` döner. `rota` kaynağına yazan efekt bu yüzden
+erken çalışıp vazgeçiyordu. Rota Profil'den gelindiğinde store'da HAZIR
+olduğu için efekt bir daha tetiklenmiyor ve **çizgi hiç çizilmiyordu**.
+
+Diğer kaynaklar (`konutlar`, `pois`, `mahalleler`) kırılmıyordu çünkü
+verileri React Query'den sonradan gelip efekti yeniden tetikliyor.
+
+**Neden teşhisi zor:** duraklar ve `fitBounds` çalışıyordu — ikisi de
+`getSource` istemez. Arıza "yarısı çalışıyor" gibi görünüyor, konsolda tek
+satır hata yok.
+
+**Düzeltme:**
+- Konum ayrı bir kancaya taşındı (`shared/map/useUserLocation.ts`): koordinatı
+  üretmek ile haritaya çizmek ayrıldı, konum önce gelse de kaybolmuyor.
+  Ayrıca `timeout`, güvenli-kaynak (HTTPS) kontrolü ve izin reddi için
+  kullanıcıya gösterilen açıklama eklendi (eskiden yalnızca `console.warn`).
+- `status = 'hazir'` artık **stil yüklendikten sonra** kuruluyor
+  (`map.isStyleLoaded()` ya da `map.once('load')`).
+
+### 5.17 🟠 Rota kaydedilmeden önce görülemiyordu — her deneme çöp bırakıyordu
+
+**Tarih:** 2026-08-26 · **Düzeltildi**
+
+`POST /routes` hesaplayıp **anında kaydediyordu**. Kullanıcı rotayı ancak
+kaydedildikten sonra görebiliyor, beğenmediği her deneme "Kayıtlı
+Rotalarım"da kalıcı çöp bırakıyordu. Üstelik rota adı, rota daha
+görülmeden isteniyordu.
+
+**Düzeltme — akış ikiye ayrıldı:**
+
+| Adım | Uç nokta | Ne yapar |
+|---|---|---|
+| 1. Önizleme | `POST /routes/preview` | TSP + OSRM çalışır, rota haritada çizilir. **Hiçbir şey yazılmaz** (`id` boş, `isSaved: false`) |
+| 2. Kaydetme | `POST /routes` | Kullanıcı beğenirse: ad + isteğe bağlı tarih/saat sorulur, kaydedilir |
+
+Kaydetme yeniden hesaplıyor. TSP ve OSRM aynı girdi için deterministik
+olduğundan sonuç birebir aynı; alternatifi istemcinin hesaplanmış geometriyi
+geri göndermesiydi — o da istemciye mesafe/süre uydurma imkânı verirdi.
+
+**Ayrıca bu turda:**
+
+- **Başlangıç seçimi tek bir konum kutusunda birleşti.** Önceden ayrı bir
+  "Konumumu kullan" düğmesi ve ayrı bir adres arama kutusu vardı; ikisi de
+  aynı soruyu cevapladığı hâlde iki farklı mekanizma gibi görünüyordu. Artık
+  Google Maps'teki gibi tek kutu: açılınca en üstte canlı konum, altında
+  **yazdıkça** gelen adres önerileri (300 ms debounce + `AbortController`).
+- **"Sıfırla" artık veri silmiyor** — yalnızca ekranı ve oluşturucuyu
+  temizliyor. Kayıtlı rota Profil'de duruyor.
+- **Kayıtlı Rotalarım'a silme düğmesi** eklendi. İki adımlı onay: silme geri
+  alınamaz, tek tıkla silmek listeye göz atarken rota kaybettirirdi.
+- **Planlanan ziyaret zamanı** (`routes.scheduled_at`, migration 013) —
+  kayıtlı rotalarda "🗓 29 Ağustos Cumartesi 14:00" olarak görünüyor.
+  ⚠️ **Bildirim GÖNDERMİYOR**; gerekçe ve ön koşullar `backlog/v2.md`'de.

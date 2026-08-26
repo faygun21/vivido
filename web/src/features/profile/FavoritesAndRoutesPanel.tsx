@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { api } from '@/shared/api/client';
 import { useSessionQuery } from '@/shared/api/sessionQuery';
+import { formatScheduledAt } from '@/features/explore/RouteBuilderPanel';
 import { useRouteStore } from '@/shared/route/routeStore';
 import {
   formatRouteDistance,
@@ -34,8 +36,13 @@ import { BAND_LABEL, formatRent, splitAddress } from '@/features/explore/propert
 export function FavoritesAndRoutesPanel() {
   const navigate = useNavigate();
   const setActiveRoute = useRouteStore((s) => s.setActiveRoute);
+  const activeRoute = useRouteStore((s) => s.activeRoute);
   const [loadingRouteId, setLoadingRouteId] = useState<string | null>(null);
   const [openError, setOpenError] = useState<string | null>(null);
+  // Silme iki adımlı: hangi rotanın onayı bekliyor + hangisi siliniyor.
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingRouteId, setDeletingRouteId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   // Favorileri Çekme İsteği
   const { data: favorites, isLoading: isFavoritesLoading } = useSessionQuery({
@@ -61,6 +68,23 @@ export function FavoritesAndRoutesPanel() {
       setOpenError('Rota açılamadı. Kısa süre sonra tekrar dene.');
     } finally {
       setLoadingRouteId(null);
+    }
+  }
+
+  async function removeRoute(id: string) {
+    setOpenError(null);
+    setDeletingRouteId(id);
+    try {
+      await api.delete(`/routes/${id}`);
+      // Açık olan rota silindiyse haritadaki çizgi de kalkmalı; aksi halde
+      // artık var olmayan bir rotayı gösterirdik.
+      if (activeRoute?.id === id) setActiveRoute(null);
+      void queryClient.invalidateQueries({ queryKey: ['routes'] });
+      setConfirmDeleteId(null);
+    } catch {
+      setOpenError('Rota silinemedi. Kısa süre sonra tekrar dene.');
+    } finally {
+      setDeletingRouteId(null);
     }
   }
 
@@ -96,13 +120,17 @@ export function FavoritesAndRoutesPanel() {
           <ul className="item-list">
             {routes.map((route) => {
               const loading = loadingRouteId === route.id;
+              const deleting = deletingRouteId === route.id;
               return (
-                <li key={route.id}>
+                <li key={route.id} className="saved-route-item">
+                  {/* Satırın TAMAMI değil, içindeki düğme tıklanabilir:
+                      silme düğmesi de bir <button> ve iç içe iki tıklanabilir
+                      öge geçersiz HTML'dir. */}
                   <button
                     className="saved-route-row"
                     type="button"
                     onClick={() => openRoute(route.id)}
-                    disabled={loadingRouteId !== null}
+                    disabled={loadingRouteId !== null || deleting}
                   >
                     <span className="saved-route-main">
                       <strong>{route.name}</strong>
@@ -110,6 +138,11 @@ export function FavoritesAndRoutesPanel() {
                         {route.stopCount} durak · {formatRouteDistance(route.totalDistanceM)} ·{' '}
                         {formatRouteDuration(route.totalDurationS)}
                       </span>
+                      {route.scheduledAt && (
+                        <span className="saved-route-schedule">
+                          🗓 {formatScheduledAt(route.scheduledAt)}
+                        </span>
+                      )}
                     </span>
                     <span className="route-mode-badge">{travelModeLabel(route.mode)}</span>
                     {loading && (
@@ -118,6 +151,40 @@ export function FavoritesAndRoutesPanel() {
                       </span>
                     )}
                   </button>
+
+                  {/* Silme geri alınamaz, o yüzden iki adımlı: ilk tıklama
+                      onay ister. Tek tıkla silmek, listeye göz atarken
+                      yanlışlıkla rota kaybettirirdi. */}
+                  {confirmDeleteId === route.id ? (
+                    <span className="saved-route-confirm">
+                      <button
+                        className="btn-chip is-danger"
+                        type="button"
+                        onClick={() => removeRoute(route.id)}
+                        disabled={deleting}
+                      >
+                        {deleting ? 'Siliniyor…' : 'Sil'}
+                      </button>
+                      <button
+                        className="btn-chip"
+                        type="button"
+                        onClick={() => setConfirmDeleteId(null)}
+                        disabled={deleting}
+                      >
+                        Vazgeç
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      className="btn-icon saved-route-delete"
+                      type="button"
+                      onClick={() => setConfirmDeleteId(route.id)}
+                      aria-label={`${route.name} rotasını sil`}
+                      title="Rotayı sil"
+                    >
+                      🗑
+                    </button>
+                  )}
                 </li>
               );
             })}

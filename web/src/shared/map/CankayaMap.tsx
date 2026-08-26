@@ -27,6 +27,7 @@ import {
   createAnalysisAreaPolygon,
   type AnalysisRadiusKm,
 } from './analysisArea';
+import type { UserLocation } from './useUserLocation';
 import type { AnchorSweetSpotResult } from './anchorSweetSpot';
 import type { Poi, RouteDetail, RouteStop } from '@vivido/shared';
 import { poiCategoryColor, POI_CATEGORY_COLORS, POI_FALLBACK_COLOR } from './poiColors';
@@ -175,6 +176,16 @@ interface CankayaMapProps {
   poiCategoryNames?: Record<string, string>;
   /** Harita taşındığında görünüm alanını (bbox) yukarı bildirir. */
   onBoundsChange?: (bounds: MapBounds) => void;
+  /**
+   * Kullanıcının canlı konumu — haritadaki mavi nokta.
+   *
+   * ⚠️ Bileşen bunu KENDİSİ İSTEMİYOR, dışarıdan alıyor: aynı koordinat rota
+   * başlangıcı olarak da kullanılıyor. İçeride ayrıca `getCurrentPosition`
+   * çağırsaydık tarayıcı iki kez izin sorar ve iki farklı okuma yüzünden
+   * haritadaki nokta ile rotanın başladığı yer birbirini tutmazdı.
+   * Kaynak: `useUserLocation` (ExplorePage).
+   */
+  userLocation?: UserLocation | null;
   /**
    * R-121 — oluşturulmuş ziyaret rotası. Verilirse `rota` GeoJSON kaynağına
    * çizgi yazılır, duraklar numaralı mavi pinlerle basılır ve harita rotanın
@@ -759,6 +770,7 @@ export function CankayaMap({
   poiCategoryNames,
   onBoundsChange,
   route = null,
+  userLocation = null,
   anchorArea = null,
 }: CankayaMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -845,6 +857,34 @@ export function CankayaMap({
           if (!map || map.hasImage('ev-ikon')) return;
           map.addImage('ev-ikon', drawHouseIcon());
         });
+
+        /**
+         * ⭐ `status = 'hazir'` STİL YÜKLENDİKTEN SONRA kurulur.
+         *
+         * DÜZELTİLEN HATA — rota çizgisi haritada hiç görünmüyordu.
+         *
+         * Bayrak eskiden `setup()` sonunda SENKRON kuruluyordu; oysa MapLibre
+         * stili asenkron yükler. `getSource(...)` stil yüklenene kadar
+         * `undefined` döner, dolayısıyla ona bakan her efekt
+         * (`if (!source) return`) sessizce vazgeçiyordu. Bağımlılığı bir daha
+         * değişmeyen efekt de BİR DAHA DENENMİYORDU.
+         *
+         * Neden yalnızca rota kırılıyordu: `konutlar`, `pois`, `mahalleler`
+         * verileri React Query'den SONRADAN geliyor, efektleri yeniden
+         * çalışıyor ve o sırada stil hazır oluyor. Rota ise Profil'den
+         * gelindiğinde store'da HAZIR: efekt bir kez, çok erken çalışıyor ve
+         * çizgi hiç çizilmiyordu. Duraklar ve `fitBounds` çalıştığı için
+         * (ikisi de `getSource` istemez) arıza "yarısı çalışıyor" gibi
+         * görünüyordu.
+         *
+         * `once` yerine önce `isStyleLoaded()`: olay biz dinlemeye başlamadan
+         * ateşlenmişse harita sonsuza kadar "yükleniyor" durumunda kalırdı.
+         */
+        const markReady = () => {
+          if (!cancelled) setStatus('hazir');
+        };
+        if (map.isStyleLoaded()) markReady();
+        else map.once('load', markReady);
 
         map.addControl(new NavigationControl({ showCompass: false }), 'top-right');
         // ODbL: atıf kapatılamaz olmalı.
@@ -941,7 +981,9 @@ export function CankayaMap({
           setHoveredName(null);
         });
 
-        setStatus('hazir');
+        // NOT: `setStatus('hazir')` buradan KALDIRILDI — yukarıdaki
+        // `markReady` stil yüklenince kuruyor. Burada kurmak, kaynaklar
+        // henüz yokken "hazır" demek oluyordu.
       } catch (err) {
         console.error('Çankaya GeoJSON katmanları yüklenemedi', err);
         if (!cancelled) {
@@ -964,35 +1006,35 @@ export function CankayaMap({
 
 
   // ── Kullanıcının GPS konumu ──
-useEffect(() => {
-  if (!navigator.geolocation) return;
+  //
+  // ⚠️ `status` BAĞIMLILIĞI ŞART. Önceki hâli `[]` ile yalnızca mount'ta
+  // çalışıyor ve `if (!map) return` ile sessizce vazgeçiyordu. Harita
+  // asenkron kurulduğu (iki GeoJSON `fetch`'i) için mount anında `mapRef`
+  // hâlâ boş; izin ÖNCEDEN verilmişse geri çağrı anında döner, harita
+  // hazır değildir ve işaretçi bir daha denenmeden düşerdi. Sonuç:
+  // kullanıcı ne izin penceresi görürdü ne de konumunu.
+  //
+  // Artık koordinat `useUserLocation` içinde tutuluyor; burası yalnızca
+  // harita hazır olduğunda çiziyor. Konum önce gelse de kaybolmuyor.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== 'hazir') return;
 
-  navigator.geolocation.getCurrentPosition(
-    (position) => {
-      const lat = position.coords.latitude;
-      const lon = position.coords.longitude;
+    userLocationMarkerRef.current?.remove();
+    userLocationMarkerRef.current = null;
 
-      const map = mapRef.current;
-      if (!map) return;
+    if (!userLocation) return;
 
-      const el = document.createElement('div');
-      el.className = 'user-location-marker';
+    const el = document.createElement('div');
+    el.className = 'user-location-marker';
 
-      userLocationMarkerRef.current?.remove();
+    userLocationMarkerRef.current = new Marker({ element: el })
+      .setLngLat([userLocation.lon, userLocation.lat])
+      .setPopup(new Popup({ offset: 16 }).setText('Mevcut konumun'))
+      .addTo(map);
+  }, [userLocation, status]);
 
-      userLocationMarkerRef.current = new Marker({ element: el })
-        .setLngLat([lon, lat])
-        .setPopup(
-          new Popup({ offset: 16 }).setText('Mevcut konum')
-        )
-        .addTo(map);
-    },
-    (error) => {
-      console.warn('Konum alınamadı:', error.message);
-    }
-  );
-}, []);
-  
+
   // ─── İşaretçiler (anchor'lar) ───
   useEffect(() => {
     const map = mapRef.current;

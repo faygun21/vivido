@@ -17,6 +17,14 @@ public class Route
     public required JsonDocument Steps { get; set; } 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// Kullanıcının bu rotayı gezmeyi planladığı an. NULL = plan girilmedi.
+    ///
+    /// ⚠️ Bildirim GÖNDERMEZ — yalnızca saklanır ve kayıtlı rotalar
+    /// listesinde gösterilir (bkz. db/schema/013_add_route_schedule.sql).
+    /// </summary>
+    public DateTime? ScheduledAt { get; set; }
+
     public User User { get; set; } = null!;
     public ICollection<RouteStop> Stops { get; set; } = new List<RouteStop>();
 }

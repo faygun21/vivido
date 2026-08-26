@@ -226,6 +226,24 @@ jobs:
             kontrol "$WK" 200
           fi
 
+          # ⭐ OSRM ayakta mı? Rota oluşturma buna bağlı ve arızası SESSİZ:
+          # site tamamen sağlıklı görünürken yalnızca "Rota Oluştur" 503 döner
+          # ve kimse fark etmez. Staging'de tam olarak bu oldu — osrm servisleri
+          # `profiles: ["routing"]` yüzünden hiç başlamıyordu ve API'ye
+          # `Routing__*` adresleri verilmemişti.
+          #
+          # Konteynerler dışarıya port yayınlamıyor (doğrusu bu), o yüzden
+          # kontrolü sunucunun İÇİNDEN, compose ağı üzerinden yapıyoruz.
+          if ! ssh "${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}" \
+                 'cd /opt/vivido && docker compose -f docker-compose.prod.yml exec -T api \
+                    curl -sf --max-time 10 "http://osrm-car:5000/route/v1/driving/32.85,39.92;32.86,39.93" \
+                    >/dev/null' </dev/null; then
+            echo "::error::API konteynerinden osrm-car'a ulaşılamıyor — rota oluşturma 503 dönecek."
+            HATA=1
+          else
+            echo '  ✓ osrm-car                   API ağından erişilebilir'
+          fi
+
           exit $HATA
 
       - name: Başarısızlıkta sunucu logları

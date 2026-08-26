@@ -74,6 +74,17 @@ services:
       # (Native mobil uygulama CORS'a tabi değildir, tarayıcı mekanizması.)
       Cors__AllowedOrigins: ${Cors__AllowedOrigins:-}
 
+      # ⭐ OSRM ADRESLERİ — BUNLAR OLMADAN ROTA OLUŞTURMA SESSİZCE ÖLÜR.
+      #
+      # `OsrmOptions` varsayılanı `http://localhost:5002` / `:5001`; o değerler
+      # HOST üzerinde `pnpm dev:api` içindir. Konteynerde `localhost` API'nin
+      # KENDİSİ demek, OSRM değil — istek bağlantı reddine düşer, controller
+      # `ApiProblem.OsrmUnavailable()` ile 503 döner ve kullanıcı "rota
+      # oluşturulamadı" görür. Kökteki docker-compose.yml bu iki satırı
+      # taşıyordu, bu dosyada eksikti: staging'de rota bu yüzden hiç çalışmadı.
+      Routing__FootUrl: ${Routing__FootUrl:-http://osrm-foot:5000}
+      Routing__CarUrl: ${Routing__CarUrl:-http://osrm-car:5000}
+
       Auth__RequireEmailVerification: ${Auth__RequireEmailVerification:-true}
       Email__Provider: ${Email__Provider:-smtp}
       Email__Host: ${Email__Host:-smtp.gmail.com}
@@ -126,12 +137,21 @@ services:
     volumes:
       - ./data/artifacts:/data:ro
 
-  # Hafta 3'te rota/TSP devreye girince açılacak.
-  # Şimdiden ayakta tutmak boşa ~300 MB RAM.
+  # ⭐ `profiles: ["routing"]` KALDIRILDI — rota özelliği yayında.
+  #
+  # Bu iki servis "Hafta 3'te açılacak" notuyla profil arkasındaydı ve deploy
+  # iş akışı düz `docker compose up -d` çalıştırdığı için HİÇ BAŞLAMIYORDU.
+  # Profilli bir servis, profil adı verilmeden ayağa kalkmaz; `up -d` onları
+  # sessizce atlıyordu. API tarafındaki eksik `Routing__*` ile birlikte,
+  # staging'de rota oluşturmanın çalışmamasının iki sebebinden biri buydu.
+  #
+  # ⚠️ ÖN KOŞUL: sunucuda `./data/artifacts/osrm/{foot,car}/cankaya.osrm.*`
+  # dosyaları bulunmalı (data-v1 release'i). Yoksa konteyner açılışta
+  # "Could not open .osrm" ile ölür ve rota yine 503 döner — bu durumda
+  # `docker compose logs osrm-car` bunu açıkça yazar.
   osrm-foot:
     image: ghcr.io/project-osrm/osrm-backend:latest
     container_name: vivido-osrm-foot
-    profiles: ["routing"]
     restart: unless-stopped
     command: osrm-routed --algorithm mld --max-table-size 200 /data/cankaya.osrm
     volumes:
@@ -140,7 +160,6 @@ services:
   osrm-car:
     image: ghcr.io/project-osrm/osrm-backend:latest
     container_name: vivido-osrm-car
-    profiles: ["routing"]
     restart: unless-stopped
     command: osrm-routed --algorithm mld --max-table-size 200 /data/cankaya.osrm
     volumes:
