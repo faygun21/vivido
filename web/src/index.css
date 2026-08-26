@@ -1191,6 +1191,11 @@ button svg,
 
 .score-table-contrib { font-variant-numeric: tabular-nums; font-weight: 600; }
 
+/* Zayıf/uyarı durumundaki kategorinin katkı payı — "+" işareti olmadan,
+   status-dot ile aynı tonda: bu payın düşük bir puandan geldiği, bir
+   kazanç olmadığı görsel olarak da belli olsun. */
+.score-table-contrib--weak { color: #9a3412; font-weight: 500; }
+
 .status-dot {
   width: 0.5rem;
   height: 0.5rem;

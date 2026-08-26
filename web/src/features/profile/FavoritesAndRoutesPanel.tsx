@@ -160,7 +160,7 @@ function FavoriteCardBody({ property, addedAt }: { property: PropertySummary; ad
   return (
     <li className="favorite-card">
       <span className={`favorite-score score-badge--${property.band}`}>
-        <strong>{Math.round(property.totalScore)}</strong>
+        <strong>{property.totalScore.toFixed(1)}</strong>
         <span>{BAND_LABEL[property.band]}</span>
       </span>
 

@@ -40,7 +40,11 @@ export function PropertyDetailPanel({ property, onClose, onBack }: PropertyDetai
 
   const { score } = property;
   const address = splitAddress(property.address);
-  const rounded = Math.round(score.total);
+  // Bilerek yuvarlanmıyor: skorlar artık (Yol A + zayıf halka cezası +
+  // yoğunluk bonusu ile) çok daha ayrışık — tam sayıya yuvarlamak farklı
+  // evleri yeniden aynı görünen puana taşırdı (örn. 96.4 ile 96.6 ikisi de
+  // "96" gösterip aradaki farkı gizlerdi).
+  const displayTotal = score.total.toFixed(1);
 
   // Kırılım boşsa (erişim matrisi eksik bir konut) tabloyu hiç çizmiyoruz —
   // boş bir "Neden?" başlığı, olmayan bir açıklamayı vaat eder.
@@ -60,7 +64,7 @@ export function PropertyDetailPanel({ property, onClose, onBack }: PropertyDetai
 
       <header className="property-panel-head">
         <div className={`score-badge score-badge--${score.band}`}>
-          <strong>{rounded}</strong>
+          <strong>{displayTotal}</strong>
           <span>/ 100</span>
         </div>
 
@@ -140,7 +144,7 @@ export function PropertyDetailPanel({ property, onClose, onBack }: PropertyDetai
 
         {hasBreakdown && (
           <section className="property-section">
-            <h3>Bu ev sana neden {rounded} puan?</h3>
+            <h3>Bu ev sana neden {displayTotal} puan?</h3>
             <p className="muted score-explainer">
               Puan, senin personana göre ağırlıklandırılmış <strong>yürüme süreleridir</strong>.
               Her kriter hedefine ne kadar yakınsa o kadar puan getirir; yakında{' '}
@@ -210,11 +214,23 @@ export function PropertyDetailPanel({ property, onClose, onBack }: PropertyDetai
                       <th scope="col">Kriter</th>
                       <th scope="col">Süre</th>
                       <th scope="col">Puan</th>
-                      <th scope="col">Katkı</th>
+                      <th scope="col" title="Puan × ağırlık — kategorinin ağırlıklı ortalamadaki payı. Kötü bir kategori de pozitif bir pay taşır; bu bir ödül değil, sadece o kategorinin payı ne kadar KÜÇÜLDÜĞÜNÜN göstergesidir.">
+                        Katkı
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {score.rows.map((row) => (
+                    {score.rows.map((row) => {
+                      // Katkı payı matematiksel olarak HER ZAMAN pozitiftir
+                      // (puan × ağırlık), kötü bir kategoride bile — "+" işareti
+                      // bunu bir ödül gibi gösterip kullanıcıyı yanıltıyordu
+                      // (bkz. Eczane örneği: 48 puan alıp yine de "+6.7" ile
+                      // "iyi gidiyor" izlenimi veriyordu). Zayıf/uyarı
+                      // durumundaki satırlarda "+" işaretini ve rengini
+                      // kaldırıyoruz ki bu satırın esasen düşük bir puandan
+                      // geldiği belli olsun.
+                      const contribIsWeak = row.status === 'warning' || row.status === 'weak';
+                      return (
                       <tr key={row.categoryCode}>
                         <th scope="row">
                           <span className={`status-dot status-dot--${row.status}`} aria-hidden="true" />
@@ -233,9 +249,13 @@ export function PropertyDetailPanel({ property, onClose, onBack }: PropertyDetai
                           <span className="muted table-target">hedef ≤{formatMinutes(row.targetMin)}</span>
                         </td>
                         <td>{Math.round(row.subScore)}</td>
-                        <td className="score-table-contrib">+{row.contribution.toFixed(1)}</td>
+                        <td className={`score-table-contrib${contribIsWeak ? ' score-table-contrib--weak' : ''}`}>
+                          {contribIsWeak ? '' : '+'}
+                          {row.contribution.toFixed(1)}
+                        </td>
                       </tr>
-                    ))}
+                      );
+                    })}
 
                     {/* Ceza satırı tablonun İÇİNDE olmalı, yoksa TOPLAM
                         satırların toplamıyla tutmaz ve tablo yalan söyler. */}

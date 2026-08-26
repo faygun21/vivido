@@ -13,9 +13,23 @@ export function formatRent(monthlyRent: number): string {
   return `${monthlyRent.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} ₺`;
 }
 
-/** Dakika değerini okunur hâle getirir: `4.9` → `4,9 dk` */
+/**
+ * Dakika değerini okunur hâle getirir: `4.9` → `4,9 dk`.
+ *
+ * 60 dakikayı geçince saate çeviriyor (`75` → `1 sa 15 dk`) — nadir de olsa
+ * bazı kategorilerin t_cutoff'u saatleri buluyor, "82,3 dk" gibi bir sayı
+ * okuyucunun kafasında saniyede saate çevrilmiyor.
+ */
 export function formatMinutes(minutes: number): string {
-  return `${minutes.toLocaleString('tr-TR', { maximumFractionDigits: 1 })} dk`;
+  if (minutes < 60) {
+    return `${minutes.toLocaleString('tr-TR', { maximumFractionDigits: 1 })} dk`;
+  }
+
+  const totalMinutes = Math.round(minutes);
+  const hours = Math.floor(totalMinutes / 60);
+  const remainingMinutes = totalMinutes % 60;
+
+  return remainingMinutes === 0 ? `${hours} sa` : `${hours} sa ${remainingMinutes} dk`;
 }
 
 /**
