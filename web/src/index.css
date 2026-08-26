@@ -9,12 +9,9 @@
   --accent-ink: #FFFFFF;
   --input-bg: #ECEAE6;
 
-  /* Yükseklikler tek yerde: keşfet ekranı haritayı
-     `100dvh − başlık − alt bilgi` ile tam ekrana yayıyor. */
   --header-h: 3.75rem;
   --footer-h: 2.75rem;
 
-  /* Yükseltme (elevation) — panel/harita katmanları tutarlı gölgelensin. */
   --shadow-sm: 0 1px 2px rgb(51 51 51 / 0.06), 0 1px 3px rgb(51 51 51 / 0.08);
   --shadow-md: 0 4px 14px rgb(51 51 51 / 0.10);
   --shadow-lg: 0 10px 34px rgb(51 51 51 / 0.16);
@@ -25,7 +22,6 @@
   background: var(--bg);
 }
 
-/* Tasarım bütünlüğü için dark mode şimdilik ana palete sabitlendi */
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #F9F4ED;
@@ -110,9 +106,6 @@ a { color: var(--accent); }
 
 .app-nav a { text-decoration: none; }
 
-/* ── Gezinme düğmeleri ──
-   Bağlantılar düğme gibi görünür: hedef alanı büyür, birincil eylem
-   (Kayıt ol) dolu, diğerleri hayalet. */
 .nav-btn {
   display: inline-flex;
   align-items: center;
@@ -394,6 +387,17 @@ button {
 .map-pin { display: grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--accent); color: var(--accent-ink); border: 2px solid #fff; box-shadow: 0 1px 4px rgb(0 0 0 / 0.35); font-size: 0.8rem; font-weight: 700; cursor: default; }
 .map-pin--property { background: #ea580c; cursor: pointer; }
 .map-pin--property:hover { background: #c2410c; }
+.map-pin--analysis { background: #f59e0b; color: #7c2d12; cursor: grab; touch-action: none; }
+.map-pin--analysis:active { cursor: grabbing; }
+/* Kullanıcının anlık konumu */
+.user-location-marker {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #2563eb;
+  border: 3px solid white;
+  box-shadow: 0 0 0 8px rgb(37 99 235 / 20%);
+}
 .anchor-map { height: 320px; border: 1px solid var(--line); border-radius: 1rem; overflow: hidden; margin-bottom: 0.5rem; }
 .anchor-form { display: grid; gap: 0.75rem; padding: 0.9rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--surface); margin-bottom: 1rem; }
 .anchor-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
@@ -635,14 +639,6 @@ button svg,
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   KEŞFET EKRANI
-   ───────────────────────────────────────────────────────────────────
-   Harita bir "panel" değil, ekranın kendisidir. Profil, konum analizi ve
-   harita bilgisi sol üstteki ☰ düğmesinin açtığı çekmecede yüzer; panel
-   açıkken de harita tam genişlikte kalır (yana itmez, üstünü örter).
-   ═══════════════════════════════════════════════════════════════════ */
-
 .explore {
   position: relative;
   height: calc(100vh - var(--header-h) - var(--footer-h));
@@ -677,8 +673,6 @@ button svg,
   display: flex;
   align-items: flex-start;
   gap: 0.6rem;
-  /* Şeridin kendisi tıklamayı geçirir, çocukları yakalar — aksi halde
-     görünmez bir bant haritanın üstünü kaplar ve tıklamaları yerdi. */
   pointer-events: none;
   transition: left 0.22s ease, right 0.22s ease;
 }
@@ -698,8 +692,6 @@ button svg,
   max-width: 30rem;
 }
 
-/* LocationSearch kendini haritaya konumluyordu; şeridin içindeyken akışa
-   girer, yoksa ☰ düğmesinin altında kaybolurdu. */
 .map-topbar-search .location-search {
   position: static;
   width: 100%;
@@ -1086,6 +1078,51 @@ button svg,
 
 .reason-empty { margin: 0; font-size: 0.8rem; }
 .reason-toggle { margin-top: 0.7rem; }
+
+/* ── Zayıf halka cezası ──
+   Bir KRİTER değil, tüm skora uygulanan bir kısıtlama — o yüzden
+   güçlü/zayıf sütunlarının dışında, kendi kutusunda duruyor. */
+.weak-link-note {
+  margin-top: 0.7rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.7rem;
+  border-left: 3px solid #9a3412;
+  background: color-mix(in srgb, #9a3412 8%, var(--surface));
+}
+
+.weak-link-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.weak-link-label { font-size: 0.82rem; font-weight: 700; color: #9a3412; }
+
+.weak-link-points {
+  font-size: 0.95rem;
+  color: #9a3412;
+  font-variant-numeric: tabular-nums;
+}
+
+.weak-link-note p { margin: 0.2rem 0 0; font-size: 0.78rem; }
+
+/* Tablodaki ceza satırı — kategorilerden görsel olarak ayrılsın. */
+.score-table-penalty th,
+.score-table-penalty td {
+  background: color-mix(in srgb, #9a3412 6%, transparent);
+  font-style: italic;
+}
+
+.score-table-penalty .score-table-contrib { color: #9a3412; font-style: normal; }
+
+/* Kriter adının altındaki ikincil bilgi (yoğunluk, ceza kaynağı). */
+.density-hint {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 400;
+  font-style: normal;
+}
 
 /* ── Tam kriter tablosu ── */
 .score-table-wrap {
@@ -1501,8 +1538,6 @@ button svg,
 .drawer-section .field { margin-bottom: 0.7rem; }
 .drawer-section .field > span { display: block; font-size: 0.8rem; }
 
-/* Form alanları giriş ekranı için 1rem iç boşlukla tasarlandı; panelde
-   o ölçü iki seçim kutusuyla ekranı doldurur. */
 .drawer-section .field input,
 .drawer-section .field select {
   padding: 0.6rem 0.75rem;
@@ -1512,9 +1547,6 @@ button svg,
 
 .drawer-actions { display: grid; gap: 0.5rem; }
 
-/* ── Küçük düğme boyları ──
-   `.btn-primary` / `.btn-secondary` giriş formları için 1.1rem punto ve
-   1rem iç boşlukla tasarlandı; panel içinde o ölçü ekranı yiyor. */
 .btn-sm {
   padding: 0.55rem 0.9rem;
   border-radius: 0.7rem;
@@ -1575,9 +1607,6 @@ button svg,
 
 .legend li { display: flex; align-items: center; gap: 0.5rem; }
 
-/* Renkler haritadaki KATMANLARIN aynısı olmalı — efsane, gerçeği anlatır.
-   Değerler `CankayaMap.tsx` içindeki `analiz-alani-*` / `yurume-alani-*`
-   katmanlarından birebir alındı; orada değişirse burası da değişmeli. */
 .area-key {
   width: 0.95rem;
   height: 0.95rem;

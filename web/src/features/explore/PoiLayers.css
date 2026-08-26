@@ -1,0 +1,67 @@
+/* R-108 — katman kontrol paneli + R-110 — MapLibre popup stilleri. */
+
+.poi-layer-panel .poi-layer-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.28rem 0;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.poi-layer-row input[type='checkbox'] {
+  accent-color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.poi-layer-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+.poi-layer-divider {
+  border-top: 1px solid var(--line);
+  margin: 0.5rem 0 0.25rem;
+}
+
+/* ─── R-110 — MapLibre popup ─── */
+
+.maplibregl-popup-content {
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+
+.vivido-popup-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin-bottom: 2px;
+}
+
+.vivido-popup-category {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  margin-bottom: 2px;
+}
+
+.vivido-popup-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.vivido-popup-meta {
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+}
+
+.vivido-popup-rent {
+  color: var(--accent);
+  font-weight: 600;
+}

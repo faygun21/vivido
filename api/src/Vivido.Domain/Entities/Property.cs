@@ -2,6 +2,9 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using NetTopologySuite.Geometries;
 
+// Diğer entity'ler bu ad alanında; `Property` global ad alanında kalmıştı.
+namespace Vivido.Domain.Entities;
+
 [Table("properties")]
 public class Property
 {
@@ -31,7 +34,7 @@ public class Property
     public string RoomCount { get; set; } = null!;
 
     // ─── Detay panelinin "bu ev nasıl bir ev" kısmı ───
-    // Şemada baştan beri vardı, entity'ye yeni eklendi: harita pin'ine
+    // Şemada baştan beri vardı, entity'ye sonradan eklendi: harita pin'ine
     // tıklayınca açılan panel yalnızca kira + m² + skor gösteriyordu.
 
     [Column("floor_no")]
@@ -44,7 +47,7 @@ public class Property
     public short? BuildingAge { get; set; }
 
     [Column("has_elevator")]
-    public bool HasElevator { get; set; }
+    public bool HasElevator { get; set; } = false;
 
     [Column("has_parking")]
     public bool HasParking { get; set; }

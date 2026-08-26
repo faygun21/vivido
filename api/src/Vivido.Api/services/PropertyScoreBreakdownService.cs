@@ -37,7 +37,8 @@ public class PropertyScoreBreakdownService
         double Total,
         IReadOnlyList<ScoreRowDto> Rows,
         IReadOnlyList<ScoreRowDto> Strengths,
-        IReadOnlyList<ScoreRowDto> Weaknesses);
+        IReadOnlyList<ScoreRowDto> Weaknesses,
+        WeakLinkPenaltyDto? WeakLink = null);
 
     /// <summary>
     /// Verilen konutların skor kırılımını TEK sorgu turuyla hesaplar.
@@ -94,6 +95,12 @@ public class PropertyScoreBreakdownService
                         TIdeal: (double)cat.TIdealMin,
                         THalf: (double)cat.THalfMin,
                         TCutoff: (double)cat.TCutoffMin,
+                        // ⚠️ Yoğunluk girdileri PropertyScoringService ile
+                        // BİREBİR aynı olmak zorunda: biri yoğunluğu geçip
+                        // diğeri geçmeseydi listedeki skor ile detaydaki
+                        // gerekçe farklı sayılara dayanırdı.
+                        PoiCountInRadius: access.PoiCountInRadius,
+                        MinPoiCount: cat.MinPoiCount,
                         Code: access.CategoryCode));
                 }
             }
@@ -121,7 +128,9 @@ public class PropertyScoreBreakdownService
                 SubScore: c.SubScore,
                 Weight: Math.Round(c.NormalizedWeight, 3),
                 Contribution: c.Contribution,
-                Status: StatusOf(c.SubScore)))
+                Status: StatusOf(c.SubScore),
+                PoiCountInRadius: c.PoiCountInRadius,
+                DensityFactor: Math.Round(c.DensityFactor, 3)))
             // Katkısı yüksek olan üstte: tablo okunduğunda önce "bu evi ne
             // taşıyor" görünsün.
             .OrderByDescending(r => r.Contribution)
@@ -145,7 +154,28 @@ public class PropertyScoreBreakdownService
             .Take(4)
             .ToList();
 
-        return new Breakdown(engineResult.Total, rows, strengths, weaknesses);
+        // Zayıf halka cezası motorun SON adımında çarpan olarak uygulanıyor,
+        // yani kategori katkılarına dağıtılamaz. Ayrı bir satır olarak
+        // taşıyoruz ki `Σ katkı + ceza == total` tutsun ve kullanıcı puanın
+        // nereye gittiğini görebilsin (01-PROJE-PLANI §6.5'in "CES
+        // düzeltmesi" satırıyla aynı fikir).
+        WeakLinkPenaltyDto? weakLink = null;
+        if (engineResult.WeakLinkCode is not null)
+        {
+            var label = categories.TryGetValue(engineResult.WeakLinkCode, out var weakCat)
+                ? weakCat.DisplayNameTr
+                : engineResult.WeakLinkCode;
+
+            weakLink = new WeakLinkPenaltyDto(
+                CategoryCode: engineResult.WeakLinkCode,
+                Label: label,
+                Points: engineResult.WeakLinkPenalty,
+                WeightedAverage: engineResult.WeightedAverage,
+                Message: $"En zayıf kriterin ({label}) skoru düşük olduğu için "
+                       + "toplam puan ayrıca kısıldı — güçlü kriterler bunu tamamen telafi edemiyor.");
+        }
+
+        return new Breakdown(engineResult.Total, rows, strengths, weaknesses, weakLink);
     }
 
     /// <summary>Alt skoru arayüzdeki renk bandına çevirir.</summary>

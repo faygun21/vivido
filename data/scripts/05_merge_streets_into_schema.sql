@@ -3,7 +3,7 @@
 --
 --  04_merge_osm_into_schema.sql ile aynı gerekçe (K-01): osm2pgsql ara
 --  tabloya yazar, şemadaki gerçek tablo BURADA doldurulur. Böylece
---  `db/schema/009_add_streets.sql` tek doğruluk kaynağı olarak kalır ve
+--  `db/schema/012_add_streets.sql` tek doğruluk kaynağı olarak kalır ve
 --  osm2pgsql `streets` tablosunu düşürüp PK/indeksini yok edemez.
 --
 --  Kullanım (osm2pgsql'den HEMEN SONRA):

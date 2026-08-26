@@ -180,6 +180,26 @@ def main():
         rows,
     )
 
+    print("Yoğunluk sinyali (poi_count_in_radius) hesaplanıyor...")
+    cur.execute(
+        """
+        UPDATE property_poi_access ppa
+        SET poi_count_in_radius = counts.cnt
+        FROM (
+            SELECT p.id AS property_id, c.code AS category_code, count(poi.id) AS cnt
+            FROM properties p
+            CROSS JOIN poi_categories c
+            LEFT JOIN pois poi
+                ON poi.category_code = c.code
+                AND ST_DistanceSphere(p.geom, poi.geom) <= c.search_radius_m
+            WHERE c.active
+            GROUP BY p.id, c.code
+        ) counts
+        WHERE ppa.property_id = counts.property_id
+          AND ppa.category_code = counts.category_code;
+        """
+    )
+
     conn.commit()
     cur.close()
     conn.close()

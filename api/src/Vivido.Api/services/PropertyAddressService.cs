@@ -14,7 +14,7 @@ using Vivido.Infrastructure.Data;
 /// taranırdı. KNN operatörü indeksten sırayla okuduğu için ilk satırı
 /// bulunca duruyor.
 ///
-/// NEDEN TERS GEOKODLAMA DEĞİL — bkz. db/schema/009_add_streets.sql başlığı.
+/// NEDEN TERS GEOKODLAMA DEĞİL — bkz. db/schema/012_add_streets.sql başlığı.
 /// Özet: Nominatim saniyede 1 istek sınırlı ve toplu geokodlamayı yasaklıyor;
 /// 20 konutluk liste 20 saniye sürerdi ve IP yasağı konum aramasını da
 /// birlikte öldürürdü. Aynı OSM verisi zaten yerelde.

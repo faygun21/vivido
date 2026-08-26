@@ -31,7 +31,6 @@ export function ProtectedRoute({
   if (status === 'anonymous') {
     if (allowGuest && isGuest) return <>{children}</>;
 
-    // Nereye gitmek istediğini sakla — giriş sonrası oraya dönsün.
     return <Navigate to="/auth/login" replace state={{ from: location }} />;
   }
 

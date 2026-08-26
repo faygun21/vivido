@@ -744,7 +744,7 @@ başka bir şey de yoktu.
 
 **Karar.**
 
-- `db/schema/009_add_streets.sql` — `streets` tablosu (adlı yol parçaları,
+- `db/schema/012_add_streets.sql` — `streets` tablosu (adlı yol parçaları,
   GiST indeksli).
 - `data/lua/vivido_streets.lua` + `data/scripts/05_load_streets.sh` — mevcut
   `.osm.pbf` kesitinden tek seferlik yükleme. **Tüm ETL yeniden koşmuyor**;

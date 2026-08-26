@@ -19,6 +19,14 @@ public class PropertyPoiAccess
     [Column("distance_m")]
     public int DistanceM { get; set; }
 
+    /// <summary>
+    /// Bu kategoride, konutun arama yarıçapında (poi_categories.search_radius_m)
+    /// kaç POI olduğu — yoğunluk sinyali için. Migration'dan önce yazılmış
+    /// satırlarda null olabilir; skorlama bu durumda çarpanı devre dışı bırakır.
+    /// </summary>
+    [Column("poi_count_in_radius")]
+    public int? PoiCountInRadius { get; set; }
+
     [Column("data_version")]
     public string DataVersion { get; set; } = null!;
 }

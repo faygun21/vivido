@@ -20,7 +20,11 @@ export const HOME_PATH = '/explore';
  * Kimlik doğrulamadan sonra nereye gidileceğini belirler.
  *
  * K-C: profil ilk `PUT /profile` ile oluşur, o yüzden yeni kullanıcıda
- * `GET /profile` 404 döner ve bu "onboarding'e git" sinyalidir.
+ * `GET /profile` 404 döner ve bu "ilk kayıt" sinyalidir — yaşam tarzı
+ * seçimine gider. Profili olan (ister lifestyle ister onboarding'den
+ * geçmiş) kullanıcı zaten HOME_PATH'e gidiyor; oraya tekrar "değiştirmek"
+ * için gelmek istersen `/profile` → "Persona / kira aralığı değiştir"
+ * linki `/onboarding`'e götürüyor.
  */
 export async function routeAfterAuth(
   navigate: (to: string, opts?: { replace?: boolean }) => void,
@@ -30,9 +34,9 @@ export async function routeAfterAuth(
     await api.get('/profile');
     navigate(from ?? HOME_PATH, { replace: true });
   } catch {
-    // 404 → profil yok. Başka bir hata olsa bile onboarding güvenli varış
-    // noktası: kullanıcı oradan profilini oluşturabiliyor.
-    navigate('/onboarding', { replace: true });
+    // 404 → profil yok, ilk kayıt. Başka bir hata olsa bile lifestyle
+    // güvenli varış noktası: kullanıcı oradan profilini oluşturabiliyor.
+    navigate('/lifestyle', { replace: true });
   }
 }
 

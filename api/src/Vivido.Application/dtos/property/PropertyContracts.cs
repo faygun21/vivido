@@ -41,7 +41,37 @@ public record ScoreRowDto(
     double Weight,
     double Contribution,
     /// <summary>`strong` | `good` | `warning` | `weak` — arayüzdeki renk bandı.</summary>
-    string Status
+    string Status,
+    /// <summary>
+    /// Arama yarıçapındaki POI sayısı. ETL bu sütunu doldurmadıysa null —
+    /// o durumda yoğunluk çarpanı da devre dışıdır.
+    /// </summary>
+    int? PoiCountInRadius,
+    /// <summary>
+    /// Yoğunluk çarpanı (0.9–1.1). 1.0 = etkisiz. "300 m'de 1 market" ile
+    /// "5 market" artık aynı skoru vermiyor; kullanıcı farkı görebilsin.
+    /// </summary>
+    double DensityFactor
+);
+
+/// <summary>
+/// Zayıf halka cezası — skorun kategori katkılarıyla AÇIKLANAMAYAN kısmı.
+///
+/// Motor, kullanıcının önemsediği en kötü kategoriye bakıp son skoru çarpan
+/// olarak kısıyor (en fazla yarıya). Bu doğrusal olmadığı için katkı
+/// satırlarına dağıtılamaz: dağıtsaydık "market 18 puan getirdi" satırının
+/// içine sessizce serpiştirilmiş bir ceza olurdu ve kullanıcı puanının nereye
+/// gittiğini göremezdi. Bunun yerine AÇIK bir satır olarak duruyor
+/// (01-PROJE-PLANI §6.5'teki "CES düzeltmesi" satırıyla aynı fikir).
+/// </summary>
+public record WeakLinkPenaltyDto(
+    string CategoryCode,
+    string Label,
+    /// <summary>Puan cinsinden ceza — negatif.</summary>
+    double Points,
+    /// <summary>Ceza uygulanmadan önceki ağırlıklı ortalama.</summary>
+    double WeightedAverage,
+    string Message
 );
 
 /// <summary>
@@ -74,7 +104,13 @@ public record PropertyScoreDetailDto(
     IReadOnlyList<ScoreRowDto> Strengths,
     /// <summary>En çok puan kaybettiren satırlar — "neden uygun değil".</summary>
     IReadOnlyList<ScoreRowDto> Weaknesses,
-    BudgetFitDto Budget
+    BudgetFitDto Budget,
+    /// <summary>
+    /// Zayıf halka cezası. Ceza yoksa (en zayıf kriter de iyiyse) null.
+    ///
+    /// ⭐ DEĞİŞMEZLİK: <c>Σ Rows.Contribution + (WeakLink?.Points ?? 0) == Total</c>
+    /// </summary>
+    WeakLinkPenaltyDto? WeakLink
 );
 
 /// <summary>

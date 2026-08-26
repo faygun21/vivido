@@ -20,7 +20,7 @@
 # ÖN KOŞULLAR
 #   · docker compose --profile etl build etl     (bir kez)
 #   · pnpm infra:up                              (postgis ayakta)
-#   · pnpm db:migrate                            (009_add_streets.sql uygulanmış)
+#   · pnpm db:migrate                            (012_add_streets.sql uygulanmış)
 #   · data/artifacts/cankaya.osm.pbf mevcut      (00_fetch_artifacts.sh)
 #
 # Kullanım:  ./data/scripts/05_load_streets.sh

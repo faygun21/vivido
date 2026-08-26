@@ -143,7 +143,8 @@ export function PropertyDetailPanel({ property, onClose, onBack }: PropertyDetai
             <h3>Bu ev sana neden {rounded} puan?</h3>
             <p className="muted score-explainer">
               Puan, senin personana göre ağırlıklandırılmış <strong>yürüme süreleridir</strong>.
-              Her kriter hedefine ne kadar yakınsa o kadar puan getirir.
+              Her kriter hedefine ne kadar yakınsa o kadar puan getirir; yakında{' '}
+              <strong>kaç tane</strong> olduğu da hesaba katılır.
             </p>
 
             <div className="reason-columns">
@@ -174,6 +175,19 @@ export function PropertyDetailPanel({ property, onClose, onBack }: PropertyDetai
               </div>
             </div>
 
+            {/* Zayıf halka cezası ayrı duruyor çünkü bir KRİTER değil, tüm
+                skora uygulanan bir kısıtlama. Kategori satırlarının arasına
+                koysaydık "bu da bir kriter" sanılırdı. */}
+            {score.weakLink && (
+              <div className="weak-link-note">
+                <div className="weak-link-head">
+                  <span className="weak-link-label">Zayıf halka cezası</span>
+                  <strong className="weak-link-points">{score.weakLink.points.toFixed(1)}</strong>
+                </div>
+                <p className="muted">{score.weakLink.message}</p>
+              </div>
+            )}
+
             <button
               className="btn-chip reason-toggle"
               type="button"
@@ -201,6 +215,13 @@ export function PropertyDetailPanel({ property, onClose, onBack }: PropertyDetai
                         <th scope="row">
                           <span className={`status-dot status-dot--${row.status}`} aria-hidden="true" />
                           {row.label}
+                          {/* Yoğunluk yalnızca fark yarattığında yazılıyor;
+                              1.0 çarpan için "×1.00" basmak gürültü olurdu. */}
+                          {row.poiCountInRadius != null && row.densityFactor !== 1 && (
+                            <span className="muted density-hint">
+                              {row.poiCountInRadius} yer · ×{row.densityFactor.toFixed(2)}
+                            </span>
+                          )}
                         </th>
                         <td>{formatMinutes(row.durationMin)}</td>
                         <td className="muted">≤{formatMinutes(row.targetMin)}</td>
@@ -208,19 +229,41 @@ export function PropertyDetailPanel({ property, onClose, onBack }: PropertyDetai
                         <td className="score-table-contrib">+{row.contribution.toFixed(1)}</td>
                       </tr>
                     ))}
+
+                    {/* Ceza satırı tablonun İÇİNDE olmalı, yoksa TOPLAM
+                        satırların toplamıyla tutmaz ve tablo yalan söyler. */}
+                    {score.weakLink && (
+                      <tr className="score-table-penalty">
+                        <th scope="row">
+                          <span className="status-dot status-dot--weak" aria-hidden="true" />
+                          Zayıf halka cezası
+                          <span className="muted density-hint">{score.weakLink.label}</span>
+                        </th>
+                        <td className="muted">—</td>
+                        <td className="muted">—</td>
+                        <td className="muted">—</td>
+                        <td className="score-table-contrib">{score.weakLink.points.toFixed(1)}</td>
+                      </tr>
+                    )}
                   </tbody>
                   <tfoot>
                     {/*
                       TOPLAM, satırların katkıları TOPLANARAK yazılıyor —
                       `score.total` doğrudan basılmıyor. Backend'de bir
                       tutarsızlık olursa burada anında görünür (W6 kuralı).
+                      Zayıf halka cezası da toplama dahil: motor onu son
+                      adımda çarpan olarak uyguluyor, kategori katkılarına
+                      dağıtılmıyor.
                     */}
                     <tr>
                       <th scope="row" colSpan={4}>
                         TOPLAM
                       </th>
                       <td className="score-table-contrib">
-                        {score.rows.reduce((sum, row) => sum + row.contribution, 0).toFixed(1)}
+                        {(
+                          score.rows.reduce((sum, row) => sum + row.contribution, 0) +
+                          (score.weakLink?.points ?? 0)
+                        ).toFixed(1)}
                       </td>
                     </tr>
                   </tfoot>

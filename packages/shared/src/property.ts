@@ -82,16 +82,43 @@ export interface PropertyScoreRow {
   label: string;
   /** Ölçülen yürüme süresi (dakika) — OSRM foot profili. */
   durationMin: number;
-  /** Bu süreye kadar 100 puan (`t_ideal`). */
+  /**
+   * `t_ideal` — hedef süre.
+   *
+   * ⚠️ "Bu sürenin altında hep 100" ARTIK DOĞRU DEĞİL: motor v1.1 ile tavanı
+   * yumuşattı (Yol A), t_ideal'e yaklaştıkça skor 100'den 92'ye iniyor.
+   */
   targetMin: number;
   /** Bu sürenin ötesi 0 puan (`t_cutoff`). */
   cutoffMin: number;
+  /** Bozunum skoru, yoğunluk çarpanı uygulanmış hâli. */
   subScore: number;
   /** Hesaba giren kategoriler arasında normalize edilmiş ağırlık. */
   weight: number;
-  /** Toplam skora katkısı. Tüm satırların toplamı `total`a eşittir. */
+  /** Ağırlıklı ortalamaya katkısı. Zayıf halka cezası BURAYA dağıtılmaz. */
   contribution: number;
   status: 'strong' | 'good' | 'warning' | 'weak';
+  /** Arama yarıçapındaki POI sayısı; ETL doldurmadıysa null. */
+  poiCountInRadius: number | null;
+  /** Yoğunluk çarpanı (0.9–1.1). 1.0 = etkisiz. */
+  densityFactor: number;
+}
+
+/**
+ * Zayıf halka cezası — skorun kategori katkılarıyla açıklanamayan kısmı.
+ *
+ * Motor son adımda, kullanıcının önemsediği en kötü kategoriye bakıp toplam
+ * skoru çarpan olarak kısıyor (en fazla yarıya). Doğrusal olmadığı için
+ * katkı satırlarına dağıtılamıyor; ayrı satır olarak geliyor.
+ */
+export interface PropertyWeakLinkPenalty {
+  categoryCode: string;
+  label: string;
+  /** Puan cinsinden ceza — negatif. */
+  points: number;
+  /** Ceza uygulanmadan önceki ağırlıklı ortalama. */
+  weightedAverage: number;
+  message: string;
 }
 
 /**
@@ -119,6 +146,13 @@ export interface PropertyScoreDetail {
   /** En çok puan kaybettiren satırlar — "neden uygun değil". */
   weaknesses: PropertyScoreRow[];
   budget: PropertyBudgetFit;
+  /**
+   * Zayıf halka cezası; ceza yoksa null.
+   *
+   * ⭐ DEĞİŞMEZLİK: `Σ rows.contribution + (weakLink?.points ?? 0) === total`
+   * Panel TOPLAM satırını bunu toplayarak yazıyor — tutmazsa ekranda görünür.
+   */
+  weakLink: PropertyWeakLinkPenalty | null;
 }
 
 export interface PropertyFeatures {
