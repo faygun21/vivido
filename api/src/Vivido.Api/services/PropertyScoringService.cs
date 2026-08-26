@@ -13,11 +13,11 @@ using Vivido.Scoring;
 public class PropertyScoringService
 {
     private readonly VividoDbContext _context;
-    // v1.3: zayıf halka cezası artık en zayıf kategorinin AĞIRLIĞINA göre
-    // de ölçekleniyor — eskiden kullanıcının en önemli saydığı kötü bir
-    // kategoriyle zar zor eşiği geçen kötü bir kategori AYNI cezayı
-    // alıyordu. Versiyon farkı eski (yanlış) cache'i geçersiz kılıyor.
-    private const string CurrentScoringVersion = "v1.3";
+    // v1.4: yoğunluk sinyali çarpandan (×0.9-1.1) sabit puan bonusuna
+    // (±3) geçti — eski çarpan, Yol A'nın yumuşak tavanını yoğun
+    // bölgelerde kolayca deliyordu (96 puanlık kategori ×1.10 ile 100'e
+    // kırpılıyordu). Versiyon farkı eski (yanlış) cache'i geçersiz kılıyor.
+    private const string CurrentScoringVersion = "v1.4";
 
     public PropertyScoringService(VividoDbContext context)
     {

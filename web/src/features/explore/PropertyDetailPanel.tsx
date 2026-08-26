@@ -220,10 +220,11 @@ export function PropertyDetailPanel({ property, onClose, onBack }: PropertyDetai
                           <span className={`status-dot status-dot--${row.status}`} aria-hidden="true" />
                           {row.label}
                           {/* Yoğunluk yalnızca fark yarattığında yazılıyor;
-                              1.0 çarpan için "×1.00" basmak gürültü olurdu. */}
-                          {row.poiCountInRadius != null && row.densityFactor !== 1 && (
+                              0 puanlık bonus için "+0.0" basmak gürültü olurdu. */}
+                          {row.poiCountInRadius != null && row.densityBonus !== 0 && (
                             <span className="muted density-hint">
-                              {row.poiCountInRadius} yer · ×{row.densityFactor.toFixed(2)}
+                              {row.poiCountInRadius} yer · {row.densityBonus > 0 ? '+' : ''}
+                              {row.densityBonus.toFixed(1)} puan
                             </span>
                           )}
                         </th>

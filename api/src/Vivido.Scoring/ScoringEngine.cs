@@ -48,15 +48,26 @@ public static class ScoringEngine
     private const double WeakLinkWeightThreshold = 0.05;
 
     /// <summary>
-    /// Yoğunluk çarpanının alt/üst sınırı — bir kategori ne kadar POI-zengin
-    /// ya da POI-fakir olursa olsun skor en fazla ±%10 değişir. Amaç ince bir
-    /// ayrıştırma sinyali, kategori skorunu domine eden bir faktör değil.
+    /// Yoğunluk bonusunun puan cinsinden alt/üst sınırı — bir kategori ne
+    /// kadar POI-zengin ya da POI-fakir olursa olsun skor en fazla ±3 puan
+    /// değişir. Amaç ince bir ayrıştırma sinyali, kategori skorunu domine
+    /// eden bir faktör değil.
+    ///
+    /// Önceki sürüm bunu ÇARPAN olarak uyguluyordu (×0.9–×1.1). Sorun: Yol
+    /// A'nın yumuşak tavanı t_ideal civarında en fazla 8 puanlık bir boşluk
+    /// bırakıyor, ve yoğun bölgelerde bu çarpan o boşluğu kolayca aşıyordu —
+    /// 96 puanlık bir kategori ×1.10 ile 105.6'ya çıkıp yeniden 100'e
+    /// kırpılıyordu. Yani yoğunluk sinyali, Yol A'nın çözdüğü "birçok ev
+    /// 100'de yığılıyor" sorununu arka kapıdan geri getiriyordu (canlı
+    /// testte 7 kategoriden 5'i tam 100'e kırpılmıştı). Sabit puan
+    /// eklemek/çıkarmak bunu önlüyor: yoğunluk artık yürüme süresi
+    /// eğrisinin bıraktığı boşluk içinde ince bir ayarlayıcı, tavanı delip
+    /// geçen bağımsız bir çarpan değil.
     /// </summary>
-    private const double DensityFactorMin = 0.9;
-    private const double DensityFactorMax = 1.1;
+    private const double DensityBonusPointsCap = 3.0;
 
-    /// <summary>Yoğunluk oranındaki her birim sapmanın çarpana katkısı.</summary>
-    private const double DensityBonusRate = 0.05;
+    /// <summary>POI oranındaki (bkz. <see cref="DensityBonusOf"/>) her birim sapmanın puana katkısı.</summary>
+    private const double DensityBonusRatePerUnit = 1.5;
 
     public record CategoryInput(
         double DurationMinutes,
@@ -104,8 +115,8 @@ public static class ScoringEngine
     /// Zayıf halka cezası BURAYA dağıtılmaz; ayrı bir satır olarak durur
     /// (bkz. <see cref="ScoreBreakdown.WeakLinkPenalty"/>).
     /// </param>
-    /// <param name="DensityFactor">
-    /// Yoğunluk çarpanı (0.9–1.1). Veri yoksa 1.0.
+    /// <param name="DensityBonus">
+    /// Yoğunluk bonusu, puan cinsinden (±3). Veri yoksa 0.0 (etkisiz).
     /// </param>
     public record CategoryResult(
         string Code,
@@ -117,7 +128,7 @@ public static class ScoringEngine
         double NormalizedWeight,
         double Contribution,
         int? PoiCountInRadius,
-        double DensityFactor
+        double DensityBonus
     );
 
     /// <summary>
@@ -197,8 +208,8 @@ public static class ScoringEngine
                 input.TCutoff
             );
 
-            double densityFactor = DensityFactorOf(input.PoiCountInRadius, input.MinPoiCount);
-            double categoryScore = ApplyDensityFactor(decayScore, densityFactor);
+            double densityBonus = DensityBonusOf(input.PoiCountInRadius, input.MinPoiCount);
+            double categoryScore = ApplyDensityBonus(decayScore, densityBonus);
 
             totalScore += categoryScore * input.Weight;
 
@@ -225,7 +236,7 @@ public static class ScoringEngine
                 NormalizedWeight: normalizedWeight,
                 Contribution: Math.Round(categoryScore * normalizedWeight, 2),
                 PoiCountInRadius: input.PoiCountInRadius,
-                DensityFactor: densityFactor
+                DensityBonus: densityBonus
             ));
         }
 
@@ -292,24 +303,25 @@ public static class ScoringEngine
     }
 
     /// <summary>
-    /// Yoğunluk çarpanını hesaplar; veri yoksa 1.0 (etkisiz) döner.
+    /// Yoğunluk bonusunu (puan cinsinden, ±3) hesaplar; veri yoksa 0.0
+    /// (etkisiz) döner.
     ///
-    /// Çarpanı uygulamaktan AYRI bir metot çünkü gerekçe tablosu çarpanın
+    /// Bonusu uygulamaktan AYRI bir metot çünkü gerekçe tablosu bonusun
     /// kendisini de gösteriyor ("300 m'de 5 market") — uygulanmış sonuçtan
     /// geri hesaplamak clamp yüzünden mümkün değil.
     /// </summary>
-    private static double DensityFactorOf(int? poiCountInRadius, int? minPoiCount)
+    private static double DensityBonusOf(int? poiCountInRadius, int? minPoiCount)
     {
         if (poiCountInRadius is not int count || minPoiCount is not int minCount || minCount <= 0)
         {
-            return 1.0;
+            return 0.0;
         }
 
         double ratio = (double)count / minCount;
-        double factor = 1.0 + DensityBonusRate * (ratio - 1.0);
-        return Math.Clamp(factor, DensityFactorMin, DensityFactorMax);
+        double bonus = DensityBonusRatePerUnit * (ratio - 1.0);
+        return Math.Clamp(bonus, -DensityBonusPointsCap, DensityBonusPointsCap);
     }
 
-    private static double ApplyDensityFactor(double categoryScore, double densityFactor)
-        => Math.Clamp(categoryScore * densityFactor, 0.0, 100.0);
+    private static double ApplyDensityBonus(double categoryScore, double densityBonus)
+        => Math.Clamp(categoryScore + densityBonus, 0.0, 100.0);
 }

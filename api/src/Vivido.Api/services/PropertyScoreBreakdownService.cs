@@ -144,7 +144,7 @@ public class PropertyScoreBreakdownService
                 Contribution: c.Contribution,
                 Status: StatusOf(c.SubScore),
                 PoiCountInRadius: c.PoiCountInRadius,
-                DensityFactor: Math.Round(c.DensityFactor, 3)))
+                DensityBonus: Math.Round(c.DensityBonus, 2)))
             // Katkısı yüksek olan üstte: tablo okunduğunda önce "bu evi ne
             // taşıyor" görünsün.
             .OrderByDescending(r => r.Contribution)
