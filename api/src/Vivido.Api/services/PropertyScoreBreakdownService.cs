@@ -66,6 +66,20 @@ public class PropertyScoreBreakdownService
             .AsNoTracking()
             .ToDictionaryAsync(w => w.CategoryCode, w => (double)w.Weight, ct);
 
+        // Aynı düzeltme PropertyScoringService'te de var: kullanıcının
+        // özelleştirdiği kriter sırası burada da uygulanmazsa, listedeki
+        // skor ile detay panelindeki gerekçe satırları birbirinden
+        // sessizce ayrışır (liste doğru ağırlıkla sıralanır, panel yine
+        // persona varsayılanını gösterir).
+        var customOrder = await _context.UserProfileCategoryOrders
+            .Where(o => o.ProfileId == profileId)
+            .OrderBy(o => o.Priority)
+            .Select(o => o.CategoryCode)
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        weights = CategoryWeightResolver.Resolve(weights, customOrder);
+
         var categories = await _context.PoiCategories
             .Where(c => c.Active)
             .AsNoTracking()

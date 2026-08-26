@@ -13,10 +13,11 @@ using Vivido.Scoring;
 public class PropertyScoringService
 {
     private readonly VividoDbContext _context;
-    // v1.1: yumuşak tavan (Yol A), zayıf halka cezası ve yoğunluk sinyali
-    // eklendi — eski sürümle hesaplanmış skorlar artık geçersiz, versiyon
-    // farkı sayesinde cache'ten okunmayıp otomatik yeniden hesaplanıyorlar.
-    private const string CurrentScoringVersion = "v1.1";
+    // v1.2: kullanıcının kişisel kriter sırası (UserProfileCategoryOrder)
+    // artık gerçekten skora yansıyor — eskiden yalnızca cache temizleniyor,
+    // ağırlıklar hâlâ sabit persona tablosundan geliyordu (R-17 ihlali).
+    // Versiyon farkı eski (yanlış) cache'i geçersiz kılıyor.
+    private const string CurrentScoringVersion = "v1.2";
 
     public PropertyScoringService(VividoDbContext context)
     {
@@ -49,6 +50,15 @@ public class PropertyScoringService
             .Where(w => w.PersonaCode == profile.PersonaCode)
             .AsNoTracking()
             .ToDictionaryAsync(w => w.CategoryCode, w => (double)w.Weight);
+
+        var customOrder = await _context.UserProfileCategoryOrders
+            .Where(o => o.ProfileId == profileId)
+            .OrderBy(o => o.Priority)
+            .Select(o => o.CategoryCode)
+            .AsNoTracking()
+            .ToListAsync();
+
+        weights = CategoryWeightResolver.Resolve(weights, customOrder);
 
         var categories = await _context.PoiCategories
             .Where(c => c.Active)
@@ -149,6 +159,15 @@ public class PropertyScoringService
             .Where(w => w.PersonaCode == profile.PersonaCode)
             .AsNoTracking()
             .ToDictionaryAsync(w => w.CategoryCode, w => (double)w.Weight);
+
+        var customOrder = await _context.UserProfileCategoryOrders
+            .Where(o => o.ProfileId == profileId)
+            .OrderBy(o => o.Priority)
+            .Select(o => o.CategoryCode)
+            .AsNoTracking()
+            .ToListAsync();
+
+        weights = CategoryWeightResolver.Resolve(weights, customOrder);
 
         var categories = await _context.PoiCategories
             .Where(c => c.Active)
