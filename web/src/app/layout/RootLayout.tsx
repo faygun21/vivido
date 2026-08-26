@@ -59,6 +59,12 @@ export function RootLayout() {
                 Keşfet
               </NavLink>
               <NavLink
+                to="/favorites"
+                className={({ isActive }) => `nav-btn${isActive ? ' is-active' : ''}`}
+              >
+                Favorilerim
+              </NavLink>
+              <NavLink
                 to="/profile"
                 className={({ isActive }) => `nav-btn${isActive ? ' is-active' : ''}`}
               >

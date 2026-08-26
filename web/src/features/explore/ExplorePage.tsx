@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   CreateRouteRequest,
@@ -114,6 +114,8 @@ function useWideScreen(): boolean {
 }
 
 export function ExplorePage() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const wideScreen = useWideScreen();
   // Çekmece geniş ekranda açık başlar; dar ekranda haritayı kapatmasın diye kapalı.
   const [drawerOpen, setDrawerOpen] = useState(matchesWide);
@@ -138,6 +140,15 @@ export function ExplorePage() {
   // isteyince açsın. Soldaki çekmece geniş ekranda açık başlıyor; ikisi
   // birden açık açılsaydı harita iki panel arasında sıkışırdı.
   const [topPanelOpen, setTopPanelOpen] = useState(false);
+
+  useEffect(() => {
+    const focus = (location.state as { favoriteFocus?: MapFocus } | null)?.favoriteFocus;
+    if (!focus) return;
+
+    setMapFocus(focus);
+    setSelectedPropertyId(focus.id);
+    navigate('/explore', { replace: true, state: null });
+  }, [location.state, navigate]);
 
   // ─── R-120/121 — rota oluşturucu durumu ───
   const [routeIds, setRouteIds] = useState<number[]>([]);

@@ -3,7 +3,7 @@ import type { Persona, UserProfile } from '@vivido/shared';
 import { api } from '@/shared/api/client';
 import { useSessionQuery } from '@/shared/api/sessionQuery';
 import { AnchorPanel } from '@/features/anchors/AnchorPanel';
-import { FavoritesAndRoutesPanel } from './FavoritesAndRoutesPanel';
+import { RoutesPanel } from './FavoritesAndRoutesPanel';
 
 /**
  * Profil yönetimi — persona/kira aralığı özeti + anchor paneli.
@@ -90,7 +90,7 @@ export function ProfilePage() {
 
       {/* R-97 gereksinimi için yazdığımız favoriler ve rotalar paneli */}
       <div style={{ marginTop: '2rem' }}>
-        <FavoritesAndRoutesPanel />
+        <RoutesPanel />
       </div>
     </section>
   );

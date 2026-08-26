@@ -1645,7 +1645,7 @@ button svg,
 
 .locked-list .lock { flex: none; }
 
-/* ── Profildeki favori kartları ──
+/* ── Favorilerim sayfasındaki konut kartları ──
    Keşfet ekranındaki kartlarla aynı dili konuşur (skor rozeti solda, adres
    iki satır, ✓/✗ gerekçe) ama sayfa akışında olduğu için biraz daha ferah. */
 
@@ -1663,6 +1663,28 @@ button svg,
 
 .favorite-card--missing { color: var(--ink-muted); font-size: 0.88rem; }
 
+.favorite-card-main {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.favorite-card-main:hover .favorite-title,
+.favorite-card-main:focus-visible .favorite-title { color: var(--accent); }
+.favorite-card-main:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 0.5rem;
+}
+
 .favorite-score {
   display: grid;
   place-items: center;
@@ -1677,11 +1699,11 @@ button svg,
 .favorite-score strong { font-size: 1.1rem; font-weight: 700; }
 .favorite-score span { font-size: 0.58rem; opacity: 0.9; }
 
-.favorite-body { flex: 1; min-width: 0; }
+.favorite-body { display: grid; flex: 1; min-width: 0; }
 .favorite-body p { margin: 0; }
 
 .favorite-title { font-size: 0.92rem; font-weight: 700; }
-.favorite-address { font-size: 0.84rem; margin-top: 0.1rem !important; }
+.favorite-address { display: block; font-size: 0.84rem; margin-top: 0.1rem !important; }
 
 .favorite-reasons {
   display: flex;
@@ -1694,6 +1716,7 @@ button svg,
 
 .favorite-meta { margin-top: 0.3rem !important; font-size: 0.74rem; }
 .favorite-remove { flex: none; align-self: center; }
+.favorites-page-intro { margin-top: -0.4rem; margin-bottom: 1.25rem; }
 
 /* ── Dar ekran ──
    21.5rem'lik panel telefonda haritanın üstünde yüzemez; alttan açılan
@@ -1938,4 +1961,3 @@ button svg,
 .saved-route-sub {
   font-size: 0.78rem;
 }
-
