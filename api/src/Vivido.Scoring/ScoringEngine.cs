@@ -17,13 +17,28 @@ public static class ScoringEngine
     private const double CeilingSoftening = 8.0;
 
     /// <summary>
-    /// Zayıf halka cezası — bir kategori kullanıcının önemsediği bir alanda
-    /// çok kötüyse (örn. ulaşıma çok uzak), diğer kategoriler bunu ağırlıklı
-    /// ortalamayla tam telafi edemesin diye son skoru bu kadara kadar
-    /// kısabilir. 0.5 = en kötü durumda (en zayıf kategori 0) skor en fazla
-    /// yarıya iner; en zayıf kategori 100 ise hiç ceza yok.
+    /// Zayıf halka cezasının EN SERT hâli — en zayıf kategori 0 puan VE bu
+    /// kategori kullanıcı için tam önemliyken (bkz. <see
+    /// cref="WeakLinkFullPenaltyWeight"/>) skor en fazla yarıya iner. Daha az
+    /// önemli bir kategori zayıfsa ceza bu tavana kadar SEYRELİR (bkz.
+    /// <see cref="WeakLinkFullPenaltyWeight"/>) — 0.5 sabit bir taban değil,
+    /// artık üst sınır.
     /// </summary>
     private const double WeakLinkPenaltyFloor = 0.5;
+
+    /// <summary>
+    /// Zayıf halka cezasının ağırlığa göre ölçeklendiği referans nokta.
+    ///
+    /// Öncesinde ceza yalnızca en zayıf kategorinin PUANINA bakıyordu —
+    /// kullanıcının EN önemli saydığı kategori (örn. ağırlık 0.30) kötüyse
+    /// ile zar zor eşiği geçen bir kategori (ağırlık 0.06) kötüyse AYNI
+    /// cezayı veriyordu. Artık ceza kategorinin ağırlığına göre de
+    /// ölçekleniyor: ağırlığı bu referansa (persona'lardaki en yüksek
+    /// değerlere yakın, ör. 0.259) eşit ya da üstündeyse TAM ceza (0.5)
+    /// uygulanır; eşiğe (0.05) yakın, zar zor önemli bir kategori en kötü
+    /// olsa bile ceza çok daha hafif kalır.
+    /// </summary>
+    private const double WeakLinkFullPenaltyWeight = 0.25;
 
     /// <summary>
     /// Cezaya hangi kategoriler dahil olur — kullanıcının persona'sında
@@ -33,15 +48,26 @@ public static class ScoringEngine
     private const double WeakLinkWeightThreshold = 0.05;
 
     /// <summary>
-    /// Yoğunluk çarpanının alt/üst sınırı — bir kategori ne kadar POI-zengin
-    /// ya da POI-fakir olursa olsun skor en fazla ±%10 değişir. Amaç ince bir
-    /// ayrıştırma sinyali, kategori skorunu domine eden bir faktör değil.
+    /// Yoğunluk bonusunun puan cinsinden alt/üst sınırı — bir kategori ne
+    /// kadar POI-zengin ya da POI-fakir olursa olsun skor en fazla ±3 puan
+    /// değişir. Amaç ince bir ayrıştırma sinyali, kategori skorunu domine
+    /// eden bir faktör değil.
+    ///
+    /// Önceki sürüm bunu ÇARPAN olarak uyguluyordu (×0.9–×1.1). Sorun: Yol
+    /// A'nın yumuşak tavanı t_ideal civarında en fazla 8 puanlık bir boşluk
+    /// bırakıyor, ve yoğun bölgelerde bu çarpan o boşluğu kolayca aşıyordu —
+    /// 96 puanlık bir kategori ×1.10 ile 105.6'ya çıkıp yeniden 100'e
+    /// kırpılıyordu. Yani yoğunluk sinyali, Yol A'nın çözdüğü "birçok ev
+    /// 100'de yığılıyor" sorununu arka kapıdan geri getiriyordu (canlı
+    /// testte 7 kategoriden 5'i tam 100'e kırpılmıştı). Sabit puan
+    /// eklemek/çıkarmak bunu önlüyor: yoğunluk artık yürüme süresi
+    /// eğrisinin bıraktığı boşluk içinde ince bir ayarlayıcı, tavanı delip
+    /// geçen bağımsız bir çarpan değil.
     /// </summary>
-    private const double DensityFactorMin = 0.9;
-    private const double DensityFactorMax = 1.1;
+    private const double DensityBonusPointsCap = 3.0;
 
-    /// <summary>Yoğunluk oranındaki her birim sapmanın çarpana katkısı.</summary>
-    private const double DensityBonusRate = 0.05;
+    /// <summary>POI oranındaki (bkz. <see cref="DensityBonusOf"/>) her birim sapmanın puana katkısı.</summary>
+    private const double DensityBonusRatePerUnit = 1.5;
 
     public record CategoryInput(
         double DurationMinutes,
@@ -89,8 +115,8 @@ public static class ScoringEngine
     /// Zayıf halka cezası BURAYA dağıtılmaz; ayrı bir satır olarak durur
     /// (bkz. <see cref="ScoreBreakdown.WeakLinkPenalty"/>).
     /// </param>
-    /// <param name="DensityFactor">
-    /// Yoğunluk çarpanı (0.9–1.1). Veri yoksa 1.0.
+    /// <param name="DensityBonus">
+    /// Yoğunluk bonusu, puan cinsinden (±3). Veri yoksa 0.0 (etkisiz).
     /// </param>
     public record CategoryResult(
         string Code,
@@ -102,7 +128,7 @@ public static class ScoringEngine
         double NormalizedWeight,
         double Contribution,
         int? PoiCountInRadius,
-        double DensityFactor
+        double DensityBonus
     );
 
     /// <summary>
@@ -164,7 +190,9 @@ public static class ScoringEngine
 
         // Zayıf halka cezası için: yalnızca kullanıcının gerçekten önemsediği
         // (ağırlığı eşiğin üstünde) kategoriler arasındaki en kötüsü izlenir.
+        // Ağırlığı da birlikte tutuyoruz — cezanın şiddeti artık buna bağlı.
         double worstConsideredScore = 100.0;
+        double worstConsideredWeight = 0.0;
         string? worstCode = null;
         bool anyConsidered = false;
 
@@ -180,8 +208,8 @@ public static class ScoringEngine
                 input.TCutoff
             );
 
-            double densityFactor = DensityFactorOf(input.PoiCountInRadius, input.MinPoiCount);
-            double categoryScore = ApplyDensityFactor(decayScore, densityFactor);
+            double densityBonus = DensityBonusOf(input.PoiCountInRadius, input.MinPoiCount);
+            double categoryScore = ApplyDensityBonus(decayScore, densityBonus);
 
             totalScore += categoryScore * input.Weight;
 
@@ -191,6 +219,7 @@ public static class ScoringEngine
                 if (categoryScore < worstConsideredScore)
                 {
                     worstConsideredScore = categoryScore;
+                    worstConsideredWeight = input.Weight;
                     worstCode = input.Code;
                 }
             }
@@ -207,14 +236,23 @@ public static class ScoringEngine
                 NormalizedWeight: normalizedWeight,
                 Contribution: Math.Round(categoryScore * normalizedWeight, 2),
                 PoiCountInRadius: input.PoiCountInRadius,
-                DensityFactor: densityFactor
+                DensityBonus: densityBonus
             ));
         }
 
         double weightedAverage = totalScore / totalWeightUsed;
 
+        // Zayıf halka ağırlığı referansa (0.25) eşit/üstündeyse TAM ceza
+        // tavanı (0.5) uygulanır; eşiğe (0.05) yakınsa ceza çok daha hafif
+        // kalır — kullanıcının EN önemli saydığı yer kötüyse ile zar zor
+        // önemli bir yer kötüyse artık aynı cezayı vermiyor.
+        double weightSeverity = anyConsidered
+            ? Math.Clamp(worstConsideredWeight / WeakLinkFullPenaltyWeight, 0.0, 1.0)
+            : 0.0;
+        double effectivePenaltyFloor = 1.0 - (1.0 - WeakLinkPenaltyFloor) * weightSeverity;
+
         double penaltyFactor = anyConsidered
-            ? WeakLinkPenaltyFloor + (1.0 - WeakLinkPenaltyFloor) * (worstConsideredScore / 100.0)
+            ? effectivePenaltyFloor + (1.0 - effectivePenaltyFloor) * (worstConsideredScore / 100.0)
             : 1.0;
 
         // 4 ondalık: 2 ondalıkla farklı iki gerçek skorun aynı sayıya
@@ -265,24 +303,25 @@ public static class ScoringEngine
     }
 
     /// <summary>
-    /// Yoğunluk çarpanını hesaplar; veri yoksa 1.0 (etkisiz) döner.
+    /// Yoğunluk bonusunu (puan cinsinden, ±3) hesaplar; veri yoksa 0.0
+    /// (etkisiz) döner.
     ///
-    /// Çarpanı uygulamaktan AYRI bir metot çünkü gerekçe tablosu çarpanın
+    /// Bonusu uygulamaktan AYRI bir metot çünkü gerekçe tablosu bonusun
     /// kendisini de gösteriyor ("300 m'de 5 market") — uygulanmış sonuçtan
     /// geri hesaplamak clamp yüzünden mümkün değil.
     /// </summary>
-    private static double DensityFactorOf(int? poiCountInRadius, int? minPoiCount)
+    private static double DensityBonusOf(int? poiCountInRadius, int? minPoiCount)
     {
         if (poiCountInRadius is not int count || minPoiCount is not int minCount || minCount <= 0)
         {
-            return 1.0;
+            return 0.0;
         }
 
         double ratio = (double)count / minCount;
-        double factor = 1.0 + DensityBonusRate * (ratio - 1.0);
-        return Math.Clamp(factor, DensityFactorMin, DensityFactorMax);
+        double bonus = DensityBonusRatePerUnit * (ratio - 1.0);
+        return Math.Clamp(bonus, -DensityBonusPointsCap, DensityBonusPointsCap);
     }
 
-    private static double ApplyDensityFactor(double categoryScore, double densityFactor)
-        => Math.Clamp(categoryScore * densityFactor, 0.0, 100.0);
+    private static double ApplyDensityBonus(double categoryScore, double densityBonus)
+        => Math.Clamp(categoryScore + densityBonus, 0.0, 100.0);
 }

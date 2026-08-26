@@ -123,7 +123,7 @@ function TopPropertyCard({ property, rank, selected, onSelect }: TopPropertyCard
         </span>
 
         <span className={`top-card-score score-badge--${property.band}`}>
-          <strong>{Math.round(property.totalScore)}</strong>
+          <strong>{property.totalScore.toFixed(1)}</strong>
           <span>{BAND_LABEL[property.band]}</span>
         </span>
       </button>

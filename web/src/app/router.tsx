@@ -25,7 +25,7 @@ export const router = createBrowserRouter([
     path: '/',
     element: <RootLayout />,
     children: [
-      { index: true, element: <Navigate to="/lifestyle" replace /> },
+      { index: true, element: <Navigate to="/auth/login" replace /> },
       
       {
         path: 'lifestyle',

@@ -48,10 +48,11 @@ public record ScoreRowDto(
     /// </summary>
     int? PoiCountInRadius,
     /// <summary>
-    /// Yoğunluk çarpanı (0.9–1.1). 1.0 = etkisiz. "300 m'de 1 market" ile
-    /// "5 market" artık aynı skoru vermiyor; kullanıcı farkı görebilsin.
+    /// Yoğunluk bonusu, puan cinsinden (±3). 0 = etkisiz. "300 m'de 1
+    /// market" ile "5 market" artık aynı skoru vermiyor; kullanıcı farkı
+    /// görebilsin.
     /// </summary>
-    double DensityFactor
+    double DensityBonus
 );
 
 /// <summary>

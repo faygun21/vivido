@@ -86,6 +86,9 @@ export default function LifestyleSelection() {
         personaCode: selectedId,
       });
       await queryClient.invalidateQueries({ queryKey: ['profile'] });
+      // Persona değişince skorlar da değişir — /properties (map/top/detail)
+      // aynı sorgu anahtarı önekini paylaşıyor, tek çağrı hepsini kapsıyor.
+      await queryClient.invalidateQueries({ queryKey: ['properties'] });
       navigate('/preferences');
     } catch {
       setError('Kaydedilemedi, lütfen tekrar deneyin.');

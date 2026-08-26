@@ -100,8 +100,8 @@ export interface PropertyScoreRow {
   status: 'strong' | 'good' | 'warning' | 'weak';
   /** Arama yarıçapındaki POI sayısı; ETL doldurmadıysa null. */
   poiCountInRadius: number | null;
-  /** Yoğunluk çarpanı (0.9–1.1). 1.0 = etkisiz. */
-  densityFactor: number;
+  /** Yoğunluk bonusu, puan cinsinden (±3). 0 = etkisiz. */
+  densityBonus: number;
 }
 
 /**
