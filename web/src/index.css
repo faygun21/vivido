@@ -1107,25 +1107,8 @@ button svg,
 
 .weak-link-note p { margin: 0.2rem 0 0; font-size: 0.78rem; }
 
-/* Tablodaki ceza satırı — kategorilerden görsel olarak ayrılsın. */
-.score-table-penalty th,
-.score-table-penalty td {
-  background: color-mix(in srgb, #9a3412 6%, transparent);
-  font-style: italic;
-}
-
-.score-table-penalty .score-table-contrib { color: #9a3412; font-style: normal; }
-
-/* Kriter adının altındaki ikincil bilgi (yoğunluk, ceza kaynağı). */
-.density-hint {
-  display: block;
-  font-size: 0.68rem;
-  font-weight: 400;
-  font-style: normal;
-}
-
-/* Hedef süre, ölçülenin ALTINDA — ayrı sütun olsaydı tablo 22.5rem'lik
-   panele sığmaz ve en önemli sütun (KATKI) taşıp kesilirdi. */
+/* Hedef süre, ölçülenin ALTINDA — ayrı sütun olsaydı tablo dar panele
+   sığmazdı. */
 .table-target {
   display: block;
   font-size: 0.66rem;
@@ -1188,13 +1171,6 @@ button svg,
   border-top: 2px solid color-mix(in srgb, var(--line) 55%, transparent);
   font-weight: 700;
 }
-
-.score-table-contrib { font-variant-numeric: tabular-nums; font-weight: 600; }
-
-/* Zayıf/uyarı durumundaki kategorinin katkı payı — "+" işareti olmadan,
-   status-dot ile aynı tonda: bu payın düşük bir puandan geldiği, bir
-   kazanç olmadığı görsel olarak da belli olsun. */
-.score-table-contrib--weak { color: #9a3412; font-weight: 500; }
 
 .status-dot {
   width: 0.5rem;

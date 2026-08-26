@@ -203,94 +203,46 @@ export function PropertyDetailPanel({ property, onClose, onBack }: PropertyDetai
 
             {showAllRows && (
               <div className="score-table-wrap">
+                {/*
+                  Bilerek sadece 3 sütun: Kriter | Süre | Puan. Katkı sütunu
+                  ("puan × ağırlık") ve yoğunluk metni ("X yer · ±Y puan")
+                  içsel hesap detaylarıydı, kullanıcı için anlamsız bir jargon
+                  gibi duruyordu (bkz. eczane/spor salonu örnekleri — "zaten
+                  düşük puan aldı, neden bir de burada ceza yiyor" karışıklığı
+                  yaratıyordu). Süre + hedef + puan kendi başına anlaşılır;
+                  yoğunluk zaten puanın İÇİNDE, ayrıca göstermeye gerek yok.
+                  Zayıf halka cezası da bu yüzden tablonun DIŞINDA, kendi net
+                  cümlesiyle duruyor (yukarıda) — burada tekrar edilmiyor.
+                */}
                 <table className="score-table">
-                  {/*
-                    Ölçülen ve hedef TEK sütunda: beş sütun 22.5rem'lik panele
-                    sığmıyordu ve en önemli sütun (KATKI) taşıp kesiliyordu.
-                    Hedef zaten ölçülenin referansı, ayrı sütun olması şart değil.
-                  */}
                   <thead>
                     <tr>
                       <th scope="col">Kriter</th>
                       <th scope="col">Süre</th>
                       <th scope="col">Puan</th>
-                      <th scope="col" title="Puan × ağırlık — kategorinin ağırlıklı ortalamadaki payı. Kötü bir kategori de pozitif bir pay taşır; bu bir ödül değil, sadece o kategorinin payı ne kadar KÜÇÜLDÜĞÜNÜN göstergesidir.">
-                        Katkı
-                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {score.rows.map((row) => {
-                      // Katkı payı matematiksel olarak HER ZAMAN pozitiftir
-                      // (puan × ağırlık), kötü bir kategoride bile — "+" işareti
-                      // bunu bir ödül gibi gösterip kullanıcıyı yanıltıyordu
-                      // (bkz. Eczane örneği: 48 puan alıp yine de "+6.7" ile
-                      // "iyi gidiyor" izlenimi veriyordu). Zayıf/uyarı
-                      // durumundaki satırlarda "+" işaretini ve rengini
-                      // kaldırıyoruz ki bu satırın esasen düşük bir puandan
-                      // geldiği belli olsun.
-                      const contribIsWeak = row.status === 'warning' || row.status === 'weak';
-                      return (
+                    {score.rows.map((row) => (
                       <tr key={row.categoryCode}>
                         <th scope="row">
                           <span className={`status-dot status-dot--${row.status}`} aria-hidden="true" />
                           {row.label}
-                          {/* Yoğunluk yalnızca fark yarattığında yazılıyor;
-                              0 puanlık bonus için "+0.0" basmak gürültü olurdu. */}
-                          {row.poiCountInRadius != null && row.densityBonus !== 0 && (
-                            <span className="muted density-hint">
-                              {row.poiCountInRadius} yer · {row.densityBonus > 0 ? '+' : ''}
-                              {row.densityBonus.toFixed(1)} puan
-                            </span>
-                          )}
                         </th>
                         <td>
                           {formatMinutes(row.durationMin)}
                           <span className="muted table-target">hedef ≤{formatMinutes(row.targetMin)}</span>
                         </td>
                         <td>{Math.round(row.subScore)}</td>
-                        <td className={`score-table-contrib${contribIsWeak ? ' score-table-contrib--weak' : ''}`}>
-                          {contribIsWeak ? '' : '+'}
-                          {row.contribution.toFixed(1)}
-                        </td>
                       </tr>
-                      );
-                    })}
-
-                    {/* Ceza satırı tablonun İÇİNDE olmalı, yoksa TOPLAM
-                        satırların toplamıyla tutmaz ve tablo yalan söyler. */}
-                    {score.weakLink && (
-                      <tr className="score-table-penalty">
-                        <th scope="row">
-                          <span className="status-dot status-dot--weak" aria-hidden="true" />
-                          Zayıf halka cezası
-                          <span className="muted density-hint">{score.weakLink.label}</span>
-                        </th>
-                        <td className="muted">—</td>
-                        <td className="muted">—</td>
-                        <td className="score-table-contrib">{score.weakLink.points.toFixed(1)}</td>
-                      </tr>
-                    )}
+                    ))}
                   </tbody>
                   <tfoot>
-                    {/*
-                      TOPLAM, satırların katkıları TOPLANARAK yazılıyor —
-                      `score.total` doğrudan basılmıyor. Backend'de bir
-                      tutarsızlık olursa burada anında görünür (W6 kuralı).
-                      Zayıf halka cezası da toplama dahil: motor onu son
-                      adımda çarpan olarak uyguluyor, kategori katkılarına
-                      dağıtılmıyor.
-                    */}
                     <tr>
-                      <th scope="row" colSpan={3}>
+                      <th scope="row" colSpan={2}>
                         TOPLAM
                       </th>
-                      <td className="score-table-contrib">
-                        {(
-                          score.rows.reduce((sum, row) => sum + row.contribution, 0) +
-                          (score.weakLink?.points ?? 0)
-                        ).toFixed(1)}
-                      </td>
+                      <td>{displayTotal}</td>
                     </tr>
                   </tfoot>
                 </table>
