@@ -8,6 +8,11 @@ interface PoiLayerPanelProps {
   onToggleCategory: (code: string) => void;
   propertiesVisible: boolean;
   onToggleProperties: () => void;
+  /** Kullanıcının anchor'ı (özel yeri) var mı — yoksa gösterilecek bir alan da yok. */
+  hasAnchorArea: boolean;
+  /** Kapalıyken sadece anchor alanındaki evler, açıkken hepsi gösterilir. */
+  showAllProperties: boolean;
+  onToggleShowAllProperties: () => void;
 }
 
 /**
@@ -23,6 +28,9 @@ export function PoiLayerPanel({
   onToggleCategory,
   propertiesVisible,
   onToggleProperties,
+  hasAnchorArea,
+  showAllProperties,
+  onToggleShowAllProperties,
 }: PoiLayerPanelProps) {
   // Ne `drawer-section` ne de kendi `h2`'si var: bu panel çekmecedeki
   // "Harita katmanları" bölümünün İÇİNDE duruyor. İkisi de olunca aynı
@@ -38,6 +46,20 @@ export function PoiLayerPanel({
         <span className="poi-layer-dot" style={{ background: '#c2410c' }} />
         Konutlar
       </label>
+
+      {/* Anchor (özel yer) yoksa filtrelenecek bir alan da yok — anlamsız
+          bir tik göstermek yerine satır hiç çizilmiyor. */}
+      {hasAnchorArea && (
+        <label className="poi-layer-row">
+          <input
+            type="checkbox"
+            checked={showAllProperties}
+            onChange={onToggleShowAllProperties}
+          />
+          <span className="poi-layer-dot" style={{ background: '#7c3aed' }} />
+          Tüm evleri göster
+        </label>
+      )}
 
       <div className="poi-layer-divider" />
 
