@@ -39,12 +39,10 @@ export default function PreferencesRanking() {
     navigate('/budget'); 
   };
 
-  // Sürükleme Başladığında
   const handleDragStart = (index: number) => {
     setDraggedIndex(index);
   };
 
-  // Sürüklenen öğe başka bir öğenin üzerine geldiğinde sıralamayı güncelle
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
     if (draggedIndex === null || draggedIndex === index) return;
@@ -52,7 +50,6 @@ export default function PreferencesRanking() {
     const newPreferences = [...preferences];
     const draggedItem = newPreferences[draggedIndex];
     
-    // Öğeyi listeden çıkar ve yeni yerine ekle
     newPreferences.splice(draggedIndex, 1);
     newPreferences.splice(index, 0, draggedItem);
 
@@ -82,8 +79,8 @@ export default function PreferencesRanking() {
       zIndex: 9999
     }}>
       
-      {/* ÜST KISIM: 5 Adımlı Stepper */}
-      <div style={{ maxWidth: '580px', margin: '0 auto', width: '100%' }}>
+      {/* 4 Adımlı Stepper*/}
+      <div style={{ maxWidth: '520px', margin: '0 auto', width: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
           <div style={{ position: 'absolute', left: '30px', right: '30px', top: '50%', transform: 'translateY(-50%)', height: '2px', backgroundColor: '#d6d3d1', zIndex: 0 }}></div>
 
@@ -92,7 +89,6 @@ export default function PreferencesRanking() {
             { step: 2, label: 'Yaşam Tarzı', status: 'completed' },
             { step: 3, label: 'Tercihler', status: 'active' },
             { step: 4, label: 'Bütçe', status: 'pending' },
-            { step: 5, label: 'Özel Konumlar', status: 'pending' },
           ].map((item) => {
             const isCompleted = item.status === 'completed';
             const isActive = item.status === 'active';
@@ -123,7 +119,7 @@ export default function PreferencesRanking() {
         </div>
       </div>
 
-      {/* ORTA KISIM: Başlık ve Sürükle-Bırak Liste */}
+      {/* Başlık ve Sürükle-Bırak Liste */}
       <div style={{ maxWidth: '700px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
         
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '10px' }}>
@@ -133,7 +129,7 @@ export default function PreferencesRanking() {
           <span style={{ fontSize: '12px', color: '#a8a29e' }}>Sürükle ve bırak</span>
         </div>
 
-        {/* Liste Alanı - Gerçek Drag and Drop Özelliği */}
+        {/* Liste Alanı */}
         <div style={{ 
           display: 'flex', 
           flexDirection: 'column', 
@@ -179,7 +175,7 @@ export default function PreferencesRanking() {
 
       </div>
 
-      {/* ALT KISIM: Navigasyon Butonları */}
+      {/* Navigasyon Butonları */}
       <div style={{ maxWidth: '700px', margin: '0 auto', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '14px', borderTop: '1px solid #e7e5e4' }}>
         <button 
           onClick={handleBack}

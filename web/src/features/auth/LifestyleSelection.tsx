@@ -13,8 +13,6 @@ interface Persona {
   subIcons: string[];
 }
 
-// id'ler `personas.code` (backend) ile birebir aynı olmalı — aksi hâlde
-// PUT /profile personaCode'u tanımıyor demektir.
 const personas: Persona[] = [
   {
     id: 'student',
@@ -46,13 +44,6 @@ const personas: Persona[] = [
   },
 ];
 
-/**
- * Kayıt formu ad+soyadı `${firstName} ${lastName}`.trim() olarak TEK bir
- * `displayName`'de birleştirip gönderiyor (bkz. RegisterPage.tsx). Burada
- * tersini yapıp ayırıyoruz — kullanıcıya adını tekrar SORMAMAK için.
- * Soyadı yoksa (tek kelimelik displayName) boş bırakıyoruz; backend
- * LastName'i zorunlu istiyor, boş string kabul ediyor.
- */
 function splitDisplayName(displayName: string | null | undefined): {
   firstName: string;
   lastName: string;
@@ -94,11 +85,7 @@ export default function LifestyleSelection() {
         lastName,
         personaCode: selectedId,
       });
-      // Onboarding'in kendi profil sorgusu bayat kalmasın — az önce
-      // yazdığımız persona'yı hemen görsün.
       await queryClient.invalidateQueries({ queryKey: ['profile'] });
-      
-      // Doğrudan Tercihler sayfasına yönlendiriyoruz
       navigate('/preferences');
     } catch {
       setError('Kaydedilemedi, lütfen tekrar deneyin.');
@@ -125,8 +112,8 @@ export default function LifestyleSelection() {
       zIndex: 9999
     }}>
       
-      {/* ÜST KISIM: 5 Adımlı Stepper */}
-      <div style={{ maxWidth: '600px', margin: '0 auto', width: '100%' }}>
+      {/* ÜST KISIM: 4 Adımlı Stepper (2. Adım Aktif) */}
+      <div style={{ maxWidth: '520px', margin: '0 auto', width: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
           <div style={{ position: 'absolute', left: '30px', right: '30px', top: '50%', transform: 'translateY(-50%)', height: '2px', backgroundColor: '#d6d3d1', zIndex: 0 }}></div>
 
@@ -135,7 +122,6 @@ export default function LifestyleSelection() {
             { step: 2, label: 'Yaşam Tarzı', status: 'active' },
             { step: 3, label: 'Tercihler', status: 'pending' },
             { step: 4, label: 'Bütçe', status: 'pending' },
-            { step: 5, label: 'Özel Konumlar', status: 'pending' },
           ].map((item) => {
             const isCompleted = item.status === 'completed';
             const isActive = item.status === 'active';
@@ -166,7 +152,7 @@ export default function LifestyleSelection() {
         </div>
       </div>
 
-      {/* ORTA KISIM: Başlık ve Kartlar */}
+      {/* Başlık ve Kartlar */}
       <div style={{ maxWidth: '720px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <h1 style={{ fontSize: '32px', fontFamily: 'serif', fontWeight: 'bold', color: '#1c1917', textAlign: 'center', marginBottom: '6px' }}>
           Seni biraz tanıyalım
@@ -175,7 +161,6 @@ export default function LifestyleSelection() {
           Yaşam tarzına en yakın profili seç. Tüm tercihlerini daha sonra özelleştirebilirsin.
         </p>
 
-        {/* Kartlar Grid Yapısı (2x2) */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px', width: '100%', marginBottom: '14px' }}>
           {personas.map((persona) => {
             const isSelected = selectedId === persona.id;
@@ -236,7 +221,7 @@ export default function LifestyleSelection() {
         </button>
       </div>
 
-      {/* ALT KISIM: Navigasyon Butonları */}
+      {/* Navigasyon Butonları */}
       <div style={{ maxWidth: '720px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '16px', borderTop: '1px solid #e7e5e4' }}>
         {error && (
           <p style={{ color: '#b91c1c', fontSize: '13px', margin: 0, textAlign: 'center' }}>{error}</p>

@@ -7,10 +7,11 @@ import { VerifyEmailPage } from '@/features/auth/VerifyEmailPage';
 import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage';
 import { OnboardingPage } from '@/features/onboarding/OnboardingPage';
 import LifestyleSelection from "@/features/auth/LifestyleSelection";
+import PreferencesRanking from "@/features/auth/PreferencesRanking";
+import BudgetSelection from "@/features/auth/BudgetSelection";
 import { ExplorePage } from '@/features/explore/ExplorePage';
 import { ProfilePage } from '@/features/profile/ProfilePage';
 import { NotFoundPage } from '@/features/NotFoundPage';
-import PreferencesRanking from "@/features/auth/PreferencesRanking";
 
 export const router = createBrowserRouter([
   // BANNER OLMAYAN TAM EKRAN SAYFALAR 
@@ -24,8 +25,16 @@ export const router = createBrowserRouter([
     path: '/',
     element: <RootLayout />,
     children: [
-      { index: true, element: <Navigate to="/auth/login" replace /> },
+      { index: true, element: <Navigate to="/lifestyle" replace /> },
       
+      {
+        path: 'lifestyle',
+        element: (
+          <ProtectedRoute>
+            <LifestyleSelection />
+          </ProtectedRoute>
+        ),
+      },
       {
         path: 'preferences',
         element: (
@@ -35,10 +44,10 @@ export const router = createBrowserRouter([
         ),
       },
       {
-        path: 'lifestyle',
+        path: 'budget',
         element: (
           <ProtectedRoute>
-            <LifestyleSelection />
+            <BudgetSelection />
           </ProtectedRoute>
         ),
       },

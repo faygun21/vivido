@@ -2,17 +2,6 @@ import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/features/auth/authStore';
 
-/**
- * Giriş gerektiren route'ları sarar.
- *
- * `status === 'unknown'` iken YÖNLENDİRME YAPMAZ — o sırada açılışta
- * refresh token'la oturum geri yükleniyor olabilir. Beklemeden login'e
- * atarsak, giriş yapmış kullanıcı her F5'te bir an login ekranı görür.
- *
- * `allowGuest` ile sarılan sayfalar, "misafir olarak devam et" diyen
- * ziyaretçiye de açılır (W0). Sayfanın kendisi misafiri tanıyıp içeriği
- * kısmak zorundadır — buradaki bayrak yalnızca kapıyı açar.
- */
 export function ProtectedRoute({
   children,
   allowGuest = false,
