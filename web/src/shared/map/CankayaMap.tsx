@@ -28,6 +28,7 @@ import {
   type AnalysisRadiusKm,
 } from './analysisArea';
 import type { UserLocation } from './useUserLocation';
+import type { AnchorSweetSpotResult } from './anchorSweetSpot';
 import type { Poi, RouteDetail, RouteStop } from '@vivido/shared';
 import { poiCategoryColor, POI_CATEGORY_COLORS, POI_FALLBACK_COLOR } from './poiColors';
 
@@ -191,6 +192,13 @@ interface CankayaMapProps {
    * tamamını kapsayacak şekilde yakınlaştırılır. `null` çizgiyi kaldırır.
    */
   route?: RouteDetail | null;
+  /**
+   * Anchor'lardan (özel yerler) hesaplanan arama alanı — ağırlıklı geometrik
+   * medyan merkez + bunu ve tüm anchor'ları içine alan bir daire (bkz.
+   * `anchorSweetSpot.ts`). Verilirse haritada mor bir halka olarak çizilir.
+   * `null`/`undefined` halkayı kaldırır.
+   */
+  anchorArea?: AnchorSweetSpotResult | null;
 }
 
 const GEO_DISTRICT = '/geo/cankaya.geojson';
@@ -346,6 +354,10 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
       type: 'geojson',
       data: { type: 'FeatureCollection', features: [] },
     },
+    'anchor-alani': {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+    },
     'yurume-merkezi': {
       type: 'geojson',
       data: { type: 'FeatureCollection', features: [] },
@@ -427,6 +439,20 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
         'line-width': 2,
         'line-dasharray': [2, 2],
       },
+    },
+    // Anchor'lardan (özel yerler) hesaplanan arama alanı — diğer iki
+    // dairelerden ayırt edilsin diye mor.
+    {
+      id: 'anchor-alani-dolgu',
+      type: 'fill',
+      source: 'anchor-alani',
+      paint: { 'fill-color': '#7c3aed', 'fill-opacity': 0.08 },
+    },
+    {
+      id: 'anchor-alani-cizgi',
+      type: 'line',
+      source: 'anchor-alani',
+      paint: { 'line-color': '#6d28d9', 'line-width': 2, 'line-dasharray': [4, 2] },
     },
     {
       id: 'yurume-alani-dolgu',
@@ -745,6 +771,7 @@ export function CankayaMap({
   onBoundsChange,
   route = null,
   userLocation = null,
+  anchorArea = null,
 }: CankayaMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -1208,6 +1235,16 @@ export function CankayaMap({
 
     map.panBy([-delta / 2, 0], { duration: 220 });
   }, [padLeft, status]);
+
+  useEffect(() => {
+    const anchorSource = mapRef.current?.getSource('anchor-alani') as GeoJSONSource | undefined;
+    if (!anchorSource) return;
+
+    anchorSource.setData({
+      type: 'FeatureCollection',
+      features: anchorArea ? [anchorArea.polygon] : [],
+    });
+  }, [anchorArea, status]);
 
   useEffect(() => {
     const source = mapRef.current?.getSource('yurume-alani') as GeoJSONSource | undefined;

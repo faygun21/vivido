@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
@@ -11,6 +11,7 @@ import type {
   PropertyMapItem,
   PropertySummary,
   RouteDetail,
+  TopPropertiesResponse,
   UserProfile,
 } from '@vivido/shared';
 import { MAX_ANCHORS, MAX_ROUTE_STOPS, MIN_ROUTE_STOPS } from '@vivido/shared';
@@ -48,6 +49,7 @@ import {
 } from '@/shared/map/analysisArea';
 import { useUserLocation } from '@/shared/map/useUserLocation';
 import { startFromLiveLocation, type RouteStart } from '@/shared/route/routeStart';
+import { createAnchorAreaPolygon, haversineDistanceMetres } from '@/shared/map/anchorSweetSpot';
 
 /**
  * Ana ekran — Çankaya haritası.
@@ -196,15 +198,53 @@ export function ExplorePage() {
     enabled: selectedPropertyId !== null,
   });
 
+  const persona = personas.find((p) => p.code === profile?.personaCode);
+
+  // Anchor'lardan (özel yerler) hesaplanan ağırlık merkezi + arama alanı.
+  // Anchor yoksa null — gösterilecek/filtrelenecek bir alan yok.
+  const anchorArea = useMemo(() => {
+    const anchors = profile?.anchors ?? [];
+    if (anchors.length === 0) return null;
+    return createAnchorAreaPolygon(
+      anchors.map((a) => ({ lat: a.lat, lon: a.lon, priority: a.priority, mode: a.mode })),
+    );
+  }, [profile?.anchors]);
+
+  // Anchor'lar (özel yerler) varsa varsayılan olarak SADECE onların
+  // çevresindeki alan gösterilir — kullanıcı bilerek "Tüm evleri göster"i
+  // açmadıkça tik KAPALI kalıyor.
+  const [showAllProperties, setShowAllProperties] = useState(false);
+
   // "En uygun evler" listesi. Ayrı bir uç nokta: `/properties` haritanın
   // TAMAMINI döndürüyor (binlerce kayıt) ve adres/gerekçe taşımıyor;
   // bunları 6.000 konut için hesaplatmak gereksiz iş olurdu.
-  const { data: topProperties = [], isLoading: topLoading } = useSessionQuery({
-    queryKey: ['properties', 'top'],
-    queryFn: () => api.get<PropertySummary[]>(`/properties/top?limit=${TOP_PROPERTY_LIMIT}`),
+  //
+  // Anchor alanı aktifse (ve "Tüm evleri göster" kapalıysa) sunucuya da
+  // aynı merkez/yarıçapı gönderiyoruz — yoksa sunucu TÜM ilçedeki en iyi
+  // 20'yi seçip döner, bunların hiçbiri anchor alanının içinde olmayabilir.
+  // Harita pinlerindeki client-side filtreyle (bkz. `propertyPoints`) AYNI
+  // formülü (haversine) kullanıyor — ikisi farklı sınır çizmesin diye.
+  const useAnchorFilter = anchorArea !== null && !showAllProperties;
+  const { data: topResponse, isLoading: topLoading } = useSessionQuery({
+    queryKey: [
+      'properties',
+      'top',
+      useAnchorFilter ? anchorArea.center.lat : null,
+      useAnchorFilter ? anchorArea.center.lon : null,
+      useAnchorFilter ? anchorArea.radiusMetres : null,
+    ],
+    queryFn: () => {
+      const params = new URLSearchParams({ limit: String(TOP_PROPERTY_LIMIT) });
+      if (useAnchorFilter) {
+        params.set('anchorLat', String(anchorArea.center.lat));
+        params.set('anchorLon', String(anchorArea.center.lon));
+        params.set('anchorRadiusM', String(anchorArea.radiusMetres));
+      }
+      return api.get<TopPropertiesResponse>(`/properties/top?${params.toString()}`);
+    },
   });
-
-  const persona = personas.find((p) => p.code === profile?.personaCode);
+  const topProperties = topResponse?.items ?? [];
+  const topNearestFallback = topResponse?.nearestFallback ?? null;
 
   // ─── R-120/121 — rota ÖNİZLEME (hesaplar, KAYDETMEZ) ───
   //
@@ -493,11 +533,23 @@ export function ExplorePage() {
   // Konutlar `markers`'a DEĞİL, ayrı bir cluster kaynağına gider — bkz.
   // CankayaMap'teki `konutlar` GeoJSON source (R-109: yakınlaştırma
   // seviyesine göre gruplanma/ayrılma).
-  const propertyPoints: PropertyPoint[] = properties.map((p) => ({
-    id: p.id,
-    lat: p.latitude,
-    lon: p.longitude,
-  }));
+  //
+  // Anchor alanı varsa VE "Tüm evleri göster" kapalıysa, sadece o alana
+  // düşen evler gösteriliyor — client-side filtre, backend'e dokunmadan
+  // (harita zaten bütçeye uygun tüm evlerin konumunu getiriyor).
+  const propertyPoints: PropertyPoint[] = properties
+    .filter((p) => {
+      if (showAllProperties || !anchorArea) return true;
+      return (
+        haversineDistanceMetres(anchorArea.center, { lat: p.latitude, lon: p.longitude })
+        <= anchorArea.radiusMetres
+      );
+    })
+    .map((p) => ({
+      id: p.id,
+      lat: p.latitude,
+      lon: p.longitude,
+    }));
 
   function handlePropertyClick(id: string) {
     // R-120 — "Rota" sekmesindeyken pin tıklaması detay yerine seçimi ekler/çıkarır.
@@ -649,6 +701,7 @@ export function ExplorePage() {
         userLocation={userLocation}
         // R-121 — oluşturulmuş rota: çizgi + numaralı duraklar + otomatik sığdırma.
         route={activeRoute}
+        anchorArea={anchorArea}
         // Çekmece haritanın üstünde yüzüyor; örttüğü genişliği haritaya
         // bildiriyoruz ki ilçe sınırı panelin altında kalmasın.
         padLeft={drawerOpen && wideScreen ? DRAWER_WIDTH_PX : 0}
@@ -672,6 +725,22 @@ export function ExplorePage() {
           selectedId={selectedPropertyId}
           onSelect={handleTopSelect}
           onClose={() => setTopPanelOpen(false)}
+          // Liste boşsa NEDENİ ayırt etmek lazım: bütçeye uyan hiç ev yok mu
+          // (properties zaten boş), yoksa bütçeye uyan evler var ama hiçbiri
+          // anchor alanının içinde değil mi? İkincisinde "kira aralığını
+          // genişlet" mesajı yanıltıcı olurdu — asıl sorun anchor alanı.
+          emptyReason={
+            topProperties.length > 0
+              ? null
+              : properties.length === 0
+                ? 'budget'
+                : useAnchorFilter
+                  ? 'anchor-area'
+                  : 'budget'
+          }
+          onShowAllProperties={() => setShowAllProperties(true)}
+          nearestFallback={topNearestFallback}
+          onSelectFallback={handleTopSelect}
         />
       )}
 
@@ -958,6 +1027,9 @@ export function ExplorePage() {
                 onToggleCategory={toggleCategory}
                 propertiesVisible={propertiesVisible}
                 onToggleProperties={() => setPropertiesVisible((v) => !v)}
+                hasAnchorArea={anchorArea !== null}
+                showAllProperties={showAllProperties}
+                onToggleShowAllProperties={() => setShowAllProperties((v) => !v)}
               />
 
               <ul className="legend">

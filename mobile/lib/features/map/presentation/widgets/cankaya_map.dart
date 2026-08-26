@@ -10,6 +10,7 @@ import '../../../location_analysis/domain/location_analysis.dart';
 import '../../../location_search/domain/location_search_models.dart';
 import '../../../map_data/domain/map_data_models.dart';
 import '../../../map_data/presentation/poi_category_colors.dart';
+import '../../../routes/domain/route_models.dart';
 
 typedef MapPointCallback = void Function(double lat, double lon);
 typedef MapBoundsCallback = void Function(MapViewportBounds bounds);
@@ -22,6 +23,9 @@ const _poiPointLayerId = 'vivido-poi-points';
 const _poiClusterLayerId = 'vivido-poi-clusters';
 const _propertyPointLayerId = 'vivido-property-points';
 const _propertyClusterLayerId = 'vivido-property-clusters';
+const _routeSourceId = 'vivido-active-route';
+const _routeCasingLayerId = 'vivido-route-casing';
+const _routeLineLayerId = 'vivido-route-line';
 
 class CankayaMap extends StatefulWidget {
   const CankayaMap({
@@ -37,6 +41,7 @@ class CankayaMap extends StatefulWidget {
     this.onBoundsChanged,
     this.onPoiTap,
     this.onPropertyTap,
+    this.route,
     super.key,
   });
 
@@ -52,6 +57,7 @@ class CankayaMap extends StatefulWidget {
   final MapBoundsCallback? onBoundsChanged;
   final PoiTapCallback? onPoiTap;
   final PropertyTapCallback? onPropertyTap;
+  final RouteDetail? route;
 
   @override
   State<CankayaMap> createState() => _CankayaMapState();
@@ -68,8 +74,12 @@ class _CankayaMapState extends State<CankayaMap> {
       _focusOnResult();
     }
     if (!identical(oldWidget.pois, widget.pois) ||
-        !identical(oldWidget.properties, widget.properties)) {
+        !identical(oldWidget.properties, widget.properties) ||
+        !identical(oldWidget.route, widget.route)) {
       unawaited(_updateMapSources());
+    }
+    if (!identical(oldWidget.route, widget.route) && widget.route != null) {
+      unawaited(_fitRoute());
     }
   }
 
@@ -86,6 +96,10 @@ class _CankayaMapState extends State<CankayaMap> {
         style.updateGeoJsonSource(
           id: _propertySourceId,
           data: _propertyFeatureCollection(widget.properties),
+        ),
+        style.updateGeoJsonSource(
+          id: _routeSourceId,
+          data: _routeFeatureCollection(widget.route),
         ),
       ]);
     } on Object {
@@ -198,6 +212,58 @@ class _CankayaMapState extends State<CankayaMap> {
     );
   }
 
+  Future<void> _fitRoute() async {
+    final controller = _mapController;
+    final route = widget.route;
+    if (controller == null || route == null) return;
+
+    final coordinates = <List<double>>[
+      if (route.geometry.isNotEmpty) ...route.geometry,
+      if (route.geometry.isEmpty) ...[
+        [route.start.longitude, route.start.latitude],
+        for (final stop in route.stops)
+          [stop.property.longitude, stop.property.latitude],
+      ],
+    ];
+    if (coordinates.isEmpty) return;
+
+    var west = coordinates.first[0];
+    var east = coordinates.first[0];
+    var south = coordinates.first[1];
+    var north = coordinates.first[1];
+    for (final point in coordinates.skip(1)) {
+      west = point[0] < west ? point[0] : west;
+      east = point[0] > east ? point[0] : east;
+      south = point[1] < south ? point[1] : south;
+      north = point[1] > north ? point[1] : north;
+    }
+    if ((east - west).abs() < 0.002) {
+      west -= 0.002;
+      east += 0.002;
+    }
+    if ((north - south).abs() < 0.002) {
+      south -= 0.002;
+      north += 0.002;
+    }
+
+    try {
+      await controller.fitBounds(
+        bounds: LngLatBounds(
+          longitudeWest: west,
+          longitudeEast: east,
+          latitudeSouth: south,
+          latitudeNorth: north,
+        ),
+        padding: const EdgeInsets.all(46),
+        nativeDuration: const Duration(milliseconds: 650),
+        webMaxZoom: 16,
+      );
+    } on Object {
+      // Sekme veya sayfa hızlı kapatıldığında native harita controller'ı
+      // dispose edilmiş olabilir; geç gelen kamera işlemi uygulamayı bozmasın.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final analysisCenter = widget.analysisCenter;
@@ -277,6 +343,27 @@ class _CankayaMapState extends State<CankayaMap> {
             ),
           ),
         ),
+      if (widget.route != null)
+        Marker(
+          point: Geographic(
+            lon: widget.route!.start.longitude,
+            lat: widget.route!.start.latitude,
+          ),
+          size: const Size.square(42),
+          alignment: Alignment.center,
+          child: const _RouteStartPin(),
+        ),
+      if (widget.route != null)
+        for (final stop in widget.route!.stops)
+          Marker(
+            point: Geographic(
+              lon: stop.property.longitude,
+              lat: stop.property.latitude,
+            ),
+            size: const Size(42, 48),
+            alignment: Alignment.bottomCenter,
+            child: _RouteStopPin(sequence: stop.sequence),
+          ),
     ];
 
     return ClipRRect(
@@ -291,6 +378,7 @@ class _CankayaMapState extends State<CankayaMap> {
           onStyleLoaded: (style) {
             _styleController = style;
             unawaited(_updateMapSources());
+            if (widget.route != null) unawaited(_fitRoute());
             _reportBounds();
           },
           options: MapOptions(
@@ -376,6 +464,53 @@ class _AnchorPin extends StatelessWidget {
   }
 }
 
+class _RouteStartPin extends StatelessWidget {
+  const _RouteStartPin();
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: const Color(0xFF1D4ED8),
+      shape: BoxShape.circle,
+      border: Border.all(color: Colors.white, width: 3),
+      boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 5)],
+    ),
+    child: const Icon(Icons.flag, color: Colors.white, size: 22),
+  );
+}
+
+class _RouteStopPin extends StatelessWidget {
+  const _RouteStopPin({required this.sequence});
+
+  final int sequence;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    alignment: Alignment.topCenter,
+    children: [
+      const Icon(
+        Icons.location_on,
+        size: 46,
+        color: Color(0xFF1D4ED8),
+        shadows: [
+          Shadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
+        ],
+      ),
+      Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Text(
+          '$sequence',
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w900,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
 String _poiFeatureCollection(List<PoiMapItem> pois) => jsonEncode({
   'type': 'FeatureCollection',
   'features': [
@@ -410,6 +545,18 @@ String _propertyFeatureCollection(List<PropertyMapItem> properties) =>
           },
       ],
     });
+
+String _routeFeatureCollection(RouteDetail? route) => jsonEncode({
+  'type': 'FeatureCollection',
+  'features': [
+    if (route != null && route.geometry.length >= 2)
+      {
+        'type': 'Feature',
+        'properties': {'id': route.id},
+        'geometry': {'type': 'LineString', 'coordinates': route.geometry},
+      },
+  ],
+});
 
 List<Object> _poiColorExpression() {
   final expression = <Object>[
@@ -449,6 +596,10 @@ String get _mapStyle => jsonEncode({
       'cluster': true,
       'clusterMaxZoom': 15,
       'clusterRadius': 45,
+    },
+    _routeSourceId: {
+      'type': 'geojson',
+      'data': {'type': 'FeatureCollection', 'features': <Object>[]},
     },
   },
   'layers': [
@@ -525,6 +676,20 @@ String get _mapStyle => jsonEncode({
           5,
         ],
       },
+    },
+    {
+      'id': _routeCasingLayerId,
+      'type': 'line',
+      'source': _routeSourceId,
+      'layout': {'line-cap': 'round', 'line-join': 'round'},
+      'paint': {'line-color': '#ffffff', 'line-width': 8, 'line-opacity': 0.95},
+    },
+    {
+      'id': _routeLineLayerId,
+      'type': 'line',
+      'source': _routeSourceId,
+      'layout': {'line-cap': 'round', 'line-join': 'round'},
+      'paint': {'line-color': '#2563eb', 'line-width': 5, 'line-opacity': 0.95},
     },
     {
       'id': _propertyClusterLayerId,

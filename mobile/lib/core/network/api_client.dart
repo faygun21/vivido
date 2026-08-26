@@ -37,6 +37,7 @@ class ApiClient {
   final http.Client _httpClient;
 
   AuthSession? _session;
+  Future<void>? _refreshInFlight;
 
   AuthSession? get session => _session;
 
@@ -169,7 +170,20 @@ class ApiClient {
     return 'İşlem tamamlandı.';
   }
 
-  Future<void> _refresh() async {
+  Future<void> _refresh() {
+    final inFlight = _refreshInFlight;
+    if (inFlight != null) return inFlight;
+
+    final operation = _performRefresh();
+    _refreshInFlight = operation;
+    return operation.whenComplete(() {
+      if (identical(_refreshInFlight, operation)) {
+        _refreshInFlight = null;
+      }
+    });
+  }
+
+  Future<void> _performRefresh() async {
     final refreshToken = _session?.refreshToken;
     if (refreshToken == null) {
       throw const ApiException(

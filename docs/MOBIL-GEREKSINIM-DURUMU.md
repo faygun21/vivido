@@ -1,7 +1,7 @@
 # Mobil Gereksinim Durum Raporu
 
-> **Tarih:** 2026-08-25
-> **İncelenen branch:** `feat/mobile-poi-property-pins`
+> **Tarih:** 2026-08-26
+> **İncelenen branch:** `feat/mobile-property-favorites-routes`
 > **Kapsam kaynağı:** Kullanıcının paylaştığı son mobil gereksinim listesi (`R-1`–`R-78`)
 
 Bu raporda yalnızca son paylaşılan 78 mobil gereksinim kabul kapsamı olarak
@@ -12,12 +12,12 @@ değerlendirmesinde ölçüt olarak kullanılmamıştır.
 
 | Durum | Adet | Toplam içindeki oran |
 |---|---:|---:|
-| ✅ Yapıldı | **27** | **%34,6** |
-| 🟡 Yarım yapıldı | **22** | **%28,2** |
-| ❌ Yapılmadı | **29** | **%37,2** |
+| ✅ Yapıldı | **46** | **%59,0** |
+| 🟡 Yarım yapıldı | **16** | **%20,5** |
+| ❌ Yapılmadı | **16** | **%20,5** |
 | **Toplam** | **78** | **%100** |
 
-Tam veya kısmi olarak ele alınmış gereksinim sayısı **49/78 (%62,8)**'dır.
+Tam veya kısmi olarak ele alınmış gereksinim sayısı **62/78 (%79,5)**'dır.
 Bir gereksinim, bütün maddeleri mobil arayüz ve gerekli backend desteğiyle
 karşılanıyorsa “Yapıldı” kabul edilmiştir. Gereksinimin yalnızca bir bölümü
 varsa “Yarım yapıldı” olarak işaretlenmiştir.
@@ -42,17 +42,36 @@ varsa “Yarım yapıldı” olarak işaretlenmiştir.
 | **R-19** | Özel Konumlar | Kullanıcı iş yeri, okul, üniversite, spor salonu veya aile evi gibi bir veya birden fazla özel konum tanımlayabilmelidir. | Kullanıcı serbest etiketle en fazla üç anchor ekleyebiliyor. |
 | **R-20** | Özel Konumlar | Kullanıcı özel konumu haritadan seçebilmeli veya adres aramasıyla ekleyebilmelidir. | Gereksinimdeki alternatiflerden haritadan nokta seçme yöntemi çalışıyor. |
 | **R-21** | Özel Konumlar | Kullanıcı özel konumlara isim verebilmeli, silebilmeli ve önem seviyelerini belirleyebilmelidir. | Konum etiketi, silme ve sürükle-bırakla öncelik/ağırlık sıralaması bulunuyor. |
+| **R-23** | Ana Menü | Alt menüden Harita, Rotalarım, Favorilerim ve Profilim ekranlarına geçilebilmelidir. | Alt menüde Harita, Konutlar, Favoriler, Rotalar ve Profil ekranları bulunuyor; konut/favori/rota state'i ortak controller'larda korunuyor. |
 | **R-24** | Ana Menü | Kullanıcının bulunduğu aktif ekran alt menüde ayırt edilebilir şekilde gösterilmelidir. | Flutter `NavigationBar` seçili sekmeyi farklı renk ve ikonla gösteriyor. |
-| **R-26** | Harita | Kullanıcı harita üzerinde yakınlaştırma, uzaklaştırma ve sürükleme işlemleri yapabilmelidir. | MapLibre'ın yakınlaştırma ve kaydırma hareketleri aktiftir. |
 | **R-25** | Harita | Ana harita ekranında Ankara Çankaya bölgesi ve proje kapsamındaki kiralık konutlar gösterilmelidir. | Çankaya vektör haritası üzerinde giriş yapan kullanıcıya bütçesine uygun skorlanmış konutlar, misafire görünür alandaki temel konut verileri pinleniyor. |
+| **R-26** | Harita | Kullanıcı harita üzerinde yakınlaştırma, uzaklaştırma ve sürükleme işlemleri yapabilmelidir. | MapLibre'ın yakınlaştırma ve kaydırma hareketleri aktiftir. |
 | **R-27** | Harita | Konut ve POI gösterimleri yakınlaştırma seviyesine göre düzenlenmeli; uzak görünümde gizlenmeli/gruplanmalı, yakında detaylanmalıdır. | Konut ve POI GeoJSON kaynakları uzak görünümde MapLibre kümeleri olarak çiziliyor; yakınlaştırıldığında tekil, dokunulabilir noktalara ayrılıyor. |
 | **R-29** | POI Katmanları | Market, eczane, sağlık, eğitim, toplu taşıma, restoran/kafe, park/yeşil alan ve spor POI katmanları ayrı ayrı açılıp kapatılabilmelidir. | Backend'den alınan aktif POI kategorileri mobil katman panelinde ayrı ayrı açılıp kapatılabiliyor. |
 | **R-30** | POI Katmanları | Aynı anda birden fazla POI kategorisi haritada görüntülenebilmelidir. | Seçili kategori kodları tek bbox sorgusunda virgülle ayrılmış olarak gönderiliyor ve birden çok kategori birlikte çiziliyor. |
 | **R-31** | POI Detayı | Bir hizmet noktasına dokununca adı, kategorisi ve temel bilgileri gösterilmelidir. | Tekil POI noktasına dokunulduğunda adı, Türkçe kategori adı ve koordinatı alt bilgi panelinde gösteriliyor. |
+| **R-32** | Konut | Haritadan kiralık konut seçilerek konut detay ekranına geçilebilmelidir. | Haritadaki tekil konut pinine dokunulduğunda `GET /properties/{id}` verisiyle ayrı ve kapsamlı konut detay sayfası açılıyor. |
+| **R-34** | Konut Detayı | Seçilen konutun konumu haritada gösterilmelidir. | Konut detay sayfasında seçilen konuta odaklanan MapLibre haritası ve konut pini bulunuyor. |
+| **R-36** | Uygunluk Skoru | Kullanıcı toplam uygunluk skorunu ve kriterlere ait alt skorları görüntüleyebilmelidir. | Detay sayfası toplam skoru, skor bandını ve her kriterin ölçülen süresini, hedefini ve alt skorunu gösteriyor. |
+| **R-37** | Skor Açıklaması | Sistem konutun kullanıcı açısından güçlü yönlerini ve dikkat edilmesi gereken noktalarını gösterebilmelidir. | Backend skor kırılımındaki güçlü/zayıf yönler, bütçe uyumu ve varsa zayıf halka etkisi mobil detay ekranında açıklanıyor. |
+| **R-40** | Favoriler | Konut favorilere eklenebilmeli ve favorilerden çıkarılabilmelidir. | Liste ve detay ekranları gerçek `POST/DELETE /profile/favorites` endpoint'leriyle favori durumunu güncelliyor. |
+| **R-41** | Favoriler | Favorilerim ekranında kayıtlı konutlar görüntülenmeli ve detaylarına ulaşılabilmelidir. | Favoriler sekmesi `GET /profile/favorites` kartlarını gösteriyor; karta dokununca tam konut detayı açılıyor. |
+| **R-42** | Favoriler | Favorilerdeki konutlar ziyaret rotasına eklenebilmelidir. | Her favori kartındaki “Rotaya ekle” işlemi konutu ortak rota taslağına ekliyor. |
+| **R-43** | Rota Optimizasyonu | Sistem seçilen konutların mesafe ve sürelerine göre uygun ziyaret sırası oluşturmalıdır. | Mobil 2–8 seçili konutu başlangıç ve ulaşım moduyla `POST /routes` endpoint'ine gönderiyor; backend OSRM süre matrisi ve Held-Karp TSP ile sırayı optimize ediyor. |
+| **R-44** | Rota | Oluşturulan rota haritada; ziyaret sırası, toplam mesafe ve tahmini toplam süreyle gösterilmelidir. | GeoJSON rota çizgisi, başlangıç ve numaralı duraklar MapLibre üzerinde; toplam mesafe/süre ve sıralı duraklar rota kartında gösteriliyor. |
+| **R-45** | Rota | Kullanıcı rotadan bir konut çıkarabilmeli ve rota kalan konutlara göre yeniden oluşturulmalıdır. | Kullanıcı durağı kaldırabiliyor; mobil kalan konutlarla yeni optimize rotayı oluşturup aktif ediyor, ardından eski rotayı siliyor; eski kayıt silinemezse kullanıcı açıkça uyarılıyor. |
+| **R-46** | Rota | Kullanıcı oluşturduğu ziyaret rotasını hesabına kaydedebilmelidir. | `POST /routes` oluşturma sırasında rotayı kullanıcı hesabına kalıcı kaydediyor ve mobil başarı durumunu gösteriyor. |
+| **R-47** | Rotalarım | Kullanıcı kayıtlı ziyaret rotalarını Rotalarım ekranında görüntüleyebilmelidir. | Rotalar sekmesi `GET /routes` ile kullanıcının kayıtlı rotalarını en yeniden eskiye listeliyor. |
+| **R-48** | Rotalarım | Kayıtlı rota için rota adı, konut sayısı, toplam mesafe ve tahmini toplam süre gösterilmelidir. | Kayıtlı rota kartlarında ad, ulaşım modu, durak sayısı, mesafe ve süre gösteriliyor. |
+| **R-49** | Rotalarım | Kullanıcı kayıtlı rotanın detayları ve konutların ziyaret sırasını harita üzerinde görüntüleyebilmelidir. | Kayıtlı rota açıldığında `GET /routes/{id}` ile geometri ve duraklar alınarak rota haritası ve ziyaret sırası gösteriliyor. |
+| **R-50** | Rotalarım | Kullanıcı kayıtlı rotayı silebilmelidir. | Onay diyaloğundan sonra `DELETE /routes/{id}` çağrılıyor ve rota listeden kaldırılıyor. |
 | **R-58** | Kullanıcı İşlemleri | Kullanıcı Profilim ekranından hesabından çıkış yapabilmelidir. | Profil ekranındaki “Çıkış yap” işlemi oturumu kapatıyor. |
 | **R-59** | Şifre Güvenliği | Şifre en az 8 karakter; büyük harf, küçük harf, rakam ve özel karakter içermelidir. | Mobil kayıt ve şifre sıfırlama formları ortak parola politikasıyla bütün kuralları doğruluyor; backend de kayıt ve sıfırlama isteklerinde aynı kuralları zorunlu tutuyor. |
+| **R-60** | Yetkilendirme | Kullanıcı yalnızca kendi profil, tercih, favori ve kayıtlı rota bilgilerine erişebilmelidir. | Profil, anchor, favori ve rota endpoint'leri JWT `NameIdentifier` kullanıcısına göre sorgulanıyor; rota detayı da `id + userId` sahipliğiyle açılıyor. |
 | **R-62** | Oturum Güvenliği | Kullanıcı çıkış yaptıktan sonra hesabına özel ekranlara yetkisiz erişim sağlanamamalıdır. | Güvenli depodaki oturum siliniyor, uygulama guest aşamasına dönüyor ve korumalı API endpoint'leri JWT istiyor. |
+| **R-65** | Veri Tutarlılığı | Profil, tercih, favori, skor ve rota bilgileri güncel ve Web uygulamasındaki bilgilerle tutarlı olmalıdır. | Mobil ve web profil, konut, skor, favori ve rota için aynı backend endpoint'lerini kullanıyor; favori mutasyonu sonrası ilgili mobil listeler sunucudan yenileniyor. |
 | **R-70** | Sistem Yapısı | Mobil kullanıcı arayüzü, Backend ve Data bileşenleri birbirinden ayrılmış geliştirilebilir yapıda olmalıdır. | Mobilde `core/features`, backend'de Application/Domain/Infrastructure/API katmanları ayrılmıştır. |
+| **R-71** | Entegrasyon | Mobil uygulama kullanıcı, profil, konut, POI, skor, favori ve rota bilgilerine Backend üzerinden erişmelidir. | Bütün sayılan kaynaklar ayrı mobil gateway/controller katmanlarından gerçek `/api/v1` endpoint'lerine bağlıdır. |
 
 ## 3. Yarım yapılan gereksinimler
 
@@ -62,23 +81,17 @@ varsa “Yarım yapıldı” olarak işaretlenmiştir.
 | **R-15** | Tercihler | Kullanıcı ulaşım, sağlık, eğitim, sosyal yaşam, günlük ihtiyaçlar, yeşil alan ve spor kriterlerinin önem seviyelerini belirleyebilmelidir. | Bütün kriterler listeleniyor ve kullanıcının sırasından göreli önem yüzdeleri üretiliyor. | Her kriter için sıradan bağımsız ayrı bir seviye/ağırlık kontrolü yok. |
 | **R-17** | Tercihler | Yaşam kriterlerindeki değişiklikler kaydedilmeli ve konut uygunluk skorunda kullanılmalıdır. | Sıralama `PUT /profile` ile `UserProfileCategoryOrders` tablosuna kaydediliyor ve web ile aynı profilden geri okunuyor. | Konut skorlama motoru kaydedilen sıralamayı henüz skora uygulamıyor. |
 | **R-18** | Bütçe | Kullanıcı aylık kira bütçesini belirleyebilmeli ve bu bilgi konut uygunluk skorunda kullanılmalıdır. | Minimum–maksimum kira aralığı onboarding ve profil ekranından kaydedilip güncellenebiliyor. | Yeni skorlama servisi kira aralığını henüz skora uygulamıyor. |
-| **R-22** | Profil | Profil ekranında profil bilgileri, bütçe, tercihler ve özel konumlar görüntülenip güncellenebilmelidir. | Ad, soyad, persona, bütçe ve yaşam kriterleri görüntülenip profil editöründen güncellenebiliyor; özel konum sayısı gösteriliyor ve Konumlar sekmesinden yönetiliyor. | Yaş/cinsiyet/çalışma/medeni hâl alanları ile profil ekranı içinde doğrudan özel konum düzenleme yok. |
-| **R-23** | Ana Menü | Alt menüden Harita, Rotalarım, Favorilerim ve Profilim ekranlarına geçilebilmelidir. | Harita, Konumlar ve Profil sekmeleri bulunuyor. | Rotalarım ve Favorilerim sekmeleri yok; Konumlar sekmesi gereksinimdeki menüden farklıdır. |
-| **R-32** | Konut | Haritadan kiralık konut seçilerek konut detay ekranına geçilebilmelidir. | Haritadaki tekil konut noktasına dokunulduğunda temel konut ve varsa uygunluk skoru bilgilerini içeren alt panel açılıyor. | Ayrı ve kapsamlı bir konut detay sayfasına yönlendirme henüz yok. |
-| **R-33** | Konut Detayı | Fotoğraf, kira, mahalle, oda, metrekare, asansör, otopark, bina katı ve konut katı bilgileri gösterilmelidir. | Kira, oda, metrekare ve anonim harita yanıtında mevcutsa bina yaşı/asansör bilgisi gösteriliyor. | Fotoğraf, mahalle, otopark, bina katı ve konutun bulunduğu kat backend DTO'sunda ve mobil UI'da yok. |
+| **R-22** | Profil | Profil ekranında profil bilgileri, bütçe, tercihler ve özel konumlar görüntülenip güncellenebilmelidir. | Ad, soyad, persona, bütçe ve yaşam kriterleri görüntülenip profil editöründen güncellenebiliyor; özel konum sayısı gösteriliyor ve Profil içindeki bağlantıdan yönetiliyor. | Yaş/cinsiyet/çalışma/medeni hâl alanları yok. |
+| **R-33** | Konut Detayı | Fotoğraf, kira, mahalle, oda, metrekare, asansör, otopark, bina katı ve konut katı bilgileri gösterilmelidir. | Detay API'sinden kira, mahalle/adres, oda, metrekare, asansör, otopark, toplam kat ve konut katı gösteriliyor; sentetik veri için temsili görsel açıkça etiketleniyor. | Backend DTO/veri modelinde gerçek ilana ait fotoğraf URL'si bulunmadığı için gerçek konut fotoğrafı gösterilemiyor. |
 | **R-35** | Uygunluk Skoru | Profil, bütçe, tercihler, özel konumlar ve çevre analiziyle kişiselleştirilmiş konut uygunluk skoru oluşturulmalıdır. | Backend POI erişim süreleri ve persona ağırlıklarından 0–100 skor üretiyor; bütçe aralığına uygun konutlar mobil haritada gösteriliyor ve pin detayında toplam skor sunuluyor. | Kaydedilen kriter sırası, kira aralığı ve özel konumlar skor hesabının bütün bileşenlerine henüz katılmıyor. |
-| **R-36** | Uygunluk Skoru | Kullanıcı toplam uygunluk skorunu ve kriterlere ait alt skorları görüntüleyebilmelidir. | Giriş yapan kullanıcı konut pinine dokunduğunda toplam uygunluk skorunu görebiliyor. | Kriterlere ait alt skorlar mobilde gösterilmiyor. |
 | **R-38** | Erişim Analizi | Konut ile çevresindeki hizmet noktaları arasındaki mesafe ve erişim süresi gösterilmelidir. | Kullanıcının haritadan veya aramadan seçtiği nokta çevresinde 0,5–5 km analiz alanı ile 5–30 dakikalık yaklaşık yürüme erişim alanı jeodezik poligon olarak gösteriliyor. | Kiralık konut ve POI seçimi ile her hizmet noktası için gerçek yol mesafesi/erişim süresi verisi ve sonuç listesi henüz yok. |
-| **R-60** | Yetkilendirme | Kullanıcı yalnızca kendi profil, tercih, favori ve kayıtlı rota bilgilerine erişebilmelidir. | Profil ve anchor endpoint'leri JWT kullanıcısına göre veri döndürüyor. | Tercih, favori ve rota kaynakları henüz bulunmuyor. |
 | **R-61** | Skor Tutarlılığı | Aynı profil, tercihler ve konut için aynı koşullarda aynı uygunluk skoru gösterilmelidir. | Mobil, web ile aynı `/properties` endpoint'inin backend'de hesaplayıp sıraladığı toplam skoru değiştirmeden gösteriyor. | Aynı koşul sonucunu uçtan uca doğrulayan deterministik mobil/backend kabul testi bulunmuyor. |
-| **R-63** | Performans | Harita, konut, rota ve detay ekranları kullanıcıyı uzun süre bekletmeden yüklenmelidir. | Konut/POI noktaları Flutter widget pinleri yerine MapLibre GeoJSON kaynaklarında kümeleniyor; bbox istekleri debounce ediliyor ve eski istek yeni sonucu ezemiyor. | Rota/detay ekranları ve ölçülmüş performans kabul testi bulunmuyor. |
-| **R-64** | CBS Performansı | Haritada kullanılan konut, POI ve rota verileri performanslı ve zoom seviyesine göre optimize edilmelidir. | Vektör tile ile konut/POI noktaları GPU tabanlı GeoJSON cluster katmanlarında, görünür alan bbox sorgusu ve zoom seviyesine göre çiziliyor. | Rota katmanı ile gerçek cihaz veri hacmi performans ölçümü henüz yok. |
-| **R-65** | Veri Tutarlılığı | Profil, tercih, favori, skor ve rota bilgileri güncel ve web uygulamasıyla tutarlı olmalıdır. | Mobil profil, persona, kriter sırası, anchor, konut, POI ve toplam skor için web ile aynı API ve veritabanını kullanıyor. | Favori ve rota mobil zinciri tamamlanmadı. |
+| **R-63** | Performans | Harita, konut, rota ve detay ekranları kullanıcıyı uzun süre bekletmeden yüklenmelidir. | Konut/POI kaynakları kümeleniyor; liste ve rota özet endpoint'leri ağır detay/geometriden ayrılıyor; ekranlarda loading/error durumları var. | Gerçek cihazda süre eşikleriyle çalışan ölçülmüş performans kabul testi bulunmuyor. |
+| **R-64** | CBS Performansı | Haritada kullanılan konut, POI ve rota verileri performanslı ve zoom seviyesine göre optimize edilmelidir. | Vektör tile, görünür alan bbox, GPU tabanlı konut/POI cluster'ları ve GeoJSON rota line katmanı kullanılıyor. | Gerçek cihaz ve yüksek veri hacmi için ölçülmüş CBS performans testi bulunmuyor. |
 | **R-66** | Kişisel Veri Gizliliği | Yalnızca gerekli kişisel bilgiler alınmalı ve kullanım amacı belirtilmelidir. | Uygulama şu an sınırlı kullanıcı verisi topluyor. | Gizlilik metni, açık amaç bildirimi ve onay akışı yok. |
-| **R-68** | Hata Yönetimi | Veri, bağlantı, GPS veya servis hatalarında anlaşılır mesaj gösterilmeli ve uygulamanın tamamı kullanılamaz olmamalıdır. | API timeout, bağlantı ve iş kuralı hataları kullanıcı mesajlarına çevriliyor. | Tile/harita, GPS ve ilerideki rota servisleri için merkezi hata/fallback yönetimi yok. |
+| **R-68** | Hata Yönetimi | Veri, bağlantı, GPS veya servis hatalarında anlaşılır mesaj gösterilmeli ve uygulamanın tamamı kullanılamaz olmamalıdır. | API timeout, bağlantı ve rota `OSRM_UNAVAILABLE`/doğrulama hataları kullanıcı mesajlarına çevriliyor; liste ekranları tekrar deneme sunuyor. | Tile/harita ve GPS için merkezi hata/fallback yönetimi yok. |
 | **R-69** | Kullanılabilirlik | Temel işlemler kolay anlaşılmalı ve arayüz farklı hedef ekran boyutlarında bozulmamalıdır. | SafeArea, kaydırma, küçük ekran ve klavye taşması düzeltmeleri bulunuyor. | Birden fazla cihaz boyutu için kapsamlı responsive/golden test matrisi yok. |
-| **R-71** | Entegrasyon | Kullanıcı, profil, konut, POI, skor, favori ve rota bilgileri Backend üzerinden erişilmelidir. | Kullanıcı, oturum, persona, profil, anchor, konut, POI ve toplam skor mobilde gerçek backend endpoint'lerinden alınıyor. | Favori ve rota entegrasyonları tamamlanmadı. |
-| **R-73** | Veri Gereksinimi | Konut, uygunluk skoru, çevre analizi ve rota bilgilerinin görüntülenmesi için gerekli veriler sistemde bulunmalıdır. | Sentetik konutlar, POI'ler, erişim matrisi ve skor/cache modeli veritabanında; mobil gerçek konut/POI pinlerini, toplam skoru ve temel analiz alanlarını gösteriyor. | Rota verisi/servisleri ile POI bazlı erişim sonuç listesi tamamlanmadı. |
+| **R-73** | Veri Gereksinimi | Konut, uygunluk skoru, çevre analizi ve rota bilgilerinin görüntülenmesi için gerekli veriler sistemde bulunmalıdır. | Sentetik konut, POI, erişim matrisi, açıklanabilir skor, OSRM geometrisi, rota/durak/bacak verileri sistemde ve mobilde görüntüleniyor. | Konut çevresindeki POI'leri tek tek mesafe/süreyle veren erişim sonuç listesi tamamlanmadı. |
 | **R-74** | Bağlantı | İnternet/servis bağlantısı yokken çevrimiçi işlemler yapılmamalı ve kullanıcı bilgilendirilmelidir. | API bağlantı hatalarında kullanıcıya sunucuya ulaşılamadığı bildiriliyor. | Harita tile, konut, rota ve navigasyon için ortak çevrimdışı durum ekranı yok. |
 
 ## 4. Yapılmayan gereksinimler
@@ -87,20 +100,7 @@ varsa “Yarım yapıldı” olarak işaretlenmiştir.
 |---|---|---|---|
 | **R-12** | Profil | Kullanıcı yaş, cinsiyet, çalışma durumu ve medeni hâl bilgileriyle profil oluşturabilmelidir. | Bu alanlar modelde, API'de ve mobil formda yok. |
 | **R-28** | Konum | Konum izni açıkken kullanıcının GPS konumu haritada gösterilmelidir. | Konum paketi, izin akışı ve GPS işaretçisi yok. |
-| **R-34** | Konut Detayı | Seçilen konutun konumu haritada gösterilmelidir. | Konut detay haritası yok. |
-| **R-37** | Skor Açıklaması | Sistem konutun kullanıcı açısından güçlü yönlerini ve dikkat edilmesi gereken noktalarını gösterebilmelidir. | Skor açıklaması, güçlü/zayıf yönler ve gerekçe ekranı yok. |
 | **R-39** | Özel Konum Analizi | Konut ile kullanıcının kayıtlı özel konumları arasındaki tahmini mesafe ve ulaşım süresi gösterilmelidir. | Konut-anchor analiz servisi ve ekranı yok. |
-| **R-40** | Favoriler | Konut favorilere eklenebilmeli ve favorilerden çıkarılabilmelidir. | Favori modeli, endpoint'i ve UI yok. |
-| **R-41** | Favoriler | Favorilerim ekranında kayıtlı konutlar görüntülenmeli ve detaylarına ulaşılabilmelidir. | Favoriler ekranı yok. |
-| **R-42** | Favoriler | Favorilerdeki konutlar ziyaret rotasına eklenebilmelidir. | Favori ve rota seçimi yok. |
-| **R-43** | Rota Optimizasyonu | Sistem seçilen konutların mesafe ve sürelerine göre uygun ziyaret sırası oluşturmalıdır. | TSP/rota endpoint'i ve mobil akış yok. |
-| **R-44** | Rota | Oluşturulan rota haritada; ziyaret sırası, toplam mesafe ve tahmini toplam süreyle gösterilmelidir. | Rota haritası ve özeti yok. |
-| **R-45** | Rota | Kullanıcı rotadan bir konut çıkarabilmeli ve rota kalan konutlara göre yeniden oluşturulmalıdır. | Rota düzenleme yok. |
-| **R-46** | Rota | Kullanıcı oluşturduğu ziyaret rotasını hesabına kaydedebilmelidir. | Rota kaydetme yok. |
-| **R-47** | Rotalarım | Kullanıcı kayıtlı ziyaret rotalarını Rotalarım ekranında görüntüleyebilmelidir. | Rotalarım ekranı yok. |
-| **R-48** | Rotalarım | Kayıtlı rota için rota adı, konut sayısı, toplam mesafe ve tahmini toplam süre gösterilmelidir. | Kayıtlı rota modeli ve kartı yok. |
-| **R-49** | Rotalarım | Kayıtlı rotanın detayları ve konutların ziyaret sırası haritada gösterilmelidir. | Rota detay haritası yok. |
-| **R-50** | Rotalarım | Kullanıcı kayıtlı rotayı silebilmelidir. | Rota silme yok. |
 | **R-51** | Navigasyon | Kullanıcı seçtiği ziyaret rotası için navigasyonu başlatabilmelidir. | Navigasyon modülü yok. |
 | **R-52** | Navigasyon | Navigasyon öncesi konum izni kontrol edilmeli, izin kapalıysa uyarı gösterilmelidir. | Konum izni/navigasyon başlangıcı yok. |
 | **R-53** | Navigasyon | Navigasyon sırasında GPS konumu ve oluşturulan ziyaret rotası haritada gösterilmelidir. | Canlı GPS ve rota çizgisi yok. |
@@ -112,7 +112,7 @@ varsa “Yarım yapıldı” olarak işaretlenmiştir.
 | **R-72** | Geliştirilebilirlik | Mobil uygulama ileride farklı ilçe veya bölgelerin eklenmesine uygun geliştirilmelidir. | Harita merkezi, stil ve sınıf isimleri Çankaya'ya sabitlenmiş durumda. |
 | **R-75** | Paylaşım | Seçilen konut veya ziyaret rotası paylaşılabilir bağlantıyla cihaz uygulamalarında paylaşılabilmelidir. | Deep link/share özelliği yok. |
 | **R-76** | Kullanıcı Puanlaması | Giriş yapan kullanıcı konuta puan verebilmeli ve önceki puanını değiştirebilmelidir. | Kullanıcı puanı modeli, endpoint'i ve ekranı yok. |
-| **R-77** | Kullanıcı Puanlaması | Kullanıcı puanı, sistemin kişiselleştirilmiş uygunluk skorundan ayrı gösterilmelidir. | Konut puanı ve uygunluk skoru gösterimi yok. |
+| **R-77** | Kullanıcı Puanlaması | Kullanıcı puanı, sistemin kişiselleştirilmiş uygunluk skorundan ayrı gösterilmelidir. | Kişiselleştirilmiş uygunluk skoru ayrı gösteriliyor; ancak kullanıcı puanı modeli, endpoint'i ve ekranı yok. |
 | **R-78** | Offline Kullanım | İnternet yokken cihazda saklanan favori konutların temel bilgileri gösterilmeli; çevrimiçi gereken işlemler için kullanıcı bilgilendirilmelidir. | Favori cache'i ve offline kullanım desteği yok. |
 
 ## 5. Kodda doğrulanan başlıca karşılıklar
@@ -128,20 +128,23 @@ varsa “Yarım yapıldı” olarak işaretlenmiştir.
 - Özel konum ekleme/silme/sıralama: [`mobile/lib/features/anchors/presentation/pages/anchor_manager_page.dart`](../mobile/lib/features/anchors/presentation/pages/anchor_manager_page.dart)
 - Konum analizi hesabı ve kontrolleri: [`mobile/lib/features/location_analysis`](../mobile/lib/features/location_analysis)
 - POI/konut API, model, controller ve katman paneli: [`mobile/lib/features/map_data`](../mobile/lib/features/map_data)
+- En uygun konut listesi, gerçek konut detayı ve skor açıklamaları: [`mobile/lib/features/properties`](../mobile/lib/features/properties)
+- Favori konut API'si, ortak durum yönetimi ve Favoriler ekranı: [`mobile/lib/features/favorites`](../mobile/lib/features/favorites)
+- Rota taslağı, optimizasyon, kayıtlı rotalar ve rota haritası: [`mobile/lib/features/routes`](../mobile/lib/features/routes)
 - Çankaya MapLibre haritası: [`mobile/lib/features/map/presentation/widgets/cankaya_map.dart`](../mobile/lib/features/map/presentation/widgets/cankaya_map.dart)
 - Mobil API istemcisi: [`mobile/lib/core/network/api_client.dart`](../mobile/lib/core/network/api_client.dart)
 - Backend auth endpoint'leri: [`api/src/Vivido.Api/controllers/AuthController.cs`](../api/src/Vivido.Api/controllers/AuthController.cs)
 - Backend profil/anchor endpoint'leri: [`api/src/Vivido.Api/controllers/ProfilesController.cs`](../api/src/Vivido.Api/controllers/ProfilesController.cs), [`api/src/Vivido.Api/controllers/AnchorsController.cs`](../api/src/Vivido.Api/controllers/AnchorsController.cs)
 - Backend POI/konut endpoint'leri: [`api/src/Vivido.Api/controllers/PoisController.cs`](../api/src/Vivido.Api/controllers/PoisController.cs), [`api/src/Vivido.Api/controllers/PropertiesController.cs`](../api/src/Vivido.Api/controllers/PropertiesController.cs)
+- Backend favori ve rota endpoint'leri: [`api/src/Vivido.Api/controllers/FavoritesController.cs`](../api/src/Vivido.Api/controllers/FavoritesController.cs), [`api/src/Vivido.Api/controllers/RoutesController.cs`](../api/src/Vivido.Api/controllers/RoutesController.cs)
 
 ## 6. Öncelikli eksik özellik sırası
 
 Bağımlılıklar dikkate alındığında önerilen geliştirme sırası:
 
-1. **Konut detay ve skor zinciri:** R-32–R-39, R-61, R-73; kaydedilen kriter sırası R-17 kapsamında skora bağlanmalı
+1. **Konut analizi ve skor tamamlamaları:** R-33, R-35, R-38, R-39, R-61 ve R-73; gerçek ilan fotoğrafı ile anchor/POI mesafe-süre verileri tamamlanmalı, kaydedilen kriter sırası R-17 kapsamında skora bağlanmalı
 2. **Profil tamamlamaları:** R-3, R-12, R-15, R-22
 3. **GPS ve POI erişim analizi:** R-28, R-38, R-67
-4. **Favoriler:** R-40–R-42
-5. **Rota ve Rotalarım:** R-43–R-50
-6. **Navigasyon ve ziyaret takibi:** R-51–R-57
-7. **Güvenlik/gizlilik/offline tamamlamaları:** R-66, R-74–R-78
+4. **Navigasyon ve ziyaret takibi:** R-51–R-57
+5. **Güvenlik, gizlilik ve hata yönetimi:** R-62, R-66, R-68 ve R-74
+6. **Paylaşım, kullanıcı puanı ve çevrimdışı kullanım:** R-75–R-78
