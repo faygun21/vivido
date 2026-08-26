@@ -202,6 +202,19 @@ export interface PropertySummary {
   isFavorite: boolean;
 }
 
+/**
+ * `GET /properties/top` yanıtı.
+ *
+ * Anchor (özel yer) alanında hiç ev yoksa `items` boş olabilir — bu
+ * durumda `nearestFallback`, alana EN YAKIN bütçeye uygun evi taşır
+ * ("burada yok ama en yakını şu" demek için). Anchor filtresi
+ * uygulanmadıysa ya da `items` zaten doluysa null.
+ */
+export interface TopPropertiesResponse {
+  items: PropertySummary[];
+  nearestFallback: PropertySummary | null;
+}
+
 /** `GET /properties` — haritadaki pin'ler. Adres ve kırılım taşımaz. */
 export interface PropertyMapItem {
   id: string;

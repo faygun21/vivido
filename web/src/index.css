@@ -1241,7 +1241,30 @@ button svg,
 }
 
 .top-panel-note { margin: 0.5rem 0.45rem; font-size: 0.85rem; }
+
+/* Boş liste notunun içindeki "Tüm evleri göster" gibi metin-içi eylem —
+   ayrı bir düğme gibi değil, cümlenin devamı gibi görünsün. */
+.top-panel-note-action {
+  display: inline;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
 .top-panel-badge { margin: 0.8rem 0.45rem 0; }
+
+.top-panel-note--fallback-label {
+  margin-top: 1rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
 
 .top-list { display: grid; gap: 0.45rem; margin: 0; padding: 0; list-style: none; }
 

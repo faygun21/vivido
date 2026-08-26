@@ -135,3 +135,16 @@ public record PropertySummaryDto(
     string? TopWeakness,
     bool IsFavorite
 );
+
+/// <summary>
+/// `GET /properties/top` yanıtı.
+///
+/// Anchor (özel yer) alanında hiç ev yoksa <c>Items</c> boş olabilir —
+/// bu durumda <c>NearestFallback</c>, alana EN YAKIN bütçeye uygun evi
+/// taşır ("burada yok ama en yakını şu" demek için). Anchor filtresi
+/// uygulanmadıysa ya da <c>Items</c> zaten doluysa null.
+/// </summary>
+public record TopPropertiesResponseDto(
+    IReadOnlyList<PropertySummaryDto> Items,
+    PropertySummaryDto? NearestFallback
+);
