@@ -646,7 +646,16 @@ button svg,
   min-height: 24rem;
   overflow: hidden;
   background: var(--input-bg);
+
+  /* Sağdaki panel yuvasının kapladığı genişlik. Liste ya da konut detayı
+     açıkken harita kontrolleri ve üst şerit bu kadar sola kayar — aksi
+     halde MapLibre'ın +/− kontrolü panelin ALTINDA kalıyor ve kullanıcı
+     haritayı yakınlaştıramıyordu. Tek değişkende çünkü üç yer birden
+     (kontrol, üst şerit, panel) aynı ölçüye bağlı. */
+  --right-slot: 0rem;
 }
+
+.explore--right-open { --right-slot: 23.4rem; }
 
 .explore .map-wrap { height: 100%; }
 
@@ -657,12 +666,22 @@ button svg,
   z-index: 6;
   top: 0.9rem;
   left: 0.9rem;
-  right: 0.9rem;
+  /* Sağ kenar MapLibre'ın +/− kontrolünü boş bırakır (≈1.8rem + boşluk),
+     panel açıkken de yuva kadar sola kayar. Bu pay olmadan "En uygun
+     evler" düğmesi zoom kontrolünün üstüne biniyordu. */
+  right: calc(var(--right-slot) + 3.2rem);
   display: flex;
   align-items: flex-start;
   gap: 0.6rem;
   pointer-events: none;
-  transition: left 0.22s ease;
+  transition: left 0.22s ease, right 0.22s ease;
+}
+
+/* MapLibre kontrol kabı panelin soluna kayar; sınıf adı MapLibre'ın
+   kendi DOM'undan geliyor, bileşen dışından tek erişim noktası bu. */
+.explore .maplibregl-ctrl-top-right {
+  right: var(--right-slot);
+  transition: right 0.22s ease;
 }
 
 .map-topbar > * { pointer-events: auto; }
@@ -750,29 +769,669 @@ button svg,
 
 .map-banner .btn-chip:hover { background: color-mix(in srgb, #fff 30%, transparent); }
 
-/* Bir konut pin'ine tıklanınca haritanın üstünde yüzen detay kartı. */
-.property-detail-card {
+/* ═══════════════════════════════════════════════════════════════════
+   KONUT DETAY PANELİ (W6)
+   ───────────────────────────────────────────────────────────────────
+   Eski `.property-detail-card` 20rem'lik bir kutuydu ve yalnızca kira +
+   skor gösteriyordu. Skorun GEREKÇESİ eklenince kutu yetmedi: panel artık
+   kendi başlığı, kaydırılabilir gövdesi ve alt bilgisi olan bir yüzey.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ⭐ SAĞ YUVA — liste ve detay AYNI yeri paylaşır (master-detail)
+   ───────────────────────────────────────────────────────────────────
+   İkisini yan yana koymayı denedim ve çalışmıyor: 22.5 + 22.5 rem sağda
+   45 rem yer kaplıyor, soldaki 21.5 rem çekmeceyle birlikte 1600 px'lik
+   bir ekranda haritaya ~500 px kalıyordu — üstelik MapLibre'ın +/−
+   kontrolü de altta kalıyordu. Detay listenin ÜSTÜNE açılıyor ve
+   "← Listeye dön" ile geri dönülüyor; liste arkada mount kalır, kaydırma
+   konumu korunur.
+
+   Yuva genişliği tek yerde tanımlı: harita kontrolleri ve üst şerit de
+   buna göre kayıyor (bkz. `--right-slot`). */
+.property-panel,
+.top-panel {
   position: absolute;
-  z-index: 8;
-  bottom: 1.2rem;
-  right: 1.2rem;
-  width: min(20rem, calc(100vw - 2.4rem));
-  padding: 1rem;
-  border-radius: 1rem;
-  border: 1px solid var(--line);
+  top: 0.9rem;
+  bottom: 0.9rem;
+  right: 0.9rem;
+  width: 22.5rem;
+  max-width: calc(100% - 1.8rem);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  border-radius: 1.1rem;
   background: var(--surface);
   box-shadow: var(--shadow-lg);
+  overflow: hidden;
 }
 
-.property-detail-card header {
+/* Detay listenin üstünde. */
+.property-panel { z-index: 9; }
+.top-panel { z-index: 8; }
+
+.property-panel-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.9rem 0.9rem 0.8rem 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 35%, transparent);
+}
+
+/* "← Listeye dön" — yalnızca liste açıkken görünür; harita pin'inden
+   gelindiğinde dönülecek bir liste yok. */
+.property-panel-back {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.5rem 0.9rem;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 35%, transparent);
+  border-radius: 0;
+  background: var(--input-bg);
+  color: var(--ink-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: left;
+}
+
+.property-panel-back:hover { color: var(--accent); }
+
+.property-panel-title { flex: 1; min-width: 0; }
+
+.property-panel-title h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  letter-spacing: -0.015em;
+}
+
+.property-panel-close { font-size: 1rem; flex: none; }
+
+.property-address {
+  display: grid;
+  gap: 0.05rem;
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.property-address-primary { font-weight: 600; }
+
+.property-panel-body {
+  flex: 1;
+  min-height: 0;
+  padding: 0.9rem 1rem 1rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ── Skor rozeti ──
+   Renkler bant başına AYRI: sayı tek başına "77" anlamlı değil, bandı
+   söylemeden kullanıcı iyi mi kötü mü bilmiyor. */
+.score-badge {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  width: 3.4rem;
+  height: 3.4rem;
+  flex: none;
+  border-radius: 0.9rem;
+  line-height: 1;
+  color: var(--accent-ink);
+}
+
+.score-badge strong { font-size: 1.35rem; font-weight: 700; }
+.score-badge span { font-size: 0.62rem; opacity: 0.85; margin-top: 0.15rem; }
+
+.score-badge--excellent { background: #15803d; }
+.score-badge--good      { background: #4d7c0f; }
+.score-badge--fair      { background: #b45309; }
+.score-badge--poor      { background: #9a3412; }
+
+.band-chip {
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent-ink);
+}
+
+.band-chip--excellent { background: #15803d; }
+.band-chip--good      { background: #4d7c0f; }
+.band-chip--fair      { background: #b45309; }
+.band-chip--poor      { background: #9a3412; }
+
+.property-headline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.7rem;
+}
+
+.property-rent strong { font-size: 1.25rem; letter-spacing: -0.02em; }
+.property-rent span { font-size: 0.82rem; margin-left: 0.25rem; }
+
+/* ── Favori düğmesi ── */
+.favorite-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.favorite-btn:hover { background: color-mix(in srgb, var(--accent) 15%, var(--surface)); }
+
+.favorite-btn.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.favorite-btn.is-active:hover { background: #a53818; }
+.favorite-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.favorite-btn span { font-size: 1.05rem; line-height: 1; }
+
+/* ── Panel bölümleri ── */
+.property-section {
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid color-mix(in srgb, var(--line) 30%, transparent);
+}
+
+.property-section h3 {
+  margin: 0 0 0.55rem;
+  font-size: 0.92rem;
+  letter-spacing: -0.01em;
+}
+
+.score-explainer { margin: -0.2rem 0 0.7rem; font-size: 0.8rem; }
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 0.8rem;
+  margin: 0 0 0.7rem;
+  padding: 0;
+  list-style: none;
+}
+
+.feature-grid li { display: grid; gap: 0.1rem; font-size: 0.85rem; }
+.feature-grid span { font-size: 0.75rem; }
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* "Yok" olanlar GİZLENMİYOR, soluk gösteriliyor: gizlense kullanıcı
+   "asansör bilgisi yok mu, asansör mü yok?" diye sorar. */
+.feature-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
+  border-radius: 999px;
+  background: var(--input-bg);
+  color: var(--ink-muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.feature-tag.is-on {
+  border-color: color-mix(in srgb, #15803d 45%, transparent);
+  background: color-mix(in srgb, #15803d 10%, var(--surface));
+  color: #15803d;
+}
+
+/* ── Bütçe uyumu ──
+   Skor satırlarından AYRI ve görsel olarak da ayrı: mevcut skor motoru
+   bütçeyi hesaba katmıyor, gerekçe tablosuna karıştırırsak kullanıcı
+   "bütçem skorumu düşürmüş" sanır. */
+.budget-note {
+  margin-top: 1rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 0.8rem;
+  border-left: 3px solid var(--line);
+  background: var(--input-bg);
+}
+
+.budget-note h3 { margin: 0 0 0.25rem; font-size: 0.85rem; }
+.budget-note p { margin: 0; font-size: 0.82rem; }
+
+.budget-note--fits  { border-left-color: #15803d; }
+.budget-note--tight { border-left-color: #b45309; }
+.budget-note--over  { border-left-color: #9a3412; }
+.budget-note--under { border-left-color: #0f766e; }
+
+.budget-bar {
+  height: 0.35rem;
+  margin-top: 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line) 40%, transparent);
+  overflow: hidden;
+}
+
+.budget-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.budget-note--fits .budget-bar span  { background: #15803d; }
+.budget-note--tight .budget-bar span { background: #b45309; }
+.budget-note--over .budget-bar span  { background: #9a3412; }
+
+/* ── Neden uygun / neden uygun değil ── */
+.reason-columns { display: grid; gap: 0.8rem; }
+
+.reason-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.reason-title--good { color: #15803d; }
+.reason-title--bad  { color: #9a3412; }
+
+.reason-list { display: grid; gap: 0.3rem; margin: 0; padding: 0; list-style: none; }
+
+.reason-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.6rem;
+  background: var(--input-bg);
+  font-size: 0.82rem;
+}
+
+.reason-mark { flex: none; font-weight: 700; }
+.reason-item--strength .reason-mark { color: #15803d; }
+.reason-item--weakness .reason-mark { color: #9a3412; }
+
+.reason-body { display: grid; gap: 0.05rem; flex: 1; min-width: 0; }
+.reason-label { font-weight: 600; }
+.reason-detail { font-size: 0.74rem; }
+
+.reason-score {
+  flex: none;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.reason-empty { margin: 0; font-size: 0.8rem; }
+.reason-toggle { margin-top: 0.7rem; }
+
+/* ── Zayıf halka cezası ──
+   Bir KRİTER değil, tüm skora uygulanan bir kısıtlama — o yüzden
+   güçlü/zayıf sütunlarının dışında, kendi kutusunda duruyor. */
+.weak-link-note {
+  margin-top: 0.7rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.7rem;
+  border-left: 3px solid #9a3412;
+  background: color-mix(in srgb, #9a3412 8%, var(--surface));
+}
+
+.weak-link-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.weak-link-label { font-size: 0.82rem; font-weight: 700; color: #9a3412; }
+
+.weak-link-points {
+  font-size: 0.95rem;
+  color: #9a3412;
+  font-variant-numeric: tabular-nums;
+}
+
+.weak-link-note p { margin: 0.2rem 0 0; font-size: 0.78rem; }
+
+/* Tablodaki ceza satırı — kategorilerden görsel olarak ayrılsın. */
+.score-table-penalty th,
+.score-table-penalty td {
+  background: color-mix(in srgb, #9a3412 6%, transparent);
+  font-style: italic;
+}
+
+.score-table-penalty .score-table-contrib { color: #9a3412; font-style: normal; }
+
+/* Kriter adının altındaki ikincil bilgi (yoğunluk, ceza kaynağı). */
+.density-hint {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 400;
+  font-style: normal;
+}
+
+/* Hedef süre, ölçülenin ALTINDA — ayrı sütun olsaydı tablo 22.5rem'lik
+   panele sığmaz ve en önemli sütun (KATKI) taşıp kesilirdi. */
+.table-target {
+  display: block;
+  font-size: 0.66rem;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+/* ── Tam kriter tablosu ── */
+.score-table-wrap {
+  margin-top: 0.7rem;
+  /* Dar panelde tablo taşarsa SAYFA yatay kaymasın, tablo kendi içinde
+     kaysın. */
+  overflow-x: auto;
+}
+
+.score-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.score-table th,
+.score-table td {
+  padding: 0.35rem 0.4rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.score-table thead th {
+  color: var(--ink-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 40%, transparent);
+}
+
+.score-table tbody th,
+.score-table thead th:first-child,
+.score-table tfoot th {
+  text-align: left;
+  font-weight: 600;
+  white-space: normal;
+}
+
+.score-table tbody th {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.score-table tbody tr + tr th,
+.score-table tbody tr + tr td {
+  border-top: 1px solid color-mix(in srgb, var(--line) 22%, transparent);
+}
+
+.score-table tfoot th,
+.score-table tfoot td {
+  padding-top: 0.5rem;
+  border-top: 2px solid color-mix(in srgb, var(--line) 55%, transparent);
+  font-weight: 700;
+}
+
+.score-table-contrib { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+.status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  border-radius: 50%;
+}
+
+.status-dot--strong  { background: #15803d; }
+.status-dot--good    { background: #4d7c0f; }
+.status-dot--warning { background: #b45309; }
+.status-dot--weak    { background: #9a3412; }
+
+.property-panel-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid color-mix(in srgb, var(--line) 30%, transparent);
+}
+
+.property-ref { font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   "EN UYGUN EVLER" PANELİ
+   ───────────────────────────────────────────────────────────────────
+   Soldaki ☰ çekmecesinin simetriği: haritanın ÜSTÜNDE yüzer, yana itmez.
+   Tetikleyicisi ikon değil ADI YAZAN bir düğme — iki hamburger yan yana
+   durunca hangisinin ne açtığı tıklamadan anlaşılmıyordu.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Kapalıyken SAĞA kayar (soldaki çekmece sola kayıyor). `visibility`
+   geçişin SONUNDA kapanır: görünmeyen panel fare olaylarını ve odağı
+   yakalamasın. */
+.top-panel {
+  transform: translateX(calc(100% + 1.2rem));
+  visibility: hidden;
+  transition: transform 0.22s ease, visibility 0s linear 0.22s;
+}
+
+.explore--top-open .top-panel {
+  transform: none;
+  visibility: visible;
+  transition: transform 0.22s ease, visibility 0s;
+}
+
+.top-panel-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.6rem;
-  margin-bottom: 0.6rem;
+  gap: 0.75rem;
+  padding: 1rem 1rem 0.75rem 1.15rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 35%, transparent);
 }
 
-.property-detail-card h3 { margin: 0; font-size: 1rem; }
+.top-panel-head h2 { margin: 0; font-size: 1.1rem; letter-spacing: -0.02em; }
+.top-panel-head p { margin: 0.1rem 0 0; font-size: 0.8rem; }
+
+.top-panel-body {
+  flex: 1;
+  min-height: 0;
+  padding: 0.7rem 0.7rem 1rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.top-panel-note { margin: 0.5rem 0.45rem; font-size: 0.85rem; }
+.top-panel-badge { margin: 0.8rem 0.45rem 0; }
+
+.top-list { display: grid; gap: 0.45rem; margin: 0; padding: 0; list-style: none; }
+
+.top-card {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--line) 40%, transparent);
+  border-radius: 0.9rem;
+  background: var(--surface);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.top-card:hover { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+
+.top-card.is-selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+}
+
+/* Kartın gövdesi tek bir düğme; kalp AYRI bir düğme olarak üstte durur.
+   İç içe iki <button> geçersiz HTML'dir. */
+.top-card-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.65rem 2.3rem 0.65rem 0.7rem;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.top-card-rank {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--input-bg);
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.top-card.is-selected .top-card-rank {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.top-card-body { display: grid; gap: 0.08rem; flex: 1; min-width: 0; }
+
+.top-card-title { font-size: 0.88rem; font-weight: 700; }
+.top-card-address { font-size: 0.8rem; font-weight: 600; }
+.top-card-region { font-size: 0.73rem; }
+
+.top-card-meta { margin-top: 0.2rem; font-size: 0.86rem; }
+.top-card-meta span { font-size: 0.75rem; margin-left: 0.2rem; }
+
+.top-card-reason {
+  margin-top: 0.12rem;
+  font-size: 0.73rem;
+  font-weight: 600;
+  /* Uzun kriter adları kartı genişletmesin. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top-card-reason--good { color: #15803d; }
+.top-card-reason--bad  { color: #9a3412; }
+
+.top-card-score {
+  display: grid;
+  place-items: center;
+  /* 2.9rem'de "Çok uygun" iki satıra sarıyordu; bant etiketi tek satırda
+     kalmalı, yoksa rozet kartın yüksekliğini gereksiz büyütüyor. */
+  width: 3.5rem;
+  padding: 0.3rem 0.15rem;
+  flex: none;
+  border-radius: 0.65rem;
+  color: var(--accent-ink);
+  line-height: 1.15;
+}
+
+.top-card-score strong { font-size: 1.05rem; font-weight: 700; }
+.top-card-score span { font-size: 0.56rem; opacity: 0.9; white-space: nowrap; }
+
+.top-card-fav {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.top-card-fav:hover { background: var(--input-bg); color: var(--accent); }
+.top-card-fav.is-active { color: var(--accent); }
+.top-card-fav:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Panelin tetikleyicisi ── */
+.top-panel-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: none;
+  margin-left: auto;
+  padding: 0 0.9rem;
+  height: 2.75rem;
+  border: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  border-radius: 0.85rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.top-panel-toggle:hover { background: var(--input-bg); }
+
+.top-panel-toggle.is-active {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--accent);
+}
+
+/* Sıralı liste işareti — üç azalan çizgi. İkon paketi eklemeden, tek
+   elemanla; soldaki ☰ ile karışmasın diye çizgiler EŞİT DEĞİL. */
+.top-panel-toggle-mark,
+.top-panel-toggle-mark::before,
+.top-panel-toggle-mark::after {
+  display: block;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.top-panel-toggle-mark { position: relative; width: 1.1rem; }
+
+.top-panel-toggle-mark::before,
+.top-panel-toggle-mark::after {
+  content: "";
+  position: absolute;
+  left: 0;
+}
+
+.top-panel-toggle-mark::before { top: -0.4rem; width: 0.75rem; }
+.top-panel-toggle-mark::after  { top: 0.4rem;  width: 0.45rem; }
+
+.top-panel-toggle-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.3rem;
+  height: 1.3rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
 
 /* ── Çekmece ── */
 
@@ -1005,6 +1664,60 @@ button svg,
 
 .locked-list .lock { flex: none; }
 
+/* ── Profildeki favori kartları ──
+   Keşfet ekranındaki kartlarla aynı dili konuşur (skor rozeti solda, adres
+   iki satır, ✓/✗ gerekçe) ama sayfa akışında olduğu için biraz daha ferah. */
+
+.favorite-list { display: grid; gap: 0.6rem; margin: 0; padding: 0; list-style: none; }
+
+.favorite-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
+  border-radius: 0.9rem;
+  background: var(--surface);
+}
+
+.favorite-card--missing { color: var(--ink-muted); font-size: 0.88rem; }
+
+.favorite-score {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  padding: 0.35rem 0.2rem;
+  flex: none;
+  border-radius: 0.7rem;
+  color: var(--accent-ink);
+  line-height: 1.1;
+}
+
+.favorite-score strong { font-size: 1.1rem; font-weight: 700; }
+.favorite-score span { font-size: 0.58rem; opacity: 0.9; }
+
+.favorite-body { flex: 1; min-width: 0; }
+.favorite-body p { margin: 0; }
+
+.favorite-title { font-size: 0.92rem; font-weight: 700; }
+.favorite-address { font-size: 0.84rem; margin-top: 0.1rem !important; }
+
+.favorite-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.7rem;
+  margin-top: 0.25rem !important;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.favorite-meta { margin-top: 0.3rem !important; font-size: 0.74rem; }
+.favorite-remove { flex: none; align-self: center; }
+
+/* ── Dar ekran ──
+   21.5rem'lik panel telefonda haritanın üstünde yüzemez; alttan açılan
+   bir sayfa (bottom sheet) hâline gelir. Üç panel de aynı davranır ki
+   kullanıcı hepsini aynı hareketle kapatabilsin. */
 @media (max-width: 899px) {
   .explore-drawer {
     top: auto;
@@ -1017,6 +1730,37 @@ button svg,
     border-radius: 1.1rem 1.1rem 0 0;
     transform: translateY(100%);
   }
+
+  /* Sağdaki iki panel de alttan açılan sayfaya döner. Yuva kaydırması
+     geçersiz: panel tüm genişliği kaplıyor, kaydıracak yer yok. */
+  .explore--right-open { --right-slot: 0rem; }
+
+  .top-panel,
+  .property-panel {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    max-width: none;
+    max-height: 78%;
+    border-radius: 1.1rem 1.1rem 0 0;
+  }
+
+  .top-panel { transform: translateY(100%); }
+
+  /* Düğme dar ekranda arama kutusunu eziyor; sayacı düşürüp
+     puntoyu küçültüyoruz. Metin KALIYOR — düğmenin erişilebilir adı ondan
+     geliyor, gizlemek onu da silerdi. */
+  .top-panel-toggle { padding: 0 0.7rem; font-size: 0.82rem; }
+  .top-panel-toggle-count { display: none; }
+}
+
+/* Çok dar ekranda (telefon) üst şeritte ☰ + arama + düğme sığmıyor;
+   düğme alt satıra iner. */
+@media (max-width: 560px) {
+  .map-topbar { flex-wrap: wrap; }
+  .top-panel-toggle { margin-left: 0; }
 }
 
 /* ── Rota oluşturucu ve metrik kartı (R-120/121) ── */

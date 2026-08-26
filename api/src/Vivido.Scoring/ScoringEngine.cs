@@ -2,6 +2,7 @@ namespace Vivido.Scoring;
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 public static class ScoringEngine
 {
@@ -56,43 +57,159 @@ public static class ScoringEngine
         /// </summary>
         int? PoiCountInRadius = null,
         /// <summary>Referans "yeterli sayılır" eşiği (poi_categories.min_poi_count).</summary>
-        int? MinPoiCount = null
+        int? MinPoiCount = null,
+        /// <summary>
+        /// Kategori kodu (`market`, `transit`…). Skor hesabına GİRMEZ; yalnızca
+        /// gerekçe satırlarının hangi kategoriye ait olduğunu taşır.
+        ///
+        /// ⚠️ Konumu bilerek EN SONDA: mevcut çağıranlar ve
+        /// `ScoringEngineTests` bu kaydı POZİSYONEL kuruyor
+        /// (`new(duration, weight, tIdeal, tHalf, tCutoff, poiCount, minPoiCount)`),
+        /// araya eklenseydi hepsi sessizce yanlış alana yazardı.
+        /// </summary>
+        string Code = ""
     );
 
+    /// <summary>
+    /// Tek bir kategorinin skora nasıl katkı verdiği — W6 gerekçe tablosunun
+    /// bir satırı.
+    /// </summary>
+    /// <param name="SubScore">
+    /// Bozunum skoru, yoğunluk çarpanı UYGULANMIŞ hâli. Kullanıcıya
+    /// "bu kriter kaç puan aldı" olarak gösterilen değer bu.
+    /// </param>
+    /// <param name="NormalizedWeight">
+    /// Ham ağırlığın, HESABA GİREN kategorilerin toplamına bölünmüş hâli.
+    /// Ham ağırlığı göstermek yanıltıcı olurdu: persona ağırlığı 0 olan ya da
+    /// erişim matrisinde satırı bulunmayan kategoriler hesap dışı kalıyor,
+    /// dolayısıyla kalanların gerçek etkisi ham değerinden büyük oluyor.
+    /// </param>
+    /// <param name="Contribution">
+    /// <c>SubScore × NormalizedWeight</c> — yani ağırlıklı ortalamaya katkısı.
+    /// Zayıf halka cezası BURAYA dağıtılmaz; ayrı bir satır olarak durur
+    /// (bkz. <see cref="ScoreBreakdown.WeakLinkPenalty"/>).
+    /// </param>
+    /// <param name="DensityFactor">
+    /// Yoğunluk çarpanı (0.9–1.1). Veri yoksa 1.0.
+    /// </param>
+    public record CategoryResult(
+        string Code,
+        double DurationMinutes,
+        double TIdeal,
+        double TCutoff,
+        double SubScore,
+        double Weight,
+        double NormalizedWeight,
+        double Contribution,
+        int? PoiCountInRadius,
+        double DensityFactor
+    );
+
+    /// <summary>
+    /// Skorun tamamı ve onu oluşturan satırlar.
+    ///
+    /// ⭐ DEĞİŞMEZLİK: <c>Σ Categories.Contribution + WeakLinkPenalty == Total</c>
+    /// (yuvarlama payı hariç). Arayüzdeki TOPLAM satırı bunu toplayarak
+    /// gösteriyor; tutmazsa ekranda anında görünür.
+    /// </summary>
+    /// <param name="WeightedAverage">Ceza uygulanmadan ÖNCEKİ ağırlıklı ortalama.</param>
+    /// <param name="WeakLinkPenalty">
+    /// Zayıf halka cezasının puan cinsinden karşılığı — <b>negatif ya da 0</b>.
+    ///
+    /// Ceza motorda son skoru ÇARPAN olarak kısıyor (<c>ortalama × faktör</c>),
+    /// yani doğrusal değil. Kategorilerin katkılarına dağıtsaydık ceza
+    /// görünmez olurdu: kullanıcı "market 18 puan getirdi" satırını okurken
+    /// o 18'in içine sessizce serpiştirilmiş bir cezayı fark edemezdi.
+    /// Bunun yerine 01-PROJE-PLANI §6.5'in "CES düzeltmesi" satırı gibi
+    /// AÇIK bir satır olarak duruyor.
+    /// </param>
+    /// <param name="WeakLinkCode">
+    /// Cezayı tetikleyen (en zayıf) kategorinin kodu — "bu evi aşağı çeken
+    /// şey şu" diyebilmek için. Ceza yoksa null.
+    /// </param>
+    public record ScoreBreakdown(
+        double Total,
+        IReadOnlyList<CategoryResult> Categories,
+        double WeightedAverage,
+        double WeakLinkPenalty,
+        string? WeakLinkCode
+    );
+
+    /// <summary>
+    /// Toplam skoru döner.
+    ///
+    /// ⚠️ Formülün TEK kopyası <see cref="CalculateBreakdown"/> içindedir; bu
+    /// metot ona devrediyor. Gerekçe tablosu ayrı bir yerde yeniden
+    /// hesaplansaydı, motorun mantığı değiştiğinde tablo ile skor sessizce
+    /// ayrışırdı — kullanıcı "77 puan" görürken satırların toplamı 71 ederdi
+    /// (K-16).
+    /// </summary>
     public static double CalculateScore(IEnumerable<CategoryInput> inputs)
+        => CalculateBreakdown(inputs).Total;
+
+    /// <summary>
+    /// Toplam skoru ve onu oluşturan satırları birlikte hesaplar.
+    /// </summary>
+    public static ScoreBreakdown CalculateBreakdown(IEnumerable<CategoryInput> inputs)
     {
-        double totalScore = 0.0;
-        double totalWeightUsed = 0.0;
+        // İki kez dolaşıyoruz (önce toplam ağırlık, sonra normalize katkı);
+        // çağıran bir kez okunabilen bir dizi verirse ikinci tur boş kalırdı.
+        var usable = inputs.Where(i => i.Weight > 0).ToList();
+
+        double totalWeightUsed = usable.Sum(i => i.Weight);
+        if (totalWeightUsed <= 0)
+        {
+            return new ScoreBreakdown(0.0, Array.Empty<CategoryResult>(), 0.0, 0.0, null);
+        }
 
         // Zayıf halka cezası için: yalnızca kullanıcının gerçekten önemsediği
         // (ağırlığı eşiğin üstünde) kategoriler arasındaki en kötüsü izlenir.
         double worstConsideredScore = 100.0;
+        string? worstCode = null;
         bool anyConsidered = false;
 
-        foreach (var input in inputs)
-        {
-            if (input.Weight <= 0) continue;
+        double totalScore = 0.0;
+        var categories = new List<CategoryResult>(usable.Count);
 
-            double categoryScore = CalculateDecayScore(
+        foreach (var input in usable)
+        {
+            double decayScore = CalculateDecayScore(
                 input.DurationMinutes,
                 input.TIdeal,
                 input.THalf,
                 input.TCutoff
             );
 
-            categoryScore = ApplyDensityFactor(categoryScore, input.PoiCountInRadius, input.MinPoiCount);
+            double densityFactor = DensityFactorOf(input.PoiCountInRadius, input.MinPoiCount);
+            double categoryScore = ApplyDensityFactor(decayScore, densityFactor);
 
             totalScore += categoryScore * input.Weight;
-            totalWeightUsed += input.Weight;
 
             if (input.Weight >= WeakLinkWeightThreshold)
             {
                 anyConsidered = true;
-                if (categoryScore < worstConsideredScore) worstConsideredScore = categoryScore;
+                if (categoryScore < worstConsideredScore)
+                {
+                    worstConsideredScore = categoryScore;
+                    worstCode = input.Code;
+                }
             }
-        }
 
-        if (totalWeightUsed <= 0) return 0.0;
+            double normalizedWeight = input.Weight / totalWeightUsed;
+
+            categories.Add(new CategoryResult(
+                Code: input.Code,
+                DurationMinutes: input.DurationMinutes,
+                TIdeal: input.TIdeal,
+                TCutoff: input.TCutoff,
+                SubScore: Math.Round(categoryScore, 2),
+                Weight: input.Weight,
+                NormalizedWeight: normalizedWeight,
+                Contribution: Math.Round(categoryScore * normalizedWeight, 2),
+                PoiCountInRadius: input.PoiCountInRadius,
+                DensityFactor: densityFactor
+            ));
+        }
 
         double weightedAverage = totalScore / totalWeightUsed;
 
@@ -103,7 +220,21 @@ public static class ScoringEngine
         // 4 ondalık: 2 ondalıkla farklı iki gerçek skorun aynı sayıya
         // yuvarlanıp sahte bir "eşit skor" görüntüsü vermesini önlüyor.
         // Gösterimde (frontend) yine 0 ondalıkla yuvarlanabilir.
-        return Math.Round(weightedAverage * penaltyFactor, 4);
+        double total = Math.Round(weightedAverage * penaltyFactor, 4);
+
+        // Ceza puan cinsinden: negatif ya da 0. Satırların toplamına
+        // eklendiğinde `total`ı vermeli.
+        double penaltyPoints = Math.Round(total - weightedAverage, 2);
+
+        return new ScoreBreakdown(
+            Total: total,
+            Categories: categories,
+            WeightedAverage: Math.Round(weightedAverage, 2),
+            WeakLinkPenalty: penaltyPoints,
+            // Ceza fiilen sıfırsa "en zayıf kategori" diye bir suçlu göstermek
+            // yanıltıcı olur — o kategori aslında sorun değil.
+            WeakLinkCode: penaltyPoints < -0.005 ? worstCode : null
+        );
     }
 
     private static double CalculateDecayScore(double duration, double tIdeal, double tHalf, double tCutoff)
@@ -133,17 +264,25 @@ public static class ScoringEngine
         }
     }
 
-    private static double ApplyDensityFactor(double categoryScore, int? poiCountInRadius, int? minPoiCount)
+    /// <summary>
+    /// Yoğunluk çarpanını hesaplar; veri yoksa 1.0 (etkisiz) döner.
+    ///
+    /// Çarpanı uygulamaktan AYRI bir metot çünkü gerekçe tablosu çarpanın
+    /// kendisini de gösteriyor ("300 m'de 5 market") — uygulanmış sonuçtan
+    /// geri hesaplamak clamp yüzünden mümkün değil.
+    /// </summary>
+    private static double DensityFactorOf(int? poiCountInRadius, int? minPoiCount)
     {
         if (poiCountInRadius is not int count || minPoiCount is not int minCount || minCount <= 0)
         {
-            return categoryScore;
+            return 1.0;
         }
 
         double ratio = (double)count / minCount;
         double factor = 1.0 + DensityBonusRate * (ratio - 1.0);
-        factor = Math.Clamp(factor, DensityFactorMin, DensityFactorMax);
-
-        return Math.Clamp(categoryScore * factor, 0.0, 100.0);
+        return Math.Clamp(factor, DensityFactorMin, DensityFactorMax);
     }
+
+    private static double ApplyDensityFactor(double categoryScore, double densityFactor)
+        => Math.Clamp(categoryScore * densityFactor, 0.0, 100.0);
 }

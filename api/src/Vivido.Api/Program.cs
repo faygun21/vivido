@@ -46,6 +46,12 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddMemoryCache();
 // Scoring servisini Scoped olarak kaydediyoruz (Her HTTP isteğinde bir kez üretilir)
 builder.Services.AddScoped<PropertyScoringService>();
+// W6 gerekçe tablosu: skorun SATIR SATIR açıklaması. Formülü yeniden
+// hesaplamaz, ScoringEngine.CalculateBreakdown'ı etiketler.
+builder.Services.AddScoped<PropertyScoreBreakdownService>();
+// Konut adresi: en yakın adlı sokak (streets, KNN) + mahalle.
+// Ters geokodlama YOK — gerekçe db/schema/012_add_streets.sql başlığında.
+builder.Services.AddScoped<PropertyAddressService>();
 // R-105: yerel mahallelerden sonra Photon, sonuç/hizmet yoksa Nominatim denenir.
 // Her sağlayıcının adresi yapılandırmadan değiştirilebilir veya kurum içine alınabilir.
 builder.Services.AddScoped<ILocationSearchService, LocationSearchService>();

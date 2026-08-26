@@ -79,7 +79,14 @@ pnpm db:migrate                                 # ⭐ ZORUNLU — şemayı kurar
 docker compose exec -T postgis psql -U vivido -d vivido -v ON_ERROR_STOP=1 -f /seed/seed.sql
 
 pnpm db:check                                   # 6/6 PASS görmelisin
+
+# İsteğe bağlı: konut adreslerinde sokak adı görünsün (~2 dk)
+./data/scripts/05_load_streets.sh
 ```
+
+> `05_load_streets.sh` **tüm ETL'i yeniden koşmaz** — yalnızca mevcut
+> `cankaya.osm.pbf` kesitinden adlı yolları `streets` tablosuna aktarır.
+> Atlanırsa adreste sokak adı görünmez, mahalle adı yazılır ([K-15](02-KARARLAR.md#k-15)).
 
 > ⭐ **`pnpm db:migrate` artık atlanamaz.** Şema eskiden postgis konteyneri ilk
 > açılışta `docker-entrypoint-initdb.d` ile kendiliğinden kuruluyordu; o mount
@@ -129,20 +136,39 @@ bütçe → harita**. Anchor eklemek için üst menüden **Profil**.
 | Veri: 6.000 konut + 48.000 erişim matrisi | OSRM foot süreleriyle |
 | DQ kapıları | **6/6 PASS** |
 
+> ### ⚠️ Bu bölüm 2026-08-25'te güncellendi
+> Aşağıdaki "henüz yok" listesi 23 Ağustos'ta yazılmıştı ve **eskimişti**:
+> skor motoru, `GET /properties`, EF entity'leri ve haritadaki konut
+> noktaları o tarihten sonra yazıldı. Güncel durum §4.1'de.
+
+### ✅ 2026-08-25'te eklenenler
+
+| Alan | Durum |
+|---|---|
+| `Vivido.Scoring` motoru | **Yazıldı** — POI erişim sürelerinin ağırlıklı ortalaması. CES, anchor ve bütçe bileşenleri **henüz yok** |
+| `GET /properties` | Bütçeye göre süzer, skorlar, azalan sıralar (sayfalama yok) |
+| `GET /properties/top?limit=20` | "En uygun evler" — adres + tek satırlık gerekçe özeti + favori bayrağı |
+| `GET /properties/{id}` | Adres, ev özellikleri, **satır satır gerekçe tablosu**, bütçe uyumu, favori durumu |
+| `GET/POST/DELETE /profile/favorites` | Favori listesi artık konut özetini de taşıyor |
+| Konut adresi | `streets` tablosu + KNN — %98,7 kapsam ([K-15](02-KARARLAR.md#k-15)) |
+| Web: konut detay paneli | Gerekçe tablosu, güçlü/zayıf yönler, favori düğmesi |
+| Web: "En uygun evler" paneli | Sağdan açılan sıralı liste, karta tıklayınca harita uçuyor |
+| Web: profildeki favoriler | Gerçek kartlar — eskiden "Ev ID: 4213" yazıyordu |
+| **E-posta doğrulama** | **Yerelde KAPATILDI** (geçici, README §2.5). Staging'de açık |
+
 ### ❌ Henüz yok
 
-| Eksik | Kimde (bkz. [03-HAFTA-2-PLANI](03-HAFTA-2-PLANI.md)) |
+| Eksik | Not |
 |---|---|
-| `Vivido.Scoring` motoru — **hâlâ sıfır `.cs` dosyası** | BE-1 + BE-2 |
-| `GET /properties` · `GET /properties/{id}/score` | BE-3 + BE-4 |
-| `Property` / `PoiCategory` / `Neighborhood` EF entity'leri | BE-3 |
-| Haritada konut noktaları, filtreler, gerekçe tablosu | FE-1 + FE-2 |
-| **CI/CD** — staging elle deploy ediliyor | Sıradaki iş (§8.1) |
+| ~~Skor kalibrasyonu~~ | **Çözüldü** — motor v1.1 (yumuşak tavan + zayıf halka + yoğunluk). Medyan 93,8 → **75,09**, tam 100 alan konut 767 → **0**. §5.14 |
+| CES birleştirme (ρ = −0.5) | Tam CES yok; yerine **zayıf halka cezası** çarpanı var (aynı amaç, daha basit) |
+| Anchor bileşeni | Anchor sırası skoru **hiç değiştirmiyor** — AK-W4 bugün karşılanmıyor |
+| Bütçe bileşeni | Skora girmiyor; panelde ayrı bilgi olarak gösteriliyor ([K-16](02-KARARLAR.md#k-16)) |
+| `min_poi_count` "veri yetersiz" yolu | Kategori devre dışı bırakma yok |
+| Altın veri seti (72 vaka) + I1–I8 | `Category=Golden` / `Invariant` trait'i taşıyan test yok |
+| Filtre paneli (kira / m² / oda) | FE-1 |
+| Playwright | Kurulu değil |
 | Rota / TSP / mobil navigasyon | Hafta 3 |
-
-> **Önemli:** 6.000 konut veritabanında ama **haritada görünmüyor** — onları
-> ekrana getirecek zincir (entity → skor motoru → `GET /properties` → harita
-> katmanı) henüz yazılmadı.
 
 ---
 
@@ -420,6 +446,71 @@ ile okuyordu, **projede öyle bir anahtar yok** (access token bellekte, K-A)
 — ortak istemciye taşındı. Onboarding kaydından sonra `['profile']`
 invalidate ediliyor.
 
+### 5.14 🟠 Skor motoru ayrıştırmıyor — medyan 93,8, listenin tamamı 100
+
+**Tarih:** 2026-08-25 · **ÇÖZÜLDÜ** (skor motoru v1.1, aynı gün)
+
+> ### ✅ Düzeltildi — ölçümle doğrulandı
+> Motor v1.1 üç şey getirdi: **yumuşak tavan** (t_ideal altında da eğim var,
+> artık düz 100 değil), **zayıf halka cezası** (önemsenen en kötü kategori
+> toplamı çarpan olarak kısıyor) ve **yoğunluk sinyali** (300 m'de 1 market
+> ile 5 market aynı puanı vermiyor).
+>
+> Aynı sorgu, aynı profil (`remote_worker`, 20.000–25.000 ₺, 1.134 konut):
+>
+> | Ölçüm | Önce | Sonra |
+> |---|---|---|
+> | Medyan | 93,8 | **75,09** |
+> | Skoru ≥ 85 olan | 767 (%68) | **359 (%32)** |
+> | Tam 100 alan | 767 | **0** |
+> | Farklı skor değeri | — | **1.036 / 1.134** |
+> | "En uygun 20" aralığı | hepsi 100 | 98,55 – 99,40 |
+>
+> Aşağıdaki özgün kayıt, sorunun ne olduğunu ve neden önemsendiğini
+> göstermek için duruyor.
+
+**Özgün kayıt (2026-08-25, düzeltmeden önce):**
+
+Gerekçe tablosu yazılırken ölçüldü. 20.000–25.000 ₺ bandındaki 1.134 konut
+için, `remote_worker` personasıyla:
+
+| Ölçüm | Değer |
+|---|---|
+| Skor aralığı | 0 – 100 |
+| **Medyan** | **93,8** |
+| Skoru ≥ 85 olan | 767 / 1.134 (**%68**) |
+| "En uygun 20"nin skorları | 98,7 – 100 |
+
+Dört personanın **dördünde de** ilk 20 konutun tamamı 100 alıyor ve
+`topWeakness` alanı boş dönüyor (alt skoru 70'in altında satır yok).
+
+**Sebep:** motor şu an yalnızca POI erişim sürelerinin ağırlıklı
+ortalamasını alıyor. Çankaya yoğun bir ilçe; çoğu konut çoğu kategoriye
+`t_ideal` içinde yürüyor, dolayısıyla neredeyse her kategori 100 puan
+veriyor. Ortalama da 100'e yapışıyor.
+
+Ayrıştırmayı sağlayacak üç şey yazılmamıştı:
+
+- **CES birleştirme** (ρ = −0.5) — telafi edilemeyen eksikliği cezalandırır;
+  düz ortalamada bir kategorinin sıfırı diğerlerinin arasında kayboluyor.
+  → v1.1'de **zayıf halka cezası** olarak geldi (CES'in kendisi değil, aynı
+  işi yapan daha basit bir çarpan)
+- **Anchor bileşeni** — kullanıcıya özel tek gerçek ayrıştırıcı. → **HÂLÂ YOK**
+- **Bütçe bileşeni** — asimetrik B(r) eğrisi. → **HÂLÂ YOK**
+
+**Etkisi kozmetik değildi:** W5 "liste düşük skorluları da içerir" diyor ama
+liste ayırt edici olmadığı için kullanıcı sıralamadan bilgi alamıyordu.
+
+> **Gerekçe tablosu bu değişiklikten etkilenmedi** — [K-16](02-KARARLAR.md#k-16)
+> sayesinde satırlar motorun kendi çıktısından üretiliyor. Motor v1.0 → v1.1
+> geçişinde tabloya tek bir ekleme gerekti: zayıf halka cezası **çarpan**
+> olduğu için kategori katkılarına dağıtılamıyor, ayrı bir satır olarak
+> gösteriliyor (bkz. K-16'nın v1.1 notu). Formül hiçbir yerde ikinci kez
+> yazılmadı.
+>
+> **Kalan borç:** AK-W4 ("anchor sırası skoru ≥ 5 puan değiştirir") hâlâ
+> karşılanmıyor — anchor'lar skora girmiyor.
+
 ---
 
 ## 6. Veri boru hattı — sıfırdan çalıştırma
@@ -498,6 +589,8 @@ pnpm db:check
 | `dotnet ef migrations add` | CI kırılır | Yeni `db/schema/00N_*.sql` + `pnpm db:migrate` |
 | `Vivido.Scoring`'e paket eklemek | Build kırılır | Girdiyi `ScoringInput` içinde taşı |
 | `data/artifacts/` boş | tileserver ve OSRM başlamaz | `00_fetch_artifacts.sh` |
+| Adreste sokak adı yerine sadece mahalle | `streets` tablosu boş | `./data/scripts/05_load_streets.sh` (K-15) |
+| **`docker compose` postgis'i yeniden yaratıp veriyi "sildi"** | Konteynerler `name: vivido-pgdata` satırı eklenmeden ÖNCE başlatılmış; compose eski `vivido_pgdata` volume'ünden yenisine geçiyor. **Veri silinmez, öteki volume'de durur** | `docker volume ls` ile ikisini gör, `docker run --rm -v vivido_pgdata:/from:ro -v vivido-pgdata:/to alpine cp -a /from/. /to/` ile taşı |
 
 ---
 

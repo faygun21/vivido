@@ -25,6 +25,8 @@
 | [K-12](#k-12) | Şemanın tek uygulayıcısı `migrate.sh`; initdb.d kaldırıldı | Kabul |
 | [K-13](#k-13) | Deploy "başarılı" diyemez — çalışan imaj doğrulanır | Kabul |
 | [K-14](#k-14) | Oturuma bağlı sunucu verisi `useSessionQuery`'den geçer | Kabul |
+| [K-15](#k-15) | Konut adresi yerel `streets` tablosundan; ters geokodlama yok | Kabul |
+| [K-16](#k-16) | Gerekçe tablosu motorun İÇİNDEN üretilir, ikinci kopya yazılmaz | Kabul |
 
 ---
 
@@ -696,3 +698,164 @@ boşuna düşer, kullanıcı 15 dakikada bir boş ekran görürdü. Bu davranı�
 - Mobil tarafta bu sınıf hata **yok**: `SessionController.logout()` zaten
   `profile` ve `personas`'ı sıfırlıyor, sunucu verisi ayrı bir önbellekte
   durmuyor.
+
+---
+
+## K-15
+### Konut adresi yerel `streets` tablosundan üretilir; ters geokodlama yok
+
+**Durum:** Kabul · 2026-08-25
+
+**Bağlam.** `properties` tablosunda adres alanı **yok**. Sentetik konutlar
+gerçek bina poligonlarının içine üretiliyor ([K-06](#k-06)) ama üretim
+sırasında hiçbir adres bilgisi taşınmıyor. Kullanıcıya gösterebildiğimiz tek
+konum bilgisi mahalle adıydı ("Kurtuluş") — bir kiralık ilanı için fazla
+kaba, üstelik detay panelinde ve "en uygun evler" listesinde evi tarif eden
+başka bir şey de yoktu.
+
+**Değerlendirilen üç yol.**
+
+| Yol | Sonuç |
+|---|---|
+| Sadece mahalle | Bedava ama yetersiz |
+| Ters geokodlama (Nominatim / Photon) | **Reddedildi**, gerekçe aşağıda |
+| Yerel `streets` tablosu + KNN | **Seçildi** |
+
+**Ters geokodlama neden reddedildi.**
+
+1. **Nominatim'in kullanım politikası bunu açıkça yasaklıyor.** Saniyede
+   1 istek sınırı var ve *"bir veri kümesini sistematik olarak
+   geokodlamak"* politika ihlali. 20 konutluk bir liste en iyi ihtimalle
+   20 saniye sürerdi; 6.000 konutu önbelleğe almak ~100 dakika kesintisiz
+   istek, yani IP yasağı demekti. Yasak **sunucu bazlı**: staging'de
+   yenirse tüm ekip etkilenir ve `LocationSearch` (konum arama) aynı
+   sağlayıcıya bağlı olduğu için **o özellik de birlikte ölür**.
+2. **Photon daha gevşek ama garantisi yok** — ücretsiz topluluk servisi,
+   SLA'sı yok.
+3. **İstek anında dış servise bağımlılık.** Bugün `GET /properties/{id}`
+   saf yerel sorgu, milisaniyeler. Ters geokod girseydi panelin açılma
+   hızı başka bir ülkedeki sunucuya bağlanırdı.
+4. **Zaten şema değişikliği gerektiriyordu.** Her tıklamada dış istek
+   kabul edilemez olduğu için kalıcı bir önbellek tablosu + migration +
+   yeni sağlayıcı arayüzü + throttle kuyruğu gerekirdi.
+5. **Ve daha iyi bir cevap vermiyordu.** Nominatim'in Çankaya için
+   döneceği sokak adı, `data/artifacts/cankaya.osm.pbf` dosyamızdaki
+   **aynı OSM verisinden** geliyor.
+
+**Karar.**
+
+- `db/schema/012_add_streets.sql` — `streets` tablosu (adlı yol parçaları,
+  GiST indeksli).
+- `data/lua/vivido_streets.lua` + `data/scripts/05_load_streets.sh` — mevcut
+  `.osm.pbf` kesitinden tek seferlik yükleme. **Tüm ETL yeniden koşmuyor**;
+  Planetiler, OSRM ve konut üretimine dokunulmuyor, adım dakikalar sürüyor.
+- Adres sorgu anında KNN ile bulunuyor: `ORDER BY s.geom <-> p.geom LIMIT 1`,
+  `&&  ST_Expand(p.geom, 0.003)` (~330 m) ile sınırlı.
+
+**Ölçülen sonuç:** 6.845 sokak parçası, 3.491 farklı ad, konutların
+**%98,7'si** bir sokakla eşleşiyor. Kalan %80 konut mahalle adına düşüyor.
+
+**Neden `ST_Distance` değil `<->`:** `ST_Distance` ile sıralamak GiST
+indeksini **kullanmaz**, her konut için 6.845 satırın tamamı taranırdı.
+KNN operatörü indeksten sırayla okuyup ilk satırda duruyor.
+
+**Bedeli — açıkça yazıyorum.**
+
+- Kurulum bir adım uzadı. **Atlanabilir:** `streets` boş kalırsa API adres
+  alanını NULL döner ve arayüz mahalleye düşer — hata görünmez.
+- `seed.sql` yeniden üretilirken `streets` de kapsanmalı, aksi halde
+  release'ten kuran makinelerde tablo boş kalır.
+
+**Kapı numarası bilerek YOK.** Sokak adı sentetik ilanı inandırıcı kılıyor
+ve K-06'nın *"gerçek adreslerde sahte ilanlar"* ifadesiyle uyumlu; kapı
+numarası ise gerçek bir konutu tekil olarak işaret ederdi.
+
+---
+
+## K-16
+### Gerekçe tablosu skor motorunun İÇİNDEN üretilir
+
+**Durum:** Kabul · 2026-08-25
+
+**Bağlam.** W6 "skorun satır satır gerekçesi" istiyor. Detay paneli skoru
+gösteriyordu ama **neden** o skor olduğunu göstermiyordu — ürünün tüm
+iddiası açıklanabilirlik olduğu hâlde panel bir kara kutuydu.
+
+Kolay yol, gerekçe satırlarını servis katmanında yeniden hesaplamaktı:
+bozunum formülünü `PropertyScoreBreakdownService` içine ikinci kez yazmak.
+
+**Karar.** Yazılmadı. Bunun yerine `ScoringEngine`'e
+`CalculateBreakdown()` eklendi ve **`CalculateScore()` ona devrediyor**:
+
+```csharp
+public static double CalculateScore(IEnumerable<CategoryInput> inputs)
+    => CalculateBreakdown(inputs).Total;
+```
+
+**Gerekçe.** İki kopya olsaydı motorun mantığı değiştiğinde tablo ile skor
+**sessizce ayrışırdı**: kullanıcı "77 puan" görürken satırların toplamı 71
+ederdi ve hiçbir test bunu yakalamazdı. Bu, [K-01](#k-01)'in şema için
+uyardığı "iki doğruluk kaynağı" probleminin skorlama karşılığı.
+
+Karar özellikle şu an önemli: skor motorunun mantığı **yakın zamanda
+değiştirilecek**. Tek kaynak sayesinde formül değişince gerekçe tablosu
+kendiliğinden takip eder; hiçbir arayüz kodu güncellenmez.
+
+**Sonuçları.**
+
+- `Vivido.Scoring` **saf kaldı** — yeni paket/proje referansı yok, kural
+  bozulmadı. `CategoryInput`'a yalnızca varsayılanı olan bir `Code` alanı
+  eklendi; mevcut çağıranlar değişmeden derleniyor.
+- Yuvarlama **en sonda** yapılıyor: satır satır yuvarlanmış değerleri
+  toplamak toplamı 8 kategoride ±0.04'e kadar kaydırıyordu.
+- Arayüzdeki TOPLAM satırı `total`ı doğrudan basmıyor, **satır katkılarını
+  topluyor** — backend tutarsızlığı ekranda anında görünür (W6 kuralı).
+
+**Bütçe skorun parçası DEĞİL.** Mevcut motor yalnızca POI erişim
+sürelerini hesaba katıyor. Bütçe uyumu panelde **ayrı ve açıkça etiketli**
+bir bölüm; gerekçe satırlarının arasına karıştırılsaydı kullanıcı
+"bütçem skorumu düşürmüş" gibi yanlış bir sonuç çıkarırdı. Motor bütçeyi
+hesaba katmaya başlarsa burası bir gerekçe satırına dönüşür.
+
+### K-16 · v1.1 notu — karar ilk sınavını geçti
+
+**Tarih:** 2026-08-25 · skor motoru v1.1 ile birlikte
+
+Karar alındıktan saatler sonra motor gerçekten değişti: yumuşak tavan,
+zayıf halka cezası ve yoğunluk sinyali eklendi (bkz.
+[04-MEVCUT-DURUM §5.14](04-MEVCUT-DURUM.md)). Gerekçe tablosu tarafında
+**formül hiçbir yerde ikinci kez yazılmadığı için** kategori satırları,
+alt skorlar ve katkılar kendiliğinden yeni motora göre üretilmeye başladı —
+tek satır arayüz kodu değişmedi. Kararın amacı buydu.
+
+**Tek gereken ekleme: ceza satırı.** Zayıf halka cezası son skoru
+**çarpan** olarak kısıyor (`ağırlıklı ortalama × faktör`), dolayısıyla
+doğrusal değil ve kategori katkılarına dağıtılamıyor. Dağıtsaydık ceza
+görünmez olurdu: kullanıcı "Market +20,2" satırını okurken o 20,2'nin
+içine sessizce serpiştirilmiş bir cezayı fark edemezdi.
+
+Bunun yerine `WeakLinkPenaltyDto` olarak **açık bir satır** hâline geldi —
+[01-PROJE-PLANI §6.5](01-PROJE-PLANI.md)'in "CES düzeltmesi" satırıyla
+birebir aynı fikir. Değişmezlik güncellendi:
+
+```
+Σ satır katkıları + zayıf halka cezası == toplam skor
+```
+
+Ölçülen (üç konut, skor bandının üç ucundan):
+
+| Konut | Σ katkı | Ceza | Toplam | Gösterilen skor |
+|---|---|---|---|---|
+| Düşük | 43,41 | −21,70 | 21,71 | 21,70 |
+| Orta | 91,10 | −16,01 | 75,09 | 75,09 |
+| Yüksek | 99,84 | −0,44 | 99,40 | 99,40 |
+
+Sapma ≤ 0,007 (yalnızca yuvarlama). **Ceza satırı olmasa panel yalan
+söylerdi:** orta konutta satırların toplamı 91 diyor, skor 75 — aradaki
+16 puanın nereye gittiğini açıklayan tek şey o satır.
+
+**`CategoryInput.Code` alanının konumu.** Kod alanı kaydın **en sonuna**
+eklendi çünkü hem `PropertyScoringService` hem de `ScoringEngineTests`
+kaydı POZİSYONEL kuruyor
+(`new(duration, weight, tIdeal, tHalf, tCutoff, poiCount, minPoiCount)`).
+Araya eklenseydi derleme geçer, değerler sessizce yanlış alanlara yazılırdı.
