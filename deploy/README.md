@@ -136,7 +136,23 @@ mkdir -p /opt/vivido/data/artifacts
 cd /opt/vivido/data/artifacts
 
 gh release download data-v1 --repo faygun21/vivido
-# cankaya.mbtiles, seed.sql, osrm/ arşivleri açılır
+
+# ⚠️ `gh release download` ARŞİVLERİ AÇMAZ, yalnızca indirir. Bu adım
+# atlanırsa osrm/{car,foot} boş kalır; docker bind mount için o klasörleri
+# kendisi yaratır, `osrm-routed` içeride cankaya.osrm.* bulamaz ve
+# "Restarting (1)" döngüsüne girer. Site tamamen sağlıklı görünür, YALNIZCA
+# rota oluşturma 503 döner. Staging'de tam olarak bu oldu.
+tar -xzf osrm-car.tar.gz
+tar -xzf osrm-foot.tar.gz
+```
+
+Doğrula — `cankaya.osrm` diye TEK bir dosya yoktur, `cankaya.osrm.*` uzantılı
+~26 dosya olur (komuttaki yol taban addır). Zincirin son adımının çıktısına
+bakmak yeterli:
+
+```bash
+ls /opt/vivido/data/artifacts/osrm/car/cankaya.osrm.cell_metrics
+ls /opt/vivido/data/artifacts/osrm/foot/cankaya.osrm.cell_metrics
 ```
 
 ### 5.5 İmajları çek ve başlat
