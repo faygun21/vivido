@@ -61,11 +61,20 @@ export interface RouteLeg {
 }
 
 export interface CreateRouteRequest {
+  /**
+   * Rota adı.
+   *
+   * `POST /routes` (kaydetme) için ZORUNLU; `POST /routes/preview`
+   * (önizleme) için değil — kullanıcı beğenmediği bir rotaya ad uydurmak
+   * zorunda kalmasın diye ad kaydetme adımında soruluyor.
+   */
   name: string;
   start: { lat: number; lon: number; label?: string };
   /** 2–8 ev. Sınır dışında 422 döner. */
   propertyIds: number[];
   mode?: TravelMode;
+  /** Planlanan ziyaret zamanı (ISO). Yalnızca kaydederken anlamlı. */
+  scheduledAt?: string | null;
 }
 
 export interface RouteDetail {
@@ -77,6 +86,21 @@ export interface RouteDetail {
   totalDurationS: number;
   /** Liste ile senkron özet alanı — backend `RouteListResponse`'tan miras gelir. */
   stopCount: number;
+  /**
+   * Kullanıcının bu rotayı gezmeyi planladığı an (ISO). null = plan yok.
+   *
+   * ⚠️ Bildirim GÖNDERMEZ — yalnızca saklanır ve listede gösterilir.
+   * Mobil bildirim ayrı bir iş (backlog/v2.md).
+   */
+  scheduledAt: string | null;
+  /**
+   * Rota veritabanına kaydedildi mi?
+   *
+   * `POST /routes/preview` hesaplanmış ama KAYDEDİLMEMİŞ rota döner:
+   * `id` boş, bu alan `false`. Arayüz buna bakıp "Kaydet" düğmesini
+   * gösteriyor — kullanıcı kaydetmediği bir rotayı kaydedilmiş sanmasın.
+   */
+  isSaved: boolean;
   /** Tam rota çizgisi — mobilde haritaya çizilir. */
   geometry: GeoJsonLineString;
   stops: RouteStop[];

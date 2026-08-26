@@ -46,6 +46,8 @@ import {
   isAnalysisRadiusKm,
   type AnalysisRadiusKm,
 } from '@/shared/map/analysisArea';
+import { useUserLocation } from '@/shared/map/useUserLocation';
+import { startFromLiveLocation, type RouteStart } from '@/shared/route/routeStart';
 
 /**
  * Ana ekran — Çankaya haritası.
@@ -141,8 +143,20 @@ export function ExplorePage() {
 
   // ─── R-120/121 — rota oluşturucu durumu ───
   const [routeIds, setRouteIds] = useState<number[]>([]);
-  const [routeStart, setRouteStart] = useState<(MapPoint & { label: string }) | null>(null);
-  const [pickingRouteStart, setPickingRouteStart] = useState(false);
+  // Başlangıç artık haritadan SEÇİLMİYOR: canlı konum ya da yazılan adres.
+  // Haritaya tıklamak zaten konut seçmek/analiz için kullanılıyordu; üçüncü
+  // bir anlam yüklemek kipleri karıştırıyordu (bkz. shared/route/routeStart.ts).
+  const [routeStart, setRouteStart] = useState<RouteStart | null>(null);
+
+  // Canlı konum TEK yerden geliyor: haritadaki mavi nokta ve rota başlangıcı
+  // aynı okumayı paylaşıyor. İki ayrı `getCurrentPosition` çağrısı tarayıcıya
+  // iki kez izin sordurur ve iki farklı koordinat üretirdi.
+  const {
+    status: locationStatus,
+    location: userLocation,
+    message: locationMessage,
+    request: requestUserLocation,
+  } = useUserLocation();
 
   // R-121/123 — aktif rota iki ekran arasında paylaşılır (Profil → Explore).
   const activeRoute = useRouteStore((s) => s.activeRoute);
@@ -192,11 +206,22 @@ export function ExplorePage() {
 
   const persona = personas.find((p) => p.code === profile?.personaCode);
 
-  // ─── R-120/123 — rota oluşturma mutasyonu ───
-  // Başarıda rota haritaya çizilir (R-121) ve Profil → Kayıtlı Rotalarım
-  // listesi (`['routes']`) geçersiz kılınarak yeni rotayı gösterir.
+  // ─── R-120/121 — rota ÖNİZLEME (hesaplar, KAYDETMEZ) ───
+  //
+  // Akış ikiye ayrıldı: önce `/routes/preview` ile hesaplanıp haritada
+  // gösterilir, kullanıcı beğenirse `/routes` ile kaydedilir. Eskiden tek
+  // adımdı ve her deneme "Kayıtlı Rotalarım"da çöp bırakıyordu.
   const queryClient = useQueryClient();
   const routeMutation = useMutation({
+    mutationFn: (body: CreateRouteRequest) =>
+      api.post<RouteDetail>('/routes/preview', body),
+    onSuccess: (data) => setActiveRoute(data),
+  });
+
+  // ─── R-123 — önizlenen rotayı kaydet ───
+  // Sunucu aynı girdiyle yeniden hesaplar (TSP + OSRM deterministik), bu
+  // yüzden istemcinin geometriyi geri göndermesine gerek yok.
+  const saveRouteMutation = useMutation({
     mutationFn: (body: CreateRouteRequest) => api.post<RouteDetail>('/routes', body),
     onSuccess: (data) => {
       setActiveRoute(data);
@@ -205,12 +230,32 @@ export function ExplorePage() {
   });
 
   // Arayüz title'a değil `problem.code`'a dallanır (kural) — bkz. routeFormat.
+  const activeRouteError = routeMutation.error ?? saveRouteMutation.error;
   const routeError =
-    routeMutation.error instanceof ApiError
-      ? routeProblemMessage(routeMutation.error.problem.code)
-      : routeMutation.error
+    activeRouteError instanceof ApiError
+      ? routeProblemMessage(activeRouteError.problem.code)
+      : activeRouteError
         ? 'Rota oluşturulamadı. Lütfen yeniden dene.'
         : null;
+
+  /**
+   * Önizlenen rotayı kaydeder.
+   *
+   * Gövde önizlemedekiyle AYNI olmalı — aksi halde kaydedilen rota
+   * kullanıcının haritada gördüğünden farklı çıkardı. Bu yüzden duraklar
+   * `activeRoute.stops` sırasından değil, ORİJİNAL `routeIds` seçiminden
+   * kuruluyor: sunucu TSP'yi yeniden çalıştırıp aynı sırayı üretiyor.
+   */
+  function handleSaveRoute(name: string, scheduledAt: string | null) {
+    if (!activeRoute || !routeStart) return;
+    saveRouteMutation.mutate({
+      name,
+      start: { lat: routeStart.lat, lon: routeStart.lon, label: routeStart.label },
+      propertyIds: activeRoute.stops.map((stop) => stop.propertyId),
+      mode: activeRoute.mode,
+      scheduledAt,
+    });
+  }
 
   // Profil → Explore akışında (R-123) yüklenen rota için Rota sekmesini ve
   // çekmeceyi bir kez aç. Sonraki sekme geçişlerine karışmaz — id değişmedikçe.
@@ -226,31 +271,32 @@ export function ExplorePage() {
     setDrawerOpen(true);
   }, [activeRoute]);
 
-  // R-122 — metrik kartından durak çıkar: kalan konutlarla yeniden optimize edilir.
-  function handleRemoveRouteStop(propertyId: number) {
+  /**
+   * R-122 — aktif rotanın durak kümesini değiştirir ve YENİDEN OPTİMİZE eder.
+   *
+   * Hem çıkarma hem EKLEME buradan geçiyor: "Rota düzenle" düğmesi kaldırıldı,
+   * çünkü rota açıkken haritadan konut eklemek/çıkarmak zaten aynı işi
+   * yapıyor — ayrı bir "düzenleme kipi" gereksiz bir adımdı.
+   *
+   * Sonuç `/routes/preview`'dan geliyor, yani değiştirilen rota KAYDEDİLMEMİŞ
+   * hâle döner. Doğrusu bu: kullanıcı kaydettiği rotayı değiştirdiyse artık
+   * elinde farklı bir rota var; kart "henüz kaydedilmedi" diyerek bunu
+   * açıkça söylüyor.
+   */
+  function reoptimizeRoute(nextPropertyIds: number[]) {
     if (!activeRoute) return;
-    const remainingIds = activeRoute.stops
-      .filter((stop) => stop.propertyId !== propertyId)
-      .map((stop) => stop.propertyId);
 
     // En az 2 durak kalmıyorsa rota geçersiz — oluşturucuya dön.
-    if (remainingIds.length < MIN_ROUTE_STOPS) {
+    if (nextPropertyIds.length < MIN_ROUTE_STOPS) {
       setActiveRoute(null);
-      setRouteIds(remainingIds);
+      setRouteIds(nextPropertyIds);
       routeMutation.reset();
       return;
     }
 
-    // Optimistik: durak/sayac anında düşer, toplamlar kalan bacaklardan
-    // tahmin edilir. Sunucu yanıtı kesin TSP sırası/geometriyle değiştirir.
-    const remainingStops = activeRoute.stops.filter((stop) => stop.propertyId !== propertyId);
-    setActiveRoute({
-      ...activeRoute,
-      stopCount: remainingStops.length,
-      stops: remainingStops.map((stop, index) => ({ ...stop, seq: index + 1 })),
-      totalDistanceM: remainingStops.reduce((sum, stop) => sum + (stop.legDistanceM ?? 0), 0),
-      totalDurationS: remainingStops.reduce((sum, stop) => sum + (stop.legDurationS ?? 0), 0),
-    });
+    // Seçim listesi rotayla aynı kalmalı: "Sıfırla" ve yeniden oluşturma
+    // bu diziyi okuyor.
+    setRouteIds(nextPropertyIds);
 
     routeMutation.mutate({
       name: activeRoute.name,
@@ -259,9 +305,32 @@ export function ExplorePage() {
         lon: activeRoute.start.lon,
         label: activeRoute.start.label,
       },
-      propertyIds: remainingIds,
+      propertyIds: nextPropertyIds,
       mode: activeRoute.mode,
     });
+  }
+
+  function handleRemoveRouteStop(propertyId: number) {
+    if (!activeRoute) return;
+
+    const remainingStops = activeRoute.stops.filter((stop) => stop.propertyId !== propertyId);
+
+    // Optimistik: durak/sayaç anında düşer, toplamlar kalan bacaklardan
+    // tahmin edilir. Sunucu yanıtı kesin TSP sırası/geometriyle değiştirir.
+    // (Ekleme tarafında optimistik güncelleme YOK: yeni durağın nereye
+    // gireceğini ve bacak sürelerini ancak sunucu bilir, uydurmak yanlış
+    // sayı göstermek olurdu.)
+    if (remainingStops.length >= MIN_ROUTE_STOPS) {
+      setActiveRoute({
+        ...activeRoute,
+        stopCount: remainingStops.length,
+        stops: remainingStops.map((stop, index) => ({ ...stop, seq: index + 1 })),
+        totalDistanceM: remainingStops.reduce((sum, stop) => sum + (stop.legDistanceM ?? 0), 0),
+        totalDurationS: remainingStops.reduce((sum, stop) => sum + (stop.legDurationS ?? 0), 0),
+      });
+    }
+
+    reoptimizeRoute(remainingStops.map((stop) => stop.propertyId));
   }
 
   // ─── R-108/109/110 — POI & konut katmanları ───
@@ -350,7 +419,6 @@ export function ExplorePage() {
     function onKey(event: KeyboardEvent) {
       if (event.key !== 'Escape') return;
       if (picking) setPicking(false);
-      else if (pickingRouteStart) setPickingRouteStart(false);
       else if (selectedPropertyId) setSelectedPropertyId(null);
       else if (topPanelOpen) setTopPanelOpen(false);
       else if (drawerOpen && !wideScreen) setDrawerOpen(false);
@@ -359,7 +427,6 @@ export function ExplorePage() {
     return () => window.removeEventListener('keydown', onKey);
   }, [
     picking,
-    pickingRouteStart,
     selectedPropertyId,
     topPanelOpen,
     drawerOpen,
@@ -377,13 +444,18 @@ export function ExplorePage() {
     ...(pendingAnchor
       ? [{ id: '__yeni', lat: pendingAnchor.lat, lon: pendingAnchor.lon, label: 'Yeni yer' }]
       : []),
-    // R-120 — rota başlangıcı haritadan seçilince işaretlenir.
-    ...(routeStart
+    // R-120 — rota başlangıcı haritada "A" pini ile işaretlenir.
+    //
+    // ⚠️ Başlangıç CANLI KONUMSA pin BASILMIYOR: aynı koordinatta zaten mavi
+    // konum noktası var, ikisi üst üste binince kullanıcı iki ayrı yer
+    // sanıyordu. Adresten seçilen başlangıç ise konumdan farklı bir nokta,
+    // orada pin gerçekten bilgi taşıyor.
+    ...(routeStart && routeStart.source === 'address'
       ? [{
           id: '__rota-baslangic',
           lat: routeStart.lat,
           lon: routeStart.lon,
-          label: 'Rota başlangıcı',
+          label: `Rota başlangıcı — ${routeStart.label}`,
           className: 'map-pin map-pin--route-start',
           text: 'A',
         }]
@@ -431,6 +503,21 @@ export function ExplorePage() {
     // R-120 — "Rota" sekmesindeyken pin tıklaması detay yerine seçimi ekler/çıkarır.
     if (tab === 'rota') {
       const propertyId = Number(id);
+
+      // Rota ZATEN oluşturulmuşsa aynı tıklama durak ekler/çıkarır ve rota
+      // yeniden optimize edilir. Eskiden bunun için önce "Rota düzenle"ye
+      // basmak gerekiyordu; o düğme kalktı çünkü fazladan bir kipten başka
+      // bir şey yapmıyordu.
+      if (activeRoute) {
+        const currentIds = activeRoute.stops.map((stop) => stop.propertyId);
+        if (currentIds.includes(propertyId)) {
+          handleRemoveRouteStop(propertyId);
+        } else if (currentIds.length < MAX_ROUTE_STOPS) {
+          reoptimizeRoute([...currentIds, propertyId]);
+        }
+        return;
+      }
+
       setRouteIds((current) => {
         if (current.includes(propertyId)) {
           return current.filter((value) => value !== propertyId);
@@ -471,14 +558,6 @@ export function ExplorePage() {
       setTab('profil');
       return;
     }
-    if (pickingRouteStart) {
-      // R-120 — başlangıç noktası haritadan seçilir; rota sekmesine dönülür.
-      setRouteStart({ ...point, label: 'Seçilen nokta' });
-      setPickingRouteStart(false);
-      setDrawerOpen(true);
-      setTab('rota');
-      return;
-    }
     setSelectedLocation(point);
   }
 
@@ -491,11 +570,29 @@ export function ExplorePage() {
     if (!wideScreen) setDrawerOpen(false);
   }
 
-  // R-120 — rota başlangıç noktası seçme kipi (anchor picking'ten ayrı).
-  function startPickingRouteStart() {
-    setPickingRouteStart((picking) => !picking);
-    if (!wideScreen) setDrawerOpen(false);
+  /**
+   * "Konumumu kullan" — canlı konumu rota başlangıcı yapar.
+   *
+   * Konum henüz elde değilse yeniden ister; izin reddedilmişse tarayıcı
+   * penceresi bir daha çıkmaz, o yüzden panel `locationMessage` ile ayarı
+   * nasıl açacağını anlatıyor ve altında adres alternatifi duruyor.
+   */
+  function useLiveLocationAsStart() {
+    if (userLocation) {
+      setRouteStart(startFromLiveLocation(userLocation));
+      return;
+    }
+    requestUserLocation();
   }
+
+  // Konum "Konumumu kullan"a basıldıktan SONRA gelirse başlangıç kendiliğinden
+  // dolsun — kullanıcı düğmeye ikinci kez basmak zorunda kalmasın. Yalnızca
+  // başlangıç boşken devreye giriyor ki seçilmiş bir adresi ezmesin.
+  useEffect(() => {
+    if (!userLocation || routeStart !== null || locationStatus !== 'ready') return;
+    setRouteStart(startFromLiveLocation(userLocation));
+    // `routeStart` bilerek bağımlılıkta: null'dan çıktığı an efekt susmalı.
+  }, [userLocation, routeStart, locationStatus]);
 
   function focusLocation(location: LocationSearchResult) {
     setMapFocus({
@@ -547,6 +644,9 @@ export function ExplorePage() {
         pois={pois}
         poiCategoryNames={poiCategoryNames}
         onBoundsChange={handleBoundsChange}
+        // Canlı konum haritada da rota başlangıcında da AYNI okuma —
+        // bileşen kendi başına `getCurrentPosition` çağırmıyor.
+        userLocation={userLocation}
         // R-121 — oluşturulmuş rota: çizgi + numaralı duraklar + otomatik sığdırma.
         route={activeRoute}
         // Çekmece haritanın üstünde yüzüyor; örttüğü genişliği haritaya
@@ -619,15 +719,6 @@ export function ExplorePage() {
         <div className="map-banner" role="status">
           <span>Haritada bir noktaya tıkla</span>
           <button className="btn-chip" type="button" onClick={() => setPicking(false)}>
-            Vazgeç
-          </button>
-        </div>
-      )}
-
-      {pickingRouteStart && (
-        <div className="map-banner" role="status">
-          <span>Haritada başlangıç noktasına tıkla</span>
-          <button className="btn-chip" type="button" onClick={() => setPickingRouteStart(false)}>
             Vazgeç
           </button>
         </div>
@@ -814,22 +905,29 @@ export function ExplorePage() {
                   setRouteIds((current) => current.filter((id) => id !== propertyId))
                 }
                 start={routeStart}
-                onPickStart={startPickingRouteStart}
-                pickingStart={pickingRouteStart}
+                locationStatus={locationStatus}
+                locationMessage={locationMessage}
+                onUseLiveLocation={useLiveLocationAsStart}
+                onPickAddress={setRouteStart}
                 onCreate={(body) => routeMutation.mutate(body)}
                 isCreating={routeMutation.isPending}
                 error={routeError}
                 route={activeRoute}
-                // R-122 — "Rota düzenle": çizgi kalkar, seçim korunur.
-                onCloseRoute={() => setActiveRoute(null)}
+                // "Sıfırla" ASLA veri silmez: yalnızca ekranı ve
+                // oluşturucuyu temizler. Kayıtlı rota Profil'de durur;
+                // silmek için oradaki çöp kutusu kullanılır. Yanlışlıkla
+                // basılması bu sayede zararsız.
                 onDiscardRoute={() => {
                   setActiveRoute(null);
                   setRouteIds([]);
                   setRouteStart(null);
                   routeMutation.reset();
+                  saveRouteMutation.reset();
                 }}
                 onRemoveStop={handleRemoveRouteStop}
                 isReoptimizing={routeMutation.isPending}
+                onSave={handleSaveRoute}
+                isSaving={saveRouteMutation.isPending}
               />
             ))}
 

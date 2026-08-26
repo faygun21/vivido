@@ -51,7 +51,8 @@ public class RoutesController : ControllerBase
                 TotalDistanceM = r.TotalDistanceM,
                 TotalDurationS = r.TotalDurationS,
                 CreatedAt = r.CreatedAt,
-                StopCount = r.Stops.Count
+                StopCount = r.Stops.Count,
+                ScheduledAt = r.ScheduledAt,
             })
             .ToListAsync();
 
@@ -88,8 +89,41 @@ public class RoutesController : ControllerBase
     [ProducesResponseType<RouteDetailResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable)]
-    public async Task<IActionResult> CreateRoute(
+    public Task<IActionResult> CreateRoute(
         [FromBody] CreateRouteRequest request,
+        CancellationToken cancellationToken)
+        => BuildRouteAsync(request, persist: true, cancellationToken);
+
+    /// <summary>
+    /// Rotayı HESAPLAR ama KAYDETMEZ (R-121).
+    ///
+    /// Akış değişikliği: kullanıcı önce rotayı görüp beğenmeli, kaydetmeye
+    /// sonra karar vermeli. Eskiden `POST /routes` hesaplayıp anında
+    /// kaydediyordu; beğenilmeyen her deneme "Kayıtlı Rotalarım"da çöp
+    /// bırakıyordu.
+    ///
+    /// Yanıt <see cref="RouteDetailResponse"/> ile aynı şekilde ama
+    /// <c>Id = Guid.Empty</c> ve <c>IsSaved = false</c>. Kaydetmek isteyen
+    /// istemci aynı gövdeyi (istenirse `scheduledAt` ekleyerek)
+    /// <c>POST /routes</c>'a gönderir.
+    ///
+    /// ⚠️ Kaydetme yeniden hesaplar. TSP ve OSRM aynı girdi için
+    /// deterministik olduğundan sonuç birebir aynı çıkar; alternatifi
+    /// istemcinin hesaplanmış geometriyi geri göndermesiydi — o da istemciye
+    /// mesafe/süre uydurma imkânı verirdi.
+    /// </summary>
+    [HttpPost("preview")]
+    [ProducesResponseType<RouteDetailResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable)]
+    public Task<IActionResult> PreviewRoute(
+        [FromBody] CreateRouteRequest request,
+        CancellationToken cancellationToken)
+        => BuildRouteAsync(request, persist: false, cancellationToken);
+
+    private async Task<IActionResult> BuildRouteAsync(
+        CreateRouteRequest request,
+        bool persist,
         CancellationToken cancellationToken)
     {
         if (request is null)
@@ -97,7 +131,9 @@ public class RoutesController : ControllerBase
 
         var errors = new Dictionary<string, string[]>();
 
-        if (string.IsNullOrWhiteSpace(request.Name))
+        // Ad yalnızca KAYDEDERKEN zorunlu. Önizlemede kullanıcı henüz ad
+        // düşünmedi; istemesi, beğenmediği bir rota için ad uydurtmak olurdu.
+        if (persist && string.IsNullOrWhiteSpace(request.Name))
             errors["name"] = new[] { "Rota adı zorunlu." };
 
         var propertyIds = request.PropertyIds;
@@ -167,12 +203,13 @@ public class RoutesController : ControllerBase
         if (routeResult is null)
             return ApiProblem.OsrmUnavailable();
 
-        // ─── Kalıcılık ───
+        // ─── Rota nesnesi (önizlemede de kurulur, yalnızca KAYDEDİLMEZ) ───
         var route = new RouteEntity
         {
             Id = Guid.NewGuid(),
             UserId = GetUserId(),
-            Name = request.Name.Trim(),
+            Name = string.IsNullOrWhiteSpace(request.Name) ? "Önizleme" : request.Name.Trim(),
+            ScheduledAt = persist ? request.ScheduledAt : null,
             StartGeom = new Point(start.Lon, start.Lat) { SRID = 4326 },
             StartLabel = start.Label,
             Mode = mode,
@@ -203,6 +240,17 @@ public class RoutesController : ControllerBase
                     : null,
                 VisitedAt = null,
             });
+        }
+
+        if (!persist)
+        {
+            // Önizleme: hiçbir şey yazılmıyor. `Id` boşaltılıyor ki istemci
+            // yanlışlıkla `GET /routes/{id}` çağırmasın ya da kaydedilmiş
+            // sansın.
+            route.Id = Guid.Empty;
+            var preview = await BuildDetailAsync(route, cancellationToken);
+            preview.IsSaved = false;
+            return Ok(preview);
         }
 
         _context.Routes.Add(route);
@@ -283,6 +331,9 @@ public class RoutesController : ControllerBase
             TotalDurationS = route.TotalDurationS,
             CreatedAt = route.CreatedAt,
             StopCount = route.Stops.Count,
+            ScheduledAt = route.ScheduledAt,
+            // Önizleme yolu bunu sonradan false yapar; kayıtlı okumalarda doğru.
+            IsSaved = true,
             Start = new CoordinateDto
             {
                 Lat = route.StartGeom.Y,

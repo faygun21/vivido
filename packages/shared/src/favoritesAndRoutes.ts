@@ -25,4 +25,6 @@ export interface RouteListResponse {
   totalDurationS: number;
   createdAt: string;
   stopCount: number;
+  /** Planlanan ziyaret zamanı (ISO). null = plan girilmedi. */
+  scheduledAt: string | null;
 }
