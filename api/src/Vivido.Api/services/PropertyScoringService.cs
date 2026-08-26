@@ -13,11 +13,11 @@ using Vivido.Scoring;
 public class PropertyScoringService
 {
     private readonly VividoDbContext _context;
-    // v1.2: kullanıcının kişisel kriter sırası (UserProfileCategoryOrder)
-    // artık gerçekten skora yansıyor — eskiden yalnızca cache temizleniyor,
-    // ağırlıklar hâlâ sabit persona tablosundan geliyordu (R-17 ihlali).
-    // Versiyon farkı eski (yanlış) cache'i geçersiz kılıyor.
-    private const string CurrentScoringVersion = "v1.2";
+    // v1.3: zayıf halka cezası artık en zayıf kategorinin AĞIRLIĞINA göre
+    // de ölçekleniyor — eskiden kullanıcının en önemli saydığı kötü bir
+    // kategoriyle zar zor eşiği geçen kötü bir kategori AYNI cezayı
+    // alıyordu. Versiyon farkı eski (yanlış) cache'i geçersiz kılıyor.
+    private const string CurrentScoringVersion = "v1.3";
 
     public PropertyScoringService(VividoDbContext context)
     {

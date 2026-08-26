@@ -17,13 +17,28 @@ public static class ScoringEngine
     private const double CeilingSoftening = 8.0;
 
     /// <summary>
-    /// Zayıf halka cezası — bir kategori kullanıcının önemsediği bir alanda
-    /// çok kötüyse (örn. ulaşıma çok uzak), diğer kategoriler bunu ağırlıklı
-    /// ortalamayla tam telafi edemesin diye son skoru bu kadara kadar
-    /// kısabilir. 0.5 = en kötü durumda (en zayıf kategori 0) skor en fazla
-    /// yarıya iner; en zayıf kategori 100 ise hiç ceza yok.
+    /// Zayıf halka cezasının EN SERT hâli — en zayıf kategori 0 puan VE bu
+    /// kategori kullanıcı için tam önemliyken (bkz. <see
+    /// cref="WeakLinkFullPenaltyWeight"/>) skor en fazla yarıya iner. Daha az
+    /// önemli bir kategori zayıfsa ceza bu tavana kadar SEYRELİR (bkz.
+    /// <see cref="WeakLinkFullPenaltyWeight"/>) — 0.5 sabit bir taban değil,
+    /// artık üst sınır.
     /// </summary>
     private const double WeakLinkPenaltyFloor = 0.5;
+
+    /// <summary>
+    /// Zayıf halka cezasının ağırlığa göre ölçeklendiği referans nokta.
+    ///
+    /// Öncesinde ceza yalnızca en zayıf kategorinin PUANINA bakıyordu —
+    /// kullanıcının EN önemli saydığı kategori (örn. ağırlık 0.30) kötüyse
+    /// ile zar zor eşiği geçen bir kategori (ağırlık 0.06) kötüyse AYNI
+    /// cezayı veriyordu. Artık ceza kategorinin ağırlığına göre de
+    /// ölçekleniyor: ağırlığı bu referansa (persona'lardaki en yüksek
+    /// değerlere yakın, ör. 0.259) eşit ya da üstündeyse TAM ceza (0.5)
+    /// uygulanır; eşiğe (0.05) yakın, zar zor önemli bir kategori en kötü
+    /// olsa bile ceza çok daha hafif kalır.
+    /// </summary>
+    private const double WeakLinkFullPenaltyWeight = 0.25;
 
     /// <summary>
     /// Cezaya hangi kategoriler dahil olur — kullanıcının persona'sında
@@ -164,7 +179,9 @@ public static class ScoringEngine
 
         // Zayıf halka cezası için: yalnızca kullanıcının gerçekten önemsediği
         // (ağırlığı eşiğin üstünde) kategoriler arasındaki en kötüsü izlenir.
+        // Ağırlığı da birlikte tutuyoruz — cezanın şiddeti artık buna bağlı.
         double worstConsideredScore = 100.0;
+        double worstConsideredWeight = 0.0;
         string? worstCode = null;
         bool anyConsidered = false;
 
@@ -191,6 +208,7 @@ public static class ScoringEngine
                 if (categoryScore < worstConsideredScore)
                 {
                     worstConsideredScore = categoryScore;
+                    worstConsideredWeight = input.Weight;
                     worstCode = input.Code;
                 }
             }
@@ -213,8 +231,17 @@ public static class ScoringEngine
 
         double weightedAverage = totalScore / totalWeightUsed;
 
+        // Zayıf halka ağırlığı referansa (0.25) eşit/üstündeyse TAM ceza
+        // tavanı (0.5) uygulanır; eşiğe (0.05) yakınsa ceza çok daha hafif
+        // kalır — kullanıcının EN önemli saydığı yer kötüyse ile zar zor
+        // önemli bir yer kötüyse artık aynı cezayı vermiyor.
+        double weightSeverity = anyConsidered
+            ? Math.Clamp(worstConsideredWeight / WeakLinkFullPenaltyWeight, 0.0, 1.0)
+            : 0.0;
+        double effectivePenaltyFloor = 1.0 - (1.0 - WeakLinkPenaltyFloor) * weightSeverity;
+
         double penaltyFactor = anyConsidered
-            ? WeakLinkPenaltyFloor + (1.0 - WeakLinkPenaltyFloor) * (worstConsideredScore / 100.0)
+            ? effectivePenaltyFloor + (1.0 - effectivePenaltyFloor) * (worstConsideredScore / 100.0)
             : 1.0;
 
         // 4 ondalık: 2 ondalıkla farklı iki gerçek skorun aynı sayıya

@@ -73,16 +73,44 @@ public class ScoringEngineTests
     public void AgirligiEsikUstundeKotuKategori_SkoruSertCekiyor()
     {
         // cat2 burada eşiğin (0.05) ÜSTÜNDE bir ağırlığa sahip — artık
-        // zayıf halka cezasına dahil, skor ağırlıklı ortalamadan çok daha
-        // fazla düşmeli.
+        // zayıf halka cezasına dahil, skor ağırlıklı ortalamadan düşmeli.
+        // Ceza artık cat2'nin ağırlığına (0.1) göre de ölçekleniyor:
+        // severity=0.1/0.25=0.4 → effectiveFloor=1-0.5*0.4=0.8 →
+        // penalty=0.8+(1-0.8)*(0/100)=0.8. 90.0*0.8=72.0.
         var score = ScoringEngine.CalculateScore(
         [
             Category(duration: 0, weight: 0.9),                  // cat1: mükemmel
-            Category(duration: TCutoff + 10, weight: 0.1),        // cat2: berbat, önemli
+            Category(duration: TCutoff + 10, weight: 0.1),        // cat2: berbat, orta önemli
         ]);
 
-        // Ağırlıklı ortalama: 90.0 — ama ceza (worst=0 → penalty=0.5) yarıya indiriyor.
-        score.Should().BeApproximately(45.0, 0.0001);
+        score.Should().BeApproximately(72.0, 0.0001);
+    }
+
+    [Fact]
+    public void OnemliZayifHalka_AzOnemliZayifHalkadanDahaSertCezalandirir()
+    {
+        // Aynı derecede kötü (score=0) iki senaryo: birinde zayıf halka
+        // kullanıcının EN önemli saydığı kategori (ağırlık 0.25, tam ceza
+        // referansında), diğerinde zar zor eşiği geçen bir kategori
+        // (ağırlık 0.05). Öncesinde ikisi de AYNI cezayı alıyordu — artık
+        // önemli olan çok daha sert cezalanıyor.
+        var onemliZayifHalka = ScoringEngine.CalculateScore(
+        [
+            Category(duration: 0, weight: 0.75),                 // mükemmel, baskın
+            Category(duration: TCutoff + 10, weight: 0.25),       // berbat, ÇOK önemli
+        ]);
+
+        var onemsizZayifHalka = ScoringEngine.CalculateScore(
+        [
+            Category(duration: 0, weight: 0.95),                 // mükemmel, baskın
+            Category(duration: TCutoff + 10, weight: 0.05),       // berbat, zar zor önemli
+        ]);
+
+        // onemli: ortalama 75.0, severity=1 (tavanda) → floor=0.5 → 75*0.5=37.5
+        onemliZayifHalka.Should().BeApproximately(37.5, 0.0001);
+        // onemsiz: ortalama 95.0, severity=0.2 → floor=0.9 → 95*0.9=85.5
+        onemsizZayifHalka.Should().BeApproximately(85.5, 0.0001);
+        onemliZayifHalka.Should().BeLessThan(onemsizZayifHalka);
     }
 
     [Fact]
