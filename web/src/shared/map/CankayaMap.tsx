@@ -9,7 +9,6 @@ import {
   Popup,
   setWorkerUrl,
   type GeoJSONSource,
-  type MapGeoJSONFeature,
   type MapOptions,
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -516,23 +515,23 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
   // `konut-kumeleri` / `konut-noktalar` / `konut-kume-sayisi` katmanlarıyla
   // çiziliyor (yukarısı). İki ayrı konut katmanı olursa aynı ev haritaya
   // iki kez basılır ve tıklama hangi katmana gittiği belirsizleşir.
-  layers.push(
-    clusterFillLayer('poi-cluster-dolgu', 'pois', '#7c3aed'),
-    clusterCountLayer('poi-cluster-sayi', 'pois'),
-    {
-      id: 'poi-nokta',
-      type: 'circle',
-      source: 'pois',
-      filter: ['!', ['has', 'point_count']],
-      minzoom: 14,
-      paint: {
-        'circle-radius': 6,
-        'circle-color': poiCategoryColorExpression(),
-        'circle-stroke-color': '#ffffff',
-        'circle-stroke-width': 1.5,
-      },
+  // Küme dairesi (mor halka) BİLEREK YOK: uzaklaşınca hiçbir şey çizilmiyor,
+  // yeterince yakınlaşınca (zoom 14+) noktalar doğrudan kendi kategori
+  // renkleriyle beliriyor. Önceki mor küme dairesi + sayı ikilisi, altındaki
+  // farklı renkteki gerçek noktaları gizleyip kafa karıştırıyordu.
+  layers.push({
+    id: 'poi-nokta',
+    type: 'circle',
+    source: 'pois',
+    filter: ['!', ['has', 'point_count']],
+    minzoom: 14,
+    paint: {
+      'circle-radius': 6,
+      'circle-color': poiCategoryColorExpression(),
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 1.5,
     },
-  );
+  });
 
   // R-121 — rota çizgisi: geniş koyu gölge şerit + üstte parlak mavi çizgi.
   // Kaynak boşken hiçbir şey çizilmez; `setData` ile dolunca görünür olur.
@@ -637,52 +636,19 @@ function poiCategoryColorExpression(): unknown {
   return ['match', ['get', 'category'], ...pairs, POI_FALLBACK_COLOR];
 }
 
-/** Kümelenmiş noktaların dolgu halkası. `maxzoom` ile kümeler tekil noktalara bırakır. */
-function clusterFillLayer(id: string, source: string, color: string): unknown {
-  return {
-    id,
-    type: 'circle',
-    source,
-    filter: ['has', 'point_count'],
-    maxzoom: 14,
-    paint: {
-      'circle-color': color,
-      'circle-opacity': 0.75,
-      'circle-radius': ['step', ['get', 'point_count'], 16, 10, 20, 50, 26],
-      'circle-stroke-color': '#ffffff',
-      'circle-stroke-width': 2,
-    },
-  };
-}
-
-/** Küme sayısını gösteren sembol. */
-function clusterCountLayer(id: string, source: string): unknown {
-  return {
-    id,
-    type: 'symbol',
-    source,
-    filter: ['has', 'point_count'],
-    maxzoom: 14,
-    layout: {
-      'text-field': ['get', 'point_count_abbreviated'],
-      'text-size': 12,
-    },
-    paint: { 'text-color': '#ffffff' },
-  };
-}
-
-/** POI/konut etkileşimlerini bir kez başlar: imleç, popup, küme zoom'u. */
+/** POI/konut etkileşimlerini bir kez başlar: imleç, popup. */
 function wirePoiInteractions(
   map: MapLibreMap,
   categoryNames: { current: Record<string, string> },
 ): void {
   // Konut katmanlarinin imlec/tiklama dinleyicileri yukarida, harita
   // kurulumunda baglaniyor (konut-kumeleri / konut-noktalar).
-  const hoverLayers = ['poi-nokta', 'poi-cluster-dolgu'];
-  for (const layer of hoverLayers) {
-    map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
-    map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
-  }
+  //
+  // POI kümesi (mor halka) katmanı kaldırıldı — dolayısıyla küme
+  // imleç/tıklama/yakınlaşma dinleyicileri de yok; POI'ler artık zaten
+  // sadece zoom 14+'ta, doğrudan tekil nokta olarak beliriyor.
+  map.on('mouseenter', 'poi-nokta', () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', 'poi-nokta', () => { map.getCanvas().style.cursor = ''; });
 
   // R-110 — POI popup'ı
   map.on('click', 'poi-nokta', (e) => {
@@ -699,29 +665,6 @@ function wirePoiInteractions(
       .setLngLat(coordinates)
       .setHTML(poiPopupHtml(name, categoryName, categoryCode))
       .addTo(map);
-  });
-
-  // R-109 — küme tıklaması: yayılımına yakınlaş
-  map.on('click', 'poi-cluster-dolgu', (e) => {
-    const feature = e.features?.[0];
-    if (feature) zoomToCluster(map, 'pois', feature);
-  });
-}
-
-/** Küme tıklanınca kümenin yayılımına yakınlaşır (R-109). */
-function zoomToCluster(map: MapLibreMap, sourceId: string, feature: MapGeoJSONFeature): void {
-  const clusterId = feature.properties?.cluster_id;
-  if (typeof clusterId !== 'number') return;
-
-  const source = map.getSource(sourceId) as GeoJSONSource | undefined;
-  if (!source) return;
-
-  const coordinates = (feature.geometry as { coordinates?: [number, number] }).coordinates;
-  if (!coordinates) return;
-
-  // maplibre-gl v6: getClusterExpansionZoom Promise döner (callback API kaldırıldı).
-  void source.getClusterExpansionZoom(clusterId).then((zoom) => {
-    map.easeTo({ center: coordinates, zoom: zoom + 1 });
   });
 }
 
@@ -929,7 +872,7 @@ export function CankayaMap({
           // POI ya da konut noktası/kümesi tıklanınca analiz/anchor akışı
           // tetiklenmesin; o katmanların kendi dinleyicileri var.
           const hits = map.queryRenderedFeatures(e.point, {
-            layers: ['poi-nokta', 'poi-cluster-dolgu', 'konut-kumeleri', 'konut-noktalar'],
+            layers: ['poi-nokta', 'konut-kumeleri', 'konut-noktalar'],
           });
           if (hits.length > 0) return;
 
