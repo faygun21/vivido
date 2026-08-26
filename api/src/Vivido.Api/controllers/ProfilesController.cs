@@ -103,6 +103,21 @@ public class ProfilesController : ControllerBase
         var profile = await _context.UserProfiles
             .FirstOrDefaultAsync(p => p.UserId == userId);
 
+        /*
+         * Persona gerçekten değişti mi? (yeni profilde bu kavram yok.)
+         *
+         * Önemli: mevcut UserProfileCategoryOrder satırları hangi persona
+         * için kaydedildiğini TUTMUYOR — sadece (ProfileId, CategoryCode,
+         * Priority). Tüm personalar aynı 8 POI kategorisini kullandığı için
+         * bir persona altında kaydedilmiş sıra, başka bir personaya
+         * geçildiğinde de "geçerli" görünüyor (kategori kodları hâlâ
+         * eşleşiyor) ve sessizce yeniden kullanılıyor — ama o sıra ESKİ
+         * persona'nın ağırlıkları düşünülerek dizilmişti, yeni persona için
+         * anlamsız. Aşağıda, persona değiştiyse ve bu istek yeni bir sıra
+         * GETİRMEDİYSE eski sırayı temizliyoruz (bkz. aşağıdaki blok).
+         */
+        var personaChanged = profile is not null && profile.PersonaCode != request.PersonaCode;
+
         if (profile == null)
         {
             profile = new UserProfile
@@ -222,8 +237,29 @@ public class ProfilesController : ControllerBase
 
             await _context.SaveChangesAsync();
         }
+        else if (personaChanged)
+        {
+            /*
+             * Persona değişti ama bu istek yeni bir kriter sırası
+             * getirmedi (örn. sihirbazın "Yaşam Tarzı" adımı sadece
+             * personaCode gönderiyor). Eski sıra önceki persona'nın
+             * ağırlıkları için anlamlıydı — şimdi sessizce yanlış
+             * personaya uygulanmasın diye temizliyoruz. Sonraki skor
+             * hesaplamasında CategoryWeightResolver, sıra boş olduğu için
+             * yeni persona'nın kendi varsayılan ağırlıklarını kullanacak.
+             */
+            var staleOrder = await _context.UserProfileCategoryOrders
+                .Where(x => x.ProfileId == profile.Id)
+                .ToListAsync();
 
-        /* 
+            if (staleOrder.Count > 0)
+            {
+                _context.UserProfileCategoryOrders.RemoveRange(staleOrder);
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        /*
          * =========================================================================
          * YENİ EKLENEN KISIM: Cache Invalidation (Önbellek Temizliği)
          * Kullanıcının tercihleri / sıralaması güncellendiğinde, bu profile ait
