@@ -13,10 +13,11 @@ using Vivido.Scoring;
 public class PropertyScoringService
 {
     private readonly VividoDbContext _context;
-    // v1.1: yumuşak tavan (Yol A), zayıf halka cezası ve yoğunluk sinyali
-    // eklendi — eski sürümle hesaplanmış skorlar artık geçersiz, versiyon
-    // farkı sayesinde cache'ten okunmayıp otomatik yeniden hesaplanıyorlar.
-    private const string CurrentScoringVersion = "v1.1";
+    // v1.2: kullanıcının kişisel kriter sırası (UserProfileCategoryOrder)
+    // artık gerçekten skora yansıyor — eskiden yalnızca cache temizleniyor,
+    // ağırlıklar hâlâ sabit persona tablosundan geliyordu (R-17 ihlali).
+    // Versiyon farkı eski (yanlış) cache'i geçersiz kılıyor.
+    private const string CurrentScoringVersion = "v1.2";
 
     public PropertyScoringService(VividoDbContext context)
     {
@@ -49,6 +50,15 @@ public class PropertyScoringService
             .Where(w => w.PersonaCode == profile.PersonaCode)
             .AsNoTracking()
             .ToDictionaryAsync(w => w.CategoryCode, w => (double)w.Weight);
+
+        var customOrder = await _context.UserProfileCategoryOrders
+            .Where(o => o.ProfileId == profileId)
+            .OrderBy(o => o.Priority)
+            .Select(o => o.CategoryCode)
+            .AsNoTracking()
+            .ToListAsync();
+
+        weights = ResolveWeights(weights, customOrder);
 
         var categories = await _context.PoiCategories
             .Where(c => c.Active)
@@ -150,6 +160,15 @@ public class PropertyScoringService
             .AsNoTracking()
             .ToDictionaryAsync(w => w.CategoryCode, w => (double)w.Weight);
 
+        var customOrder = await _context.UserProfileCategoryOrders
+            .Where(o => o.ProfileId == profileId)
+            .OrderBy(o => o.Priority)
+            .Select(o => o.CategoryCode)
+            .AsNoTracking()
+            .ToListAsync();
+
+        weights = ResolveWeights(weights, customOrder);
+
         var categories = await _context.PoiCategories
             .Where(c => c.Active)
             .AsNoTracking()
@@ -214,5 +233,38 @@ public class PropertyScoringService
         await _context.SaveChangesAsync();
 
         return result;
+    }
+
+    /// <summary>
+    /// Kullanıcı yaşam kriterlerini sürükle-bırakla yeniden sıraladığında
+    /// (bkz. ProfilesController — UserProfileCategoryOrder) skorlama BUNU
+    /// HİÇ GÖRMÜYORDU: ağırlıklar hep sabit PersonaCategoryWeights'ten
+    /// geliyordu (R-17 ihlali — kullanıcı sırayı değiştirse de skor
+    /// değişmiyordu, cache doğru temizlense bile aynı sonuç yeniden
+    /// hesaplanıyordu).
+    ///
+    /// Kullanıcı kendi sırasını belirlediyse, persona'nın tasarlanmış
+    /// ağırlık DEĞERLERİNİ (0.259, 0.235, ... — bu "şekli" korumak
+    /// istiyoruz) büyükten küçüğe kullanıcının sırasına dağıtıyoruz:
+    /// 1. sıradaki kategori en yüksek ağırlığı alır. Özel sıra yoksa
+    /// (kullanıcı hiç dokunmamışsa) persona ağırlıkları aynen kullanılır.
+    /// </summary>
+    private static Dictionary<string, double> ResolveWeights(
+        Dictionary<string, double> personaWeights,
+        List<string> customOrderCategoryCodes)
+    {
+        if (customOrderCategoryCodes.Count == 0) return personaWeights;
+
+        var weightValuesDescending = personaWeights.Values
+            .OrderByDescending(w => w)
+            .ToList();
+
+        var resolved = new Dictionary<string, double>();
+        for (var i = 0; i < customOrderCategoryCodes.Count && i < weightValuesDescending.Count; i++)
+        {
+            resolved[customOrderCategoryCodes[i]] = weightValuesDescending[i];
+        }
+
+        return resolved;
     }
 }
