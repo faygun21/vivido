@@ -80,6 +80,47 @@ void main() {
       expect(store.session?.refreshToken, 'refresh-2');
     });
 
+    test(
+      'eş zamanlı 401 yanıtlarında refresh isteğini tekilleştirir',
+      () async {
+        final store = MemoryTokenStore(_session(accessToken: 'expired'));
+        var refreshRequests = 0;
+        final mock = MockClient((request) async {
+          if (request.url.path == '/api/v1/auth/refresh') {
+            refreshRequests++;
+            await Future<void>.delayed(const Duration(milliseconds: 20));
+            return _jsonResponse(
+              _authJson(accessToken: 'renewed', refreshToken: 'refresh-2'),
+            );
+          }
+          if (request.headers['authorization'] == 'Bearer expired') {
+            return _jsonResponse({
+              'title': 'Unauthorized',
+              'code': 'TOKEN_EXPIRED',
+            }, statusCode: 401);
+          }
+          expect(request.headers['authorization'], 'Bearer renewed');
+          return _jsonResponse({'ok': true});
+        });
+        final client = ApiClient(
+          baseUrl: 'http://localhost/api/v1',
+          tokenStore: store,
+          httpClient: mock,
+        );
+        addTearDown(client.close);
+        await client.restoreSession();
+
+        await Future.wait([
+          client.get('/properties/top'),
+          client.get('/profile/favorites'),
+          client.get('/routes'),
+        ]);
+
+        expect(refreshRequests, 1);
+        expect(store.session?.accessToken, 'renewed');
+      },
+    );
+
     // K-09: kayıt artık iki farklı BAŞARILI yanıt verebiliyor. 202 gelince
     // token saklanmamalı — saklanırsa doğrulanmamış hesap oturum açmış olur.
     test('kayıt 202 dönerse oturum açılmaz, doğrulama beklenir', () async {

@@ -198,7 +198,10 @@ services:
       # E-posta doğrulama / şifre sıfırlama (K-09).
       # Varsayılan `console`: e-posta gönderilmez, kod konteyner loglarına basılır
       # (`docker compose logs -f api`). Gerçek gönderim için .env'e Email__* yaz.
-      Auth__RequireEmailVerification: ${Auth__RequireEmailVerification:-true}
+      # Yerel Development ortamında web ve mobil testleri doğrulama koduna
+      # takılmadan ilerlesin. Staging/production bu değeri deploy compose ve
+      # ortam değişkeni üzerinden true olarak tutar.
+      Auth__RequireEmailVerification: ${Auth__RequireEmailVerification:-false}
       Email__Provider: ${Email__Provider:-console}
       Email__Host: ${Email__Host:-smtp.gmail.com}
       Email__Port: ${Email__Port:-587}
@@ -239,9 +242,9 @@ services:
 
 volumes:
   pgdata:
-    name: vivido-pgdata
+    name: ${POSTGRES_VOLUME_NAME:-vivido-pgdata}
   vivido-redisdata:
-    name: vivido-redisdata
+    name: ${REDIS_VOLUME_NAME:-vivido-redisdata}
 
 networks:
   default:

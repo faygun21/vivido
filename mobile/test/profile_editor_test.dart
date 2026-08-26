@@ -70,7 +70,7 @@ void main() {
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(
-      MaterialApp(home: HomePage(controller: controller, initialIndex: 2)),
+      MaterialApp(home: HomePage(controller: controller, initialIndex: 4)),
     );
 
     await tester.tap(find.text('Profil ve tercihleri düzenle'));
