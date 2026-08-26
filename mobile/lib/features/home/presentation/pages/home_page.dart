@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/models/models.dart';
 import '../../../anchors/presentation/pages/anchor_manager_page.dart';
 import '../../../auth/application/session_controller.dart';
+import '../../../favorites/application/favorites_controller.dart';
+import '../../../favorites/data/api_favorites_gateway.dart';
+import '../../../favorites/presentation/pages/favorites_page.dart';
 import '../../../location_search/application/location_search_controller.dart';
 import '../../../location_search/data/api_location_search_gateway.dart';
 import '../../../location_search/domain/location_search_models.dart';
@@ -12,15 +17,24 @@ import '../../../location_analysis/presentation/widgets/location_analysis_contro
 import '../../../map/presentation/widgets/cankaya_map.dart';
 import '../../../map_data/application/map_data_controller.dart';
 import '../../../map_data/data/api_map_data_gateway.dart';
+import '../../../map_data/domain/map_data_models.dart';
 import '../../../map_data/presentation/widgets/map_item_details_sheet.dart';
 import '../../../map_data/presentation/widgets/map_layer_button.dart';
 import '../../../preferences/domain/life_criteria.dart';
 import '../../../preferences/presentation/widgets/life_criteria_order_list.dart';
+import '../../../properties/application/property_catalog_controller.dart';
+import '../../../properties/data/api_property_gateway.dart';
+import '../../../properties/domain/property_gateway.dart';
+import '../../../properties/presentation/pages/property_detail_page.dart';
+import '../../../properties/presentation/pages/property_list_page.dart';
+import '../../../routes/application/routes_controller.dart';
+import '../../../routes/data/api_routes_gateway.dart';
+import '../../../routes/presentation/pages/routes_page.dart';
 import '../../../../shared/widgets/budget_range_fields.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({required this.controller, this.initialIndex = 0, super.key})
-    : assert(initialIndex >= 0 && initialIndex < 3);
+    : assert(initialIndex >= 0 && initialIndex < 5);
 
   final SessionController controller;
   final int initialIndex;
@@ -31,11 +45,29 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   late int _selectedIndex;
+  late final PropertyGateway _propertyGateway;
+  late final PropertyCatalogController _propertyCatalog;
+  late final FavoritesController _favorites;
+  late final RoutesController _routes;
 
   @override
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
+    _propertyGateway = ApiPropertyGateway(widget.controller.client);
+    _propertyCatalog = PropertyCatalogController(_propertyGateway);
+    _favorites = FavoritesController(
+      ApiFavoritesGateway(widget.controller.client),
+    );
+    _routes = RoutesController(ApiRoutesGateway(widget.controller.client));
+  }
+
+  @override
+  void dispose() {
+    _propertyCatalog.dispose();
+    _favorites.dispose();
+    _routes.dispose();
+    super.dispose();
   }
 
   @override
@@ -43,7 +75,14 @@ class _HomePageState extends State<HomePage> {
     return AnimatedBuilder(
       animation: widget.controller,
       builder: (context, _) {
-        final titles = ['Harita', 'Önemli konumlar', 'Profil'];
+        const titles = [
+          'Harita',
+          'Konutlar',
+          'Favorilerim',
+          'Rotalarım',
+          'Profil',
+        ];
+        final anchors = widget.controller.profile?.anchors ?? const <Anchor>[];
         return Scaffold(
           appBar: AppBar(
             title: Text(
@@ -52,12 +91,43 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           body: switch (_selectedIndex) {
-            0 => _MapOverview(controller: widget.controller),
-            1 => AnchorManagerPage(
+            0 => _MapOverview(
               controller: widget.controller,
-              embedded: true,
+              propertyGateway: _propertyGateway,
+              propertyCatalog: _propertyCatalog,
+              favorites: _favorites,
+              routes: _routes,
             ),
-            _ => _ProfileView(controller: widget.controller),
+            1 => PropertyListPage(
+              controller: _propertyCatalog,
+              gateway: _propertyGateway,
+              favorites: _favorites,
+              routes: _routes,
+            ),
+            2 => FavoritesPage(
+              controller: _favorites,
+              propertyGateway: _propertyGateway,
+              propertyCatalog: _propertyCatalog,
+              routes: _routes,
+            ),
+            3 => RoutesPage(
+              controller: _routes,
+              anchors: anchors,
+              onShowOnMainMap: () => setState(() => _selectedIndex = 0),
+            ),
+            _ => _ProfileView(
+              controller: widget.controller,
+              onProfileChanged: _refreshPersonalizedHousing,
+              onManageAnchors: () async {
+                await Navigator.of(context).push<void>(
+                  MaterialPageRoute(
+                    builder:
+                        (_) => AnchorManagerPage(controller: widget.controller),
+                  ),
+                );
+                if (mounted) _refreshPersonalizedHousing();
+              },
+            ),
           },
           bottomNavigationBar: NavigationBar(
             selectedIndex: _selectedIndex,
@@ -71,9 +141,19 @@ class _HomePageState extends State<HomePage> {
                 label: 'Harita',
               ),
               NavigationDestination(
+                icon: Icon(Icons.home_work_outlined),
+                selectedIcon: Icon(Icons.home_work),
+                label: 'Konutlar',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.favorite_border),
+                selectedIcon: Icon(Icons.favorite),
+                label: 'Favoriler',
+              ),
+              NavigationDestination(
                 icon: Icon(Icons.route_outlined),
                 selectedIcon: Icon(Icons.route),
-                label: 'Konumlar',
+                label: 'Rotalar',
               ),
               NavigationDestination(
                 icon: Icon(Icons.person_outline),
@@ -86,12 +166,27 @@ class _HomePageState extends State<HomePage> {
       },
     );
   }
+
+  void _refreshPersonalizedHousing() {
+    unawaited(_propertyCatalog.load(force: true));
+    unawaited(_favorites.load(force: true));
+  }
 }
 
 class _MapOverview extends StatefulWidget {
-  const _MapOverview({required this.controller});
+  const _MapOverview({
+    required this.controller,
+    required this.propertyGateway,
+    required this.propertyCatalog,
+    required this.favorites,
+    required this.routes,
+  });
 
   final SessionController controller;
+  final PropertyGateway propertyGateway;
+  final PropertyCatalogController propertyCatalog;
+  final FavoritesController favorites;
+  final RoutesController routes;
 
   @override
   State<_MapOverview> createState() => _MapOverviewState();
@@ -123,6 +218,21 @@ class _MapOverviewState extends State<_MapOverview> {
     _searchController.dispose();
     _mapDataController.dispose();
     super.dispose();
+  }
+
+  Future<void> _openProperty(PropertyMapItem property) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder:
+            (_) => PropertyDetailPage(
+              propertyId: property.id,
+              gateway: widget.propertyGateway,
+              favorites: widget.favorites,
+              routes: widget.routes,
+              onFavoriteChanged: widget.propertyCatalog.updateFavorite,
+            ),
+      ),
+    );
   }
 
   @override
@@ -183,7 +293,10 @@ class _MapOverviewState extends State<_MapOverview> {
                 children: [
                   Positioned.fill(
                     child: AnimatedBuilder(
-                      animation: _mapDataController,
+                      animation: Listenable.merge([
+                        _mapDataController,
+                        widget.routes,
+                      ]),
                       builder:
                           (context, _) => CankayaMap(
                             anchors: anchors,
@@ -196,6 +309,7 @@ class _MapOverviewState extends State<_MapOverview> {
                                 _mapDataController.propertiesVisible
                                     ? _mapDataController.properties
                                     : const [],
+                            route: widget.routes.activeRoute,
                             onBoundsChanged: _mapDataController.updateViewport,
                             onPoiTap: (poi) {
                               showPoiDetailsSheet(
@@ -206,9 +320,7 @@ class _MapOverviewState extends State<_MapOverview> {
                                 ),
                               );
                             },
-                            onPropertyTap:
-                                (property) =>
-                                    showPropertyDetailsSheet(context, property),
+                            onPropertyTap: _openProperty,
                             onMapTap: (latitude, longitude) {
                               setState(() {
                                 _mapFocus = null;
@@ -271,8 +383,8 @@ class _MapOverviewState extends State<_MapOverview> {
             const SizedBox(height: 10),
             Text(
               anchors.isEmpty
-                  ? 'Konumlar sekmesinden haritaya dokunarak ilk önemli konumunu ekle.'
-                  : 'Numaralar öncelik sırasını gösterir. Sıralamayı Konumlar sekmesinden değiştirebilirsin.',
+                  ? 'Profil ekranından ilk önemli konumunu ekleyebilirsin.'
+                  : 'Numaralar öncelik sırasını gösterir. Konumlarını Profil ekranından yönetebilirsin.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -286,9 +398,15 @@ class _MapOverviewState extends State<_MapOverview> {
 }
 
 class _ProfileView extends StatelessWidget {
-  const _ProfileView({required this.controller});
+  const _ProfileView({
+    required this.controller,
+    required this.onManageAnchors,
+    required this.onProfileChanged,
+  });
 
   final SessionController controller;
+  final VoidCallback onManageAnchors;
+  final VoidCallback onProfileChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -361,6 +479,8 @@ class _ProfileView extends StatelessWidget {
                   leading: const Icon(Icons.place_outlined),
                   title: const Text('Önemli konum'),
                   subtitle: Text('${profile?.anchors.length ?? 0}/3 konum'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: onManageAnchors,
                 ),
               ],
             ),
@@ -370,7 +490,11 @@ class _ProfileView extends StatelessWidget {
             onPressed:
                 controller.busy
                     ? null
-                    : () => _showProfileEditor(context, controller),
+                    : () => _showProfileEditor(
+                      context,
+                      controller,
+                      onSaved: onProfileChanged,
+                    ),
             icon: const Icon(Icons.edit_outlined),
             label: const Text('Profil ve tercihleri düzenle'),
           ),
@@ -388,8 +512,9 @@ class _ProfileView extends StatelessWidget {
 
 Future<void> _showProfileEditor(
   BuildContext context,
-  SessionController controller,
-) async {
+  SessionController controller, {
+  required VoidCallback onSaved,
+}) async {
   final profile = controller.profile;
   if (profile == null) return;
 
@@ -401,6 +526,7 @@ Future<void> _showProfileEditor(
         (_) => _ProfileEditorSheet(
           controller: controller,
           initialProfile: profile,
+          onSaved: onSaved,
         ),
   );
 }
@@ -409,10 +535,12 @@ class _ProfileEditorSheet extends StatefulWidget {
   const _ProfileEditorSheet({
     required this.controller,
     required this.initialProfile,
+    required this.onSaved,
   });
 
   final SessionController controller;
   final UserProfile initialProfile;
+  final VoidCallback onSaved;
 
   @override
   State<_ProfileEditorSheet> createState() => _ProfileEditorSheetState();
@@ -511,6 +639,7 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
     if (!mounted) return;
 
     if (saved) {
+      widget.onSaved();
       Navigator.of(context).pop();
       return;
     }
