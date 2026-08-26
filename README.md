@@ -108,6 +108,16 @@ pnpm dev:web                # → http://localhost:5173   (ayrı terminal)
 
 Konut/POI verisini de istiyorsan: [`docs/04-MEVCUT-DURUM.md §3`](docs/04-MEVCUT-DURUM.md).
 
+**Konut adreslerinde sokak adı görünsün istiyorsan** (isteğe bağlı, ~2 dk):
+
+```bash
+./data/scripts/05_load_streets.sh    # cankaya.osm.pbf → streets tablosu
+```
+
+Atlanabilir: tablo boşken API adres alanını NULL döner ve arayüz mahalle
+adına düşer, hata görünmez. Ters geokodlama neden kullanılmadığı:
+[K-15](docs/02-KARARLAR.md#k-15).
+
 ### 2.4 Ortak staging ortamı
 
 **🔒 https://vividoapp.xyz** — ekibin tamamı buradan test eder, **SSH gerekmez.**
@@ -141,6 +151,22 @@ zorunluluğu kalkar.
 
 ### 2.5 E-posta doğrulama ve şifre sıfırlama
 
+> ### ⏸️ GEÇİCİ: e-posta doğrulaması YEREL GELİŞTİRMEDE KAPALI
+> Yeni özellikler denenirken her kayıtta terminalden 6 haneli kod
+> kopyalamak akışı gereksiz yavaşlatıyordu. Kapalıyken kayıt **201 + token**
+> döner ve doğrulama ekranı hiç açılmaz — [K-09](docs/02-KARARLAR.md#k-09)
+> bu davranışı zaten tanımlamıştı, kod değişmedi.
+>
+> | Nerede | Dosya | Değer |
+> |---|---|---|
+> | `pnpm dev:api` | `api/src/Vivido.Api/appsettings.Development.json` | `false` |
+> | docker-compose | `.env` (`.env.example`'dan kopyalanır) | `false` |
+> | **staging / production** | `deploy/.env` ortam değişkeni | **`true` — değişmedi** |
+>
+> **Tekrar açmak için:** iki dosyadaki `RequireEmailVerification` /
+> `Auth__RequireEmailVerification` satırını `true` yap. Başka hiçbir şey
+> gerekmiyor.
+
 Kayıt olan kullanıcıya **6 haneli bir kod** gider; kod girilene kadar giriş
 kapalıdır. "Şifremi unuttum" aynı mekanizmayı kullanır. Karar ve gerekçe:
 [`docs/02-KARARLAR.md` K-09](docs/02-KARARLAR.md#k-09).
@@ -161,11 +187,14 @@ Vivido doğrulama kodun: 418305
 
 Kodu kopyalayıp forma yapıştır. Ekipteki herkes akışın tamamını böyle deneyebilir.
 
-Doğrulama adımını tamamen kapatmak istersen `.env`:
+Doğrulama adımını tamamen kapatmak istersen (şu an **varsayılan bu**), `.env`:
 
 ```
 Auth__RequireEmailVerification=false
 ```
+
+`pnpm dev:api` bu dosyayı okumaz — onun karşılığı
+`api/src/Vivido.Api/appsettings.Development.json` içindeki `Auth` bölümü.
 
 #### Gerçek e-posta gönderimi — Gmail Uygulama Şifresi (~5 dakika)
 
@@ -260,7 +289,7 @@ vivido/
 │   ├── gen/                       Sentetik konut üretimi (Python)
 │   └── artifacts/                 ~1 GB · git'te DEĞİL · Release'ten iner
 ├── db/
-│   ├── schema/                    001_initial.sql — 13 tablo
+│   ├── schema/                    001_initial.sql — 13 tablo (+ 009: streets)
 │   └── checks/                    dq.sql — veri kalitesi kapıları
 ├── docs/
 ├── backlog/v2.md             Kapsam dışı fikirler
