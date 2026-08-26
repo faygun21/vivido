@@ -1,6 +1,7 @@
 import { authHandlers } from '@/mocks/handlers/auth';
 import { personaHandlers } from '@/mocks/handlers/persona';
 import { profileHandlers } from '@/mocks/handlers/profile';
+import { routesHandlers } from '@/mocks/handlers/routes';
 
 /**
  * Tüm MSW handler'ları.
@@ -15,4 +16,5 @@ export const handlers = [
   ...authHandlers,
   ...personaHandlers,
   ...profileHandlers,
+  ...routesHandlers,
 ];

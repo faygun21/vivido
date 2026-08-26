@@ -18,8 +18,13 @@ export interface RouteStop {
   /** TSP'nin belirlediği sıra, 1..8 */
   seq: number;
   propertyId: number;
-  /** Rota kurulduğu ANDAKİ skor — sonradan değişse bile bu sabit kalır. */
-  score: number;
+  /**
+   * Rota kurulduğu ANDAKİ skor — sonradan değişse bile bu sabit kalır.
+   * Backend şu an `ScoreSnapshot` kolonu null döndürebilir (skorlama
+   * entegrasyonu henüz rotaya bağlanmadı); null olduğunda arayüz
+   * konutun anlık skorunu kendi verisinden doldurur.
+   */
+  score: number | null;
   legDistanceM: number;
   legDurationS: number;
   /** Mobilde "ziyaret ettim" işaretlenince dolar (M5). */
@@ -70,6 +75,8 @@ export interface RouteDetail {
   mode: TravelMode;
   totalDistanceM: number;
   totalDurationS: number;
+  /** Liste ile senkron özet alanı — backend `RouteListResponse`'tan miras gelir. */
+  stopCount: number;
   /** Tam rota çizgisi — mobilde haritaya çizilir. */
   geometry: GeoJsonLineString;
   stops: RouteStop[];
@@ -81,6 +88,8 @@ export interface RouteDetail {
 export interface RouteSummary {
   id: string;
   name: string;
+  /** 'car' | 'foot' — backend `RouteListResponse` ile senkron (mode eksikti, eklendi). */
+  mode: TravelMode;
   stopCount: number;
   totalDistanceM: number;
   totalDurationS: number;

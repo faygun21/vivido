@@ -36,6 +36,9 @@ public class Property
     [Column("has_elevator")]
     public bool HasElevator { get; set; } = false;
 
+    [Column("neighborhood_id")]
+    public long NeighborhoodId { get; set; }
+
     [Column("is_synthetic")]
     public bool IsSynthetic { get; set; } = true;
 

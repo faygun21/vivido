@@ -53,6 +53,18 @@ public static class ApiProblem
         "LOCATION_SEARCH_UNAVAILABLE",
         "Lütfen kısa bir süre sonra yeniden deneyin.");
 
+    public static ObjectResult RouteStopLimitExceeded(int min, int max) => Build(
+        422,
+        "Rota durağı sayısı geçersiz",
+        "ROUTE_STOP_LIMIT_EXCEEDED",
+        $"Bir rota {min} ile {max} konut arasında içermelidir. (W7: en fazla {max} ev)");
+
+    public static ObjectResult OsrmUnavailable() => Build(
+        503,
+        "Rota servisi kullanılamıyor",
+        "OSRM_UNAVAILABLE",
+        "OSRM (Routing) servisine ulaşılamadı ya da yanıt vermedi. Lütfen kısa bir süre sonra yeniden deneyin.");
+
     // ─── Kimlik doğrulama (K-09) ───
 
     public static ObjectResult EmailAlreadyExists(string email) => Build(

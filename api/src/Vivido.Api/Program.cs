@@ -8,6 +8,7 @@ using Vivido.Api.Services;
 using Vivido.Application.Abstractions;
 using Vivido.Application.dtos.location;
 using Vivido.Infrastructure.Data;
+using Vivido.Infrastructure.Routing;
 using Vivido.Infrastructure.Services;
 using Vivido.Api.services;
 
@@ -76,6 +77,9 @@ builder.Services.AddScoped<IGeocodingProvider>(services =>
     services.GetRequiredService<PhotonGeocodingProvider>());
 builder.Services.AddScoped<IGeocodingProvider>(services =>
     services.GetRequiredService<NominatimGeocodingProvider>());
+// R-120/R-123: rota optimizasyonu için OSRM (car/foot) istemcisi.
+// `Routing__CarUrl` / `Routing__FootUrl` ortam değişkenleriyle yapılandırılır.
+builder.Services.AddOsrmRouting(builder.Configuration);
 // ─── SWAGGER AYARLARI ───
 builder.Services.AddSwaggerGen(o =>
 {
