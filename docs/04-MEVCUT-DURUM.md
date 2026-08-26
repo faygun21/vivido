@@ -160,8 +160,8 @@ bütçe → harita**. Anchor eklemek için üst menüden **Profil**.
 
 | Eksik | Not |
 |---|---|
-| **Skor kalibrasyonu** | Medyan skor **93,8**; her personada "en uygun 20"nin tamamı ~100 alıyor. Ayrışma yok, liste ayırt edici değil. §5.14 |
-| CES birleştirme (ρ = −0.5) | Motor düz ağırlıklı ortalama kullanıyor |
+| ~~Skor kalibrasyonu~~ | **Çözüldü** — motor v1.1 (yumuşak tavan + zayıf halka + yoğunluk). Medyan 93,8 → **75,09**, tam 100 alan konut 767 → **0**. §5.14 |
+| CES birleştirme (ρ = −0.5) | Tam CES yok; yerine **zayıf halka cezası** çarpanı var (aynı amaç, daha basit) |
 | Anchor bileşeni | Anchor sırası skoru **hiç değiştirmiyor** — AK-W4 bugün karşılanmıyor |
 | Bütçe bileşeni | Skora girmiyor; panelde ayrı bilgi olarak gösteriliyor ([K-16](02-KARARLAR.md#k-16)) |
 | `min_poi_count` "veri yetersiz" yolu | Kategori devre dışı bırakma yok |
@@ -448,7 +448,28 @@ invalidate ediliyor.
 
 ### 5.14 🟠 Skor motoru ayrıştırmıyor — medyan 93,8, listenin tamamı 100
 
-**Tarih:** 2026-08-25 · **Açık**
+**Tarih:** 2026-08-25 · **ÇÖZÜLDÜ** (skor motoru v1.1, aynı gün)
+
+> ### ✅ Düzeltildi — ölçümle doğrulandı
+> Motor v1.1 üç şey getirdi: **yumuşak tavan** (t_ideal altında da eğim var,
+> artık düz 100 değil), **zayıf halka cezası** (önemsenen en kötü kategori
+> toplamı çarpan olarak kısıyor) ve **yoğunluk sinyali** (300 m'de 1 market
+> ile 5 market aynı puanı vermiyor).
+>
+> Aynı sorgu, aynı profil (`remote_worker`, 20.000–25.000 ₺, 1.134 konut):
+>
+> | Ölçüm | Önce | Sonra |
+> |---|---|---|
+> | Medyan | 93,8 | **75,09** |
+> | Skoru ≥ 85 olan | 767 (%68) | **359 (%32)** |
+> | Tam 100 alan | 767 | **0** |
+> | Farklı skor değeri | — | **1.036 / 1.134** |
+> | "En uygun 20" aralığı | hepsi 100 | 98,55 – 99,40 |
+>
+> Aşağıdaki özgün kayıt, sorunun ne olduğunu ve neden önemsendiğini
+> göstermek için duruyor.
+
+**Özgün kayıt (2026-08-25, düzeltmeden önce):**
 
 Gerekçe tablosu yazılırken ölçüldü. 20.000–25.000 ₺ bandındaki 1.134 konut
 için, `remote_worker` personasıyla:
@@ -468,20 +489,27 @@ ortalamasını alıyor. Çankaya yoğun bir ilçe; çoğu konut çoğu kategoriy
 `t_ideal` içinde yürüyor, dolayısıyla neredeyse her kategori 100 puan
 veriyor. Ortalama da 100'e yapışıyor.
 
-Ayrıştırmayı sağlayacak üç şey **henüz yazılmadı**:
+Ayrıştırmayı sağlayacak üç şey yazılmamıştı:
 
 - **CES birleştirme** (ρ = −0.5) — telafi edilemeyen eksikliği cezalandırır;
-  düz ortalamada bir kategorinin sıfırı diğerlerinin arasında kayboluyor
-- **Anchor bileşeni** — kullanıcıya özel tek gerçek ayrıştırıcı
-- **Bütçe bileşeni** — asimetrik B(r) eğrisi
+  düz ortalamada bir kategorinin sıfırı diğerlerinin arasında kayboluyor.
+  → v1.1'de **zayıf halka cezası** olarak geldi (CES'in kendisi değil, aynı
+  işi yapan daha basit bir çarpan)
+- **Anchor bileşeni** — kullanıcıya özel tek gerçek ayrıştırıcı. → **HÂLÂ YOK**
+- **Bütçe bileşeni** — asimetrik B(r) eğrisi. → **HÂLÂ YOK**
 
-**Etkisi kozmetik değil:** W5 "liste düşük skorluları da içerir" diyor ama
-liste ayırt edici olmadığı için kullanıcı sıralamadan bilgi alamıyor; AK-W4
-("anchor sırası skoru ≥ 5 puan değiştirir") ise bugün **hiç** karşılanmıyor.
+**Etkisi kozmetik değildi:** W5 "liste düşük skorluları da içerir" diyor ama
+liste ayırt edici olmadığı için kullanıcı sıralamadan bilgi alamıyordu.
 
-> Gerekçe tablosu bu durumdan etkilenmiyor: satırlar motorun kendi
-> çıktısından üretiliyor ([K-16](02-KARARLAR.md#k-16)), motor kalibre
-> edilince tablo kendiliğinden düzelir.
+> **Gerekçe tablosu bu değişiklikten etkilenmedi** — [K-16](02-KARARLAR.md#k-16)
+> sayesinde satırlar motorun kendi çıktısından üretiliyor. Motor v1.0 → v1.1
+> geçişinde tabloya tek bir ekleme gerekti: zayıf halka cezası **çarpan**
+> olduğu için kategori katkılarına dağıtılamıyor, ayrı bir satır olarak
+> gösteriliyor (bkz. K-16'nın v1.1 notu). Formül hiçbir yerde ikinci kez
+> yazılmadı.
+>
+> **Kalan borç:** AK-W4 ("anchor sırası skoru ≥ 5 puan değiştirir") hâlâ
+> karşılanmıyor — anchor'lar skora girmiyor.
 
 ---
 

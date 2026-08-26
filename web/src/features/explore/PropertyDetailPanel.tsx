@@ -200,11 +200,15 @@ export function PropertyDetailPanel({ property, onClose, onBack }: PropertyDetai
             {showAllRows && (
               <div className="score-table-wrap">
                 <table className="score-table">
+                  {/*
+                    Ölçülen ve hedef TEK sütunda: beş sütun 22.5rem'lik panele
+                    sığmıyordu ve en önemli sütun (KATKI) taşıp kesiliyordu.
+                    Hedef zaten ölçülenin referansı, ayrı sütun olması şart değil.
+                  */}
                   <thead>
                     <tr>
                       <th scope="col">Kriter</th>
-                      <th scope="col">Ölçülen</th>
-                      <th scope="col">Hedef</th>
+                      <th scope="col">Süre</th>
                       <th scope="col">Puan</th>
                       <th scope="col">Katkı</th>
                     </tr>
@@ -223,8 +227,10 @@ export function PropertyDetailPanel({ property, onClose, onBack }: PropertyDetai
                             </span>
                           )}
                         </th>
-                        <td>{formatMinutes(row.durationMin)}</td>
-                        <td className="muted">≤{formatMinutes(row.targetMin)}</td>
+                        <td>
+                          {formatMinutes(row.durationMin)}
+                          <span className="muted table-target">hedef ≤{formatMinutes(row.targetMin)}</span>
+                        </td>
                         <td>{Math.round(row.subScore)}</td>
                         <td className="score-table-contrib">+{row.contribution.toFixed(1)}</td>
                       </tr>
@@ -241,7 +247,6 @@ export function PropertyDetailPanel({ property, onClose, onBack }: PropertyDetai
                         </th>
                         <td className="muted">—</td>
                         <td className="muted">—</td>
-                        <td className="muted">—</td>
                         <td className="score-table-contrib">{score.weakLink.points.toFixed(1)}</td>
                       </tr>
                     )}
@@ -256,7 +261,7 @@ export function PropertyDetailPanel({ property, onClose, onBack }: PropertyDetai
                       dağıtılmıyor.
                     */}
                     <tr>
-                      <th scope="row" colSpan={4}>
+                      <th scope="row" colSpan={3}>
                         TOPLAM
                       </th>
                       <td className="score-table-contrib">

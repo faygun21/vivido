@@ -1124,6 +1124,15 @@ button svg,
   font-style: normal;
 }
 
+/* Hedef süre, ölçülenin ALTINDA — ayrı sütun olsaydı tablo 22.5rem'lik
+   panele sığmaz ve en önemli sütun (KATKI) taşıp kesilirdi. */
+.table-target {
+  display: block;
+  font-size: 0.66rem;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
 /* ── Tam kriter tablosu ── */
 .score-table-wrap {
   margin-top: 0.7rem;
