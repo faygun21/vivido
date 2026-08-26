@@ -1,28 +1,92 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Check, ArrowRight, GripVertical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { ApiError, api } from '@/shared/api/client';
+import { useSessionQuery } from '@/shared/api/sessionQuery';
+import type { Persona, UserProfile } from '@vivido/shared';
 
 interface PreferenceItem {
-  id: string;
+  categoryCode: string;
   title: string;
   icon: string;
 }
 
-const initialPreferences: PreferenceItem[] = [
-  { id: 'transport', title: 'Toplu Taşıma Ulaşımı', icon: '/bus.svg' },
-  { id: 'cafe', title: 'Kafe & Restoran', icon: '/cafe.svg' },
-  { id: 'market', title: 'Market / Süpermarket', icon: '/avm.svg' },
-  { id: 'sport', title: 'Spor Salonu', icon: '/sport_kahve.svg' },
-  { id: 'park', title: 'Park & Yeşil alan', icon: '/park.svg' },
-  { id: 'pharmacy', title: 'Eczane', icon: '/hastane.svg' },
-  { id: 'health', title: 'Sağlık', icon: '/hastane.svg' },
-  { id: 'school', title: 'Okul (İlkokul/Ortaokula yakınlık)', icon: '/school.svg' },
-];
+// Backend'deki gerçek POI kategori kodlarıyla (bkz. db/schema/002_seed_reference.sql,
+// PersonaCategoryWeights) BİREBİR aynı olmak zorunda — bu ekran uydurma id'lerle
+// (transport/cafe/sport) çalışıyordu ve sıralama hiçbir zaman kaydedilmiyordu,
+// backend'e hiç ulaşmıyordu.
+const CATEGORY_META: Record<string, { title: string; icon: string }> = {
+  transit: { title: 'Toplu Taşıma Ulaşımı', icon: '/bus.svg' },
+  food: { title: 'Kafe & Restoran', icon: '/cafe.svg' },
+  market: { title: 'Market / Süpermarket', icon: '/avm.svg' },
+  gym: { title: 'Spor Salonu', icon: '/sport_kahve.svg' },
+  park: { title: 'Park & Yeşil alan', icon: '/park.svg' },
+  pharmacy: { title: 'Eczane', icon: '/hastane.svg' },
+  health: { title: 'Sağlık', icon: '/hastane.svg' },
+  school: { title: 'Okul (İlkokul/Ortaokula yakınlık)', icon: '/school.svg' },
+};
 
 export default function PreferencesRanking() {
-  const [preferences, setPreferences] = useState<PreferenceItem[]>(initialPreferences);
+  const [preferences, setPreferences] = useState<PreferenceItem[]>([]);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const { data: personas = [] } = useSessionQuery({
+    queryKey: ['personas'],
+    queryFn: async () => api.get<Persona[]>('/personas'),
+  });
+
+  const { data: savedProfile } = useSessionQuery({
+    queryKey: ['profile'],
+    queryFn: async (): Promise<UserProfile | null> => {
+      try {
+        return await api.get<UserProfile>('/profile');
+      } catch (err) {
+        if (err instanceof ApiError && err.problem.code === 'PROFILE_NOT_FOUND') {
+          return null;
+        }
+        throw err;
+      }
+    },
+    retry: false,
+  });
+
+  const selectedPersonaData = useMemo(
+    () => personas.find((persona) => persona.code === savedProfile?.personaCode),
+    [personas, savedProfile?.personaCode],
+  );
+
+  // Persona'nın varsayılan ağırlık sırası; kullanıcının daha önce bu persona
+  // için kaydettiği kişisel sıra varsa (örn. edit akışından geri döndüyse) o
+  // esas alınır — bkz. OnboardingPage.tsx'teki aynı birleştirme mantığı.
+  useEffect(() => {
+    if (!selectedPersonaData) return;
+
+    const defaultOrder = [...selectedPersonaData.categoryWeights]
+      .sort((a, b) => b.weight - a.weight)
+      .map((w) => w.categoryCode);
+
+    let order = defaultOrder;
+
+    if (
+      savedProfile &&
+      savedProfile.personaCode === selectedPersonaData.code &&
+      savedProfile.categoryOrder.length > 0
+    ) {
+      const savedSet = new Set(savedProfile.categoryOrder);
+      const missing = defaultOrder.filter((code) => !savedSet.has(code));
+      order = [...savedProfile.categoryOrder, ...missing];
+    }
+
+    setPreferences(
+      order
+        .filter((code) => CATEGORY_META[code])
+        .map((code) => ({ categoryCode: code, ...CATEGORY_META[code] })),
+    );
+  }, [selectedPersonaData, savedProfile]);
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -31,12 +95,36 @@ export default function PreferencesRanking() {
     };
   }, []);
 
+  const mutation = useMutation({
+    mutationFn: async () => {
+      if (!savedProfile) throw new Error('Profil henüz yüklenmedi.');
+      return api.put('/profile', {
+        firstName: savedProfile.firstName,
+        lastName: savedProfile.lastName,
+        personaCode: savedProfile.personaCode,
+        minMonthlyBudget: savedProfile.minMonthlyBudget,
+        maxMonthlyBudget: savedProfile.maxMonthlyBudget,
+        categoryOrder: preferences.map((p) => p.categoryCode),
+      });
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['profile'] });
+      // Kriter sırası skorları değiştirir — /properties'i de tazele.
+      await queryClient.invalidateQueries({ queryKey: ['properties'] });
+      navigate('/budget');
+    },
+    onError: () => {
+      setError('Kaydedilemedi, lütfen tekrar deneyin.');
+    },
+  });
+
   const handleBack = () => {
     navigate('/lifestyle');
   };
 
   const handleNext = () => {
-    navigate('/budget'); 
+    setError(null);
+    mutation.mutate();
   };
 
   const handleDragStart = (index: number) => {
@@ -49,7 +137,7 @@ export default function PreferencesRanking() {
 
     const newPreferences = [...preferences];
     const draggedItem = newPreferences[draggedIndex];
-    
+
     newPreferences.splice(draggedIndex, 1);
     newPreferences.splice(index, 0, draggedItem);
 
@@ -78,7 +166,7 @@ export default function PreferencesRanking() {
       overflow: 'hidden',
       zIndex: 9999
     }}>
-      
+
       {/* 4 Adımlı Stepper*/}
       <div style={{ maxWidth: '520px', margin: '0 auto', width: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
@@ -121,7 +209,7 @@ export default function PreferencesRanking() {
 
       {/* Başlık ve Sürükle-Bırak Liste */}
       <div style={{ maxWidth: '700px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-        
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '10px' }}>
           <h1 style={{ fontSize: '24px', fontFamily: 'serif', fontWeight: 'bold', color: '#1c1917', margin: 0 }}>
             Öncelik Sıralaman
@@ -130,15 +218,15 @@ export default function PreferencesRanking() {
         </div>
 
         {/* Liste Alanı */}
-        <div style={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
-          gap: '8px', 
-          width: '100%', 
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+          width: '100%',
         }}>
           {preferences.map((item, index) => (
             <div
-              key={item.id}
+              key={item.categoryCode}
               draggable
               onDragStart={() => handleDragStart(index)}
               onDragOver={(e) => handleDragOver(e, index)}
@@ -160,7 +248,7 @@ export default function PreferencesRanking() {
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', pointerEvents: 'none' }}>
                 <GripVertical size={18} color="#a8a29e" />
-                
+
                 <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: '#EFECE6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <img src={item.icon} alt={item.title} style={{ width: '16px', height: '16px', objectFit: 'contain' }} />
                 </div>
@@ -176,19 +264,25 @@ export default function PreferencesRanking() {
       </div>
 
       {/* Navigasyon Butonları */}
-      <div style={{ maxWidth: '700px', margin: '0 auto', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '14px', borderTop: '1px solid #e7e5e4' }}>
-        <button 
-          onClick={handleBack}
-          style={{ padding: '8px 22px', borderRadius: '8px', border: '1px solid #d6d3d1', backgroundColor: 'transparent', color: '#44403c', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}
-        >
-          Geri
-        </button>
-        <button 
-          onClick={handleNext}
-          style={{ padding: '8px 24px', borderRadius: '8px', backgroundColor: '#C26927', color: '#ffffff', fontSize: '14px', fontWeight: 500, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-        >
-          Devam Et <ArrowRight size={16} />
-        </button>
+      <div style={{ maxWidth: '700px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '14px', borderTop: '1px solid #e7e5e4' }}>
+        {error && (
+          <p style={{ color: '#b91c1c', fontSize: '13px', margin: 0, textAlign: 'center' }}>{error}</p>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <button
+            onClick={handleBack}
+            style={{ padding: '8px 22px', borderRadius: '8px', border: '1px solid #d6d3d1', backgroundColor: 'transparent', color: '#44403c', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}
+          >
+            Geri
+          </button>
+          <button
+            onClick={handleNext}
+            disabled={mutation.isPending || preferences.length === 0}
+            style={{ padding: '8px 24px', borderRadius: '8px', backgroundColor: '#C26927', color: '#ffffff', fontSize: '14px', fontWeight: 500, border: 'none', cursor: mutation.isPending ? 'not-allowed' : 'pointer', opacity: mutation.isPending ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            {mutation.isPending ? 'Kaydediliyor…' : 'Devam Et'} <ArrowRight size={16} />
+          </button>
+        </div>
       </div>
 
     </div>

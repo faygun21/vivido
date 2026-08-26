@@ -1,11 +1,40 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { ApiError, api } from '@/shared/api/client';
+import { useSessionQuery } from '@/shared/api/sessionQuery';
+import type { UserProfile } from '@vivido/shared';
 
 export default function BudgetSelection() {
   const [minBudget, setMinBudget] = useState<number>(15000);
   const [maxBudget, setMaxBudget] = useState<number>(35000);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  // Önceki adımlarda kaydedilen ad/soyad, persona ve kriter sırası — bu
+  // sayfa YALNIZCA bütçeyi değiştiriyor, ama PUT /profile tam bir upsert
+  // olduğu için her seferinde hepsini birlikte göndermek gerekiyor.
+  const { data: savedProfile } = useSessionQuery({
+    queryKey: ['profile'],
+    queryFn: async (): Promise<UserProfile | null> => {
+      try {
+        return await api.get<UserProfile>('/profile');
+      } catch (err) {
+        if (err instanceof ApiError && err.problem.code === 'PROFILE_NOT_FOUND') {
+          return null;
+        }
+        throw err;
+      }
+    },
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (savedProfile?.minMonthlyBudget != null) setMinBudget(savedProfile.minMonthlyBudget);
+    if (savedProfile?.maxMonthlyBudget != null) setMaxBudget(savedProfile.maxMonthlyBudget);
+  }, [savedProfile]);
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -14,12 +43,37 @@ export default function BudgetSelection() {
     };
   }, []);
 
+  const mutation = useMutation({
+    mutationFn: async () => {
+      if (!savedProfile) throw new Error('Profil henüz yüklenmedi.');
+      return api.put('/profile', {
+        firstName: savedProfile.firstName,
+        lastName: savedProfile.lastName,
+        personaCode: savedProfile.personaCode,
+        categoryOrder: savedProfile.categoryOrder,
+        minMonthlyBudget: minBudget,
+        maxMonthlyBudget: maxBudget,
+      });
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['profile'] });
+      // Bütçe değişince /properties'teki filtre ve skorlar da değişir —
+      // eski (yanlış) sonuç 30sn'lik staleTime dolana kadar ekranda kalmasın.
+      await queryClient.invalidateQueries({ queryKey: ['properties'] });
+      navigate('/explore');
+    },
+    onError: () => {
+      setError('Kaydedilemedi, lütfen tekrar deneyin.');
+    },
+  });
+
   const handleBack = () => {
     navigate('/preferences');
   };
 
   const handleNext = () => {
-    navigate('/explore'); 
+    setError(null);
+    mutation.mutate();
   };
 
   const formatMoney = (val: number) => {
@@ -158,19 +212,25 @@ export default function BudgetSelection() {
       </div>
 
       {/*Navigasyon Butonları */}
-      <div style={{ maxWidth: '640px', margin: '0 auto', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '16px', borderTop: '1px solid #e7e5e4' }}>
-        <button 
-          onClick={handleBack}
-          style={{ padding: '8px 22px', borderRadius: '8px', border: '1px solid #d6d3d1', backgroundColor: 'transparent', color: '#44403c', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}
-        >
-          Geri
-        </button>
-        <button 
-          onClick={handleNext}
-          style={{ padding: '8px 24px', borderRadius: '8px', backgroundColor: '#C26927', color: '#ffffff', fontSize: '14px', fontWeight: 500, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-        >
-          Tamamla <ArrowRight size={16} />
-        </button>
+      <div style={{ maxWidth: '640px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '16px', borderTop: '1px solid #e7e5e4' }}>
+        {error && (
+          <p style={{ color: '#b91c1c', fontSize: '13px', margin: 0, textAlign: 'center' }}>{error}</p>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <button
+            onClick={handleBack}
+            style={{ padding: '8px 22px', borderRadius: '8px', border: '1px solid #d6d3d1', backgroundColor: 'transparent', color: '#44403c', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}
+          >
+            Geri
+          </button>
+          <button
+            onClick={handleNext}
+            disabled={mutation.isPending}
+            style={{ padding: '8px 24px', borderRadius: '8px', backgroundColor: '#C26927', color: '#ffffff', fontSize: '14px', fontWeight: 500, border: 'none', cursor: mutation.isPending ? 'not-allowed' : 'pointer', opacity: mutation.isPending ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            {mutation.isPending ? 'Kaydediliyor…' : 'Tamamla'} <ArrowRight size={16} />
+          </button>
+        </div>
       </div>
 
     </div>

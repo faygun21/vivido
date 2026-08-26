@@ -473,6 +473,11 @@ export function OnboardingPage() {
         // halde /explore, staleTime dolana kadar "Profil bulunamadı"
         // gösteriyordu — veri sunucuda vardı, ekranda yoktu.
         void queryClient.invalidateQueries({ queryKey: ['profile'] });
+        // Bu ekran persona, bütçe VE kriter sırasının hepsini birden
+        // değiştirebiliyor — üçü de skoru etkiliyor. /properties (map/top/
+        // detail) tazelenmezse kullanıcı /explore'a döndüğünde eski bütçeyle
+        // filtrelenmiş, eski sırayla skorlanmış sonuçları görmeye devam eder.
+        void queryClient.invalidateQueries({ queryKey: ['properties'] });
         navigate('/explore');
       },
     });
