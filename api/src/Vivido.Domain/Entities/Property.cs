@@ -66,6 +66,10 @@ public class Property
     [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
     public decimal? RentPerM2 { get; set; }
 
+    // NOT: `NeighborhoodId` yukarıda (RoomCount'un üstünde) zaten tanımlı.
+    // Rota dalı da aynı alanı bu noktaya eklemişti; ikisini birden tutmak
+    // "duplicate member" ile derlemeyi kırardı.
+
     [Column("is_synthetic")]
     public bool IsSynthetic { get; set; } = true;
 

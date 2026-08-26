@@ -1,4 +1,4 @@
-import type { Anchor, AuthUser, UserProfile } from '@vivido/shared';
+import type { Anchor, AuthUser, RouteDetail, UserProfile } from '@vivido/shared';
 
 /**
  * MSW handler'larının paylaştığı bellek içi durum.
@@ -25,6 +25,8 @@ export const mockDb = {
   profiles: new Map<string, Omit<UserProfile, 'anchors'>>(),
   /** userId → anchor listesi */
   anchors: new Map<string, Anchor[]>(),
+  /** userId → oluşturulmuş rotalar (en yeni başta — backend CreatedAt sıralı döner) */
+  routes: new Map<string, RouteDetail[]>(),
   /** geçerli refreshToken → userId */
   sessions: new Map<string, string>(),
 };

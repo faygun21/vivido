@@ -30,7 +30,11 @@ export type ErrorCode =
   | 'TOO_MANY_ATTEMPTS'
   /** Soğuma süresi dolmadan tekrar kod istendi. */
   | 'RESEND_TOO_SOON'
-  | 'EMAIL_SEND_FAILED';
+  | 'EMAIL_SEND_FAILED'
+  // ─── Rota (R-120..R-123) ───
+  | 'ROUTE_STOP_LIMIT_EXCEEDED'
+  | 'ROUTE_VALIDATION_ERROR'
+  | 'OSRM_UNAVAILABLE';
 
 export interface ProblemDetails {
   type: string;

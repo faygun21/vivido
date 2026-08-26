@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  CreateRouteRequest,
   LocationSearchResult,
   Persona,
   Poi,
@@ -9,13 +10,17 @@ import type {
   PropertyDetail,
   PropertyMapItem,
   PropertySummary,
+  RouteDetail,
   UserProfile,
 } from '@vivido/shared';
-import { MAX_ANCHORS } from '@vivido/shared';
-import { api } from '@/shared/api/client';
+import { MAX_ANCHORS, MAX_ROUTE_STOPS, MIN_ROUTE_STOPS } from '@vivido/shared';
+import { ApiError, api } from '@/shared/api/client';
 import { useSessionQuery } from '@/shared/api/sessionQuery';
 import { useAuthStore } from '@/features/auth/authStore';
 import { AnchorEditor } from '@/features/anchors/AnchorEditor';
+import { RouteBuilderPanel, type RoutePropertyOption } from './RouteBuilderPanel';
+import { routeProblemMessage } from '@/shared/route/routeFormat';
+import { useRouteStore } from '@/shared/route/routeStore';
 import {
   CankayaMap,
   type MapBounds,
@@ -59,7 +64,7 @@ import {
  *   · misafir (W0) — harita ve konutların temel bilgileri; skor YOK
  */
 
-type DrawerTab = 'profil' | 'analiz' | 'harita';
+type DrawerTab = 'profil' | 'analiz' | 'harita' | 'rota';
 
 /**
  * Konut tipleri artık `packages/shared`'dan geliyor.
@@ -134,6 +139,15 @@ export function ExplorePage() {
   // birden açık açılsaydı harita iki panel arasında sıkışırdı.
   const [topPanelOpen, setTopPanelOpen] = useState(false);
 
+  // ─── R-120/121 — rota oluşturucu durumu ───
+  const [routeIds, setRouteIds] = useState<number[]>([]);
+  const [routeStart, setRouteStart] = useState<(MapPoint & { label: string }) | null>(null);
+  const [pickingRouteStart, setPickingRouteStart] = useState(false);
+
+  // R-121/123 — aktif rota iki ekran arasında paylaşılır (Profil → Explore).
+  const activeRoute = useRouteStore((s) => s.activeRoute);
+  const setActiveRoute = useRouteStore((s) => s.setActiveRoute);
+
   const isGuest = useAuthStore((s) => s.isGuest);
   const status = useAuthStore((s) => s.status);
   const authenticated = status === 'authenticated';
@@ -177,6 +191,78 @@ export function ExplorePage() {
   });
 
   const persona = personas.find((p) => p.code === profile?.personaCode);
+
+  // ─── R-120/123 — rota oluşturma mutasyonu ───
+  // Başarıda rota haritaya çizilir (R-121) ve Profil → Kayıtlı Rotalarım
+  // listesi (`['routes']`) geçersiz kılınarak yeni rotayı gösterir.
+  const queryClient = useQueryClient();
+  const routeMutation = useMutation({
+    mutationFn: (body: CreateRouteRequest) => api.post<RouteDetail>('/routes', body),
+    onSuccess: (data) => {
+      setActiveRoute(data);
+      void queryClient.invalidateQueries({ queryKey: ['routes'] });
+    },
+  });
+
+  // Arayüz title'a değil `problem.code`'a dallanır (kural) — bkz. routeFormat.
+  const routeError =
+    routeMutation.error instanceof ApiError
+      ? routeProblemMessage(routeMutation.error.problem.code)
+      : routeMutation.error
+        ? 'Rota oluşturulamadı. Lütfen yeniden dene.'
+        : null;
+
+  // Profil → Explore akışında (R-123) yüklenen rota için Rota sekmesini ve
+  // çekmeceyi bir kez aç. Sonraki sekme geçişlerine karışmaz — id değişmedikçe.
+  const lastAutoTabRouteIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeRoute) {
+      lastAutoTabRouteIdRef.current = null;
+      return;
+    }
+    if (lastAutoTabRouteIdRef.current === activeRoute.id) return;
+    lastAutoTabRouteIdRef.current = activeRoute.id;
+    setTab('rota');
+    setDrawerOpen(true);
+  }, [activeRoute]);
+
+  // R-122 — metrik kartından durak çıkar: kalan konutlarla yeniden optimize edilir.
+  function handleRemoveRouteStop(propertyId: number) {
+    if (!activeRoute) return;
+    const remainingIds = activeRoute.stops
+      .filter((stop) => stop.propertyId !== propertyId)
+      .map((stop) => stop.propertyId);
+
+    // En az 2 durak kalmıyorsa rota geçersiz — oluşturucuya dön.
+    if (remainingIds.length < MIN_ROUTE_STOPS) {
+      setActiveRoute(null);
+      setRouteIds(remainingIds);
+      routeMutation.reset();
+      return;
+    }
+
+    // Optimistik: durak/sayac anında düşer, toplamlar kalan bacaklardan
+    // tahmin edilir. Sunucu yanıtı kesin TSP sırası/geometriyle değiştirir.
+    const remainingStops = activeRoute.stops.filter((stop) => stop.propertyId !== propertyId);
+    setActiveRoute({
+      ...activeRoute,
+      stopCount: remainingStops.length,
+      stops: remainingStops.map((stop, index) => ({ ...stop, seq: index + 1 })),
+      totalDistanceM: remainingStops.reduce((sum, stop) => sum + (stop.legDistanceM ?? 0), 0),
+      totalDurationS: remainingStops.reduce((sum, stop) => sum + (stop.legDurationS ?? 0), 0),
+    });
+
+    routeMutation.mutate({
+      name: activeRoute.name,
+      start: {
+        lat: activeRoute.start.lat,
+        lon: activeRoute.start.lon,
+        label: activeRoute.start.label,
+      },
+      propertyIds: remainingIds,
+      mode: activeRoute.mode,
+    });
+  }
 
   // ─── R-108/109/110 — POI & konut katmanları ───
   const [bounds, setBounds] = useState<MapBounds | null>(null);
@@ -256,20 +342,29 @@ export function ExplorePage() {
     );
   }
 
-  // Esc geçici durumları EN İÇTEKİNDEN dışarıya doğru iptal eder: önce nokta
-  // seçme kipi, sonra açık konut detayı, sonra paneller. Hepsini birden
-  // kapatmak kullanıcının tek tuşla ekranı boşaltmasına yol açardı.
+  // Esc geçici durumları EN İÇTEKİNDEN dışarıya doğru, TEK TEK iptal eder:
+  // önce nokta seçme kipleri (anchor / rota başlangıcı), sonra açık konut
+  // detayı, sonra paneller. Hepsini birden kapatmak kullanıcının tek tuşla
+  // ekranı boşaltmasına yol açardı.
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.key !== 'Escape') return;
       if (picking) setPicking(false);
+      else if (pickingRouteStart) setPickingRouteStart(false);
       else if (selectedPropertyId) setSelectedPropertyId(null);
       else if (topPanelOpen) setTopPanelOpen(false);
       else if (drawerOpen && !wideScreen) setDrawerOpen(false);
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [picking, selectedPropertyId, topPanelOpen, drawerOpen, wideScreen]);
+  }, [
+    picking,
+    pickingRouteStart,
+    selectedPropertyId,
+    topPanelOpen,
+    drawerOpen,
+    wideScreen,
+  ]);
 
   const markers: MapMarker[] = [
     ...(profile?.anchors ?? []).map((a) => ({
@@ -282,7 +377,46 @@ export function ExplorePage() {
     ...(pendingAnchor
       ? [{ id: '__yeni', lat: pendingAnchor.lat, lon: pendingAnchor.lon, label: 'Yeni yer' }]
       : []),
+    // R-120 — rota başlangıcı haritadan seçilince işaretlenir.
+    ...(routeStart
+      ? [{
+          id: '__rota-baslangic',
+          lat: routeStart.lat,
+          lon: routeStart.lon,
+          label: 'Rota başlangıcı',
+          className: 'map-pin map-pin--route-start',
+          text: 'A',
+        }]
+      : []),
   ];
+
+  // R-120 — seçilen konutlar oluşturulmadan önce numaralı mavi pinlerle gösterilir.
+  // Rota oluşunca yerlerini rota durağı pinleri alır (CankayaMap `route` prop'u).
+  const routeSelectionMarkers: MapMarker[] = routeIds
+    .map((id) => properties.find((p) => Number(p.id) === id))
+    .filter((property): property is PropertyMapItem => property != null)
+    .map((property, index) => ({
+      id: `rota-secim-${property.id}`,
+      lat: property.latitude,
+      lon: property.longitude,
+      label: `${index + 1}. rota durağı`,
+      priority: index + 1,
+      className: 'map-pin map-pin--route',
+    }));
+
+  // Rota panelinin listesi — seçim sırası korunur.
+  const routeOptions: RoutePropertyOption[] = routeIds
+    .map((id) => properties.find((p) => Number(p.id) === id))
+    .filter((property): property is PropertyMapItem => property != null)
+    .map((property) => ({
+      id: Number(property.id),
+      monthlyRent: property.monthlyRent,
+      areaM2: property.areaM2,
+      roomCount: property.roomCount,
+      latitude: property.latitude,
+      longitude: property.longitude,
+      totalScore: property.totalScore,
+    }));
 
   // Konutlar `markers`'a DEĞİL, ayrı bir cluster kaynağına gider — bkz.
   // CankayaMap'teki `konutlar` GeoJSON source (R-109: yakınlaştırma
@@ -294,6 +428,18 @@ export function ExplorePage() {
   }));
 
   function handlePropertyClick(id: string) {
+    // R-120 — "Rota" sekmesindeyken pin tıklaması detay yerine seçimi ekler/çıkarır.
+    if (tab === 'rota') {
+      const propertyId = Number(id);
+      setRouteIds((current) => {
+        if (current.includes(propertyId)) {
+          return current.filter((value) => value !== propertyId);
+        }
+        if (current.length >= MAX_ROUTE_STOPS) return current;
+        return [...current, propertyId];
+      });
+      return;
+    }
     setSelectedPropertyId(id);
   }
 
@@ -325,6 +471,14 @@ export function ExplorePage() {
       setTab('profil');
       return;
     }
+    if (pickingRouteStart) {
+      // R-120 — başlangıç noktası haritadan seçilir; rota sekmesine dönülür.
+      setRouteStart({ ...point, label: 'Seçilen nokta' });
+      setPickingRouteStart(false);
+      setDrawerOpen(true);
+      setTab('rota');
+      return;
+    }
     setSelectedLocation(point);
   }
 
@@ -334,6 +488,12 @@ export function ExplorePage() {
     // Dar ekranda çekmece haritanın tamamını kaplıyor; seçim yapılabilsin
     // diye kapatıyoruz. Geniş ekranda yüzen panel haritanın solunu örtüyor
     // ama tıklanacak alan zaten açıkta.
+    if (!wideScreen) setDrawerOpen(false);
+  }
+
+  // R-120 — rota başlangıç noktası seçme kipi (anchor picking'ten ayrı).
+  function startPickingRouteStart() {
+    setPickingRouteStart((picking) => !picking);
     if (!wideScreen) setDrawerOpen(false);
   }
 
@@ -372,7 +532,8 @@ export function ExplorePage() {
       }
     >
       <CankayaMap
-        markers={markers}
+        // Rota oluşunca seçim pinleri yerine rota durağı pinleri + çizgi çizilir.
+        markers={activeRoute ? markers : [...markers, ...routeSelectionMarkers]}
         // Katman panelindeki "Konutlar" anahtarı kapalıysa boş dizi gider —
         // kaynak yerinde kalır, yalnızca verisi boşalır.
         properties={propertiesVisible ? propertyPoints : []}
@@ -386,6 +547,8 @@ export function ExplorePage() {
         pois={pois}
         poiCategoryNames={poiCategoryNames}
         onBoundsChange={handleBoundsChange}
+        // R-121 — oluşturulmuş rota: çizgi + numaralı duraklar + otomatik sığdırma.
+        route={activeRoute}
         // Çekmece haritanın üstünde yüzüyor; örttüğü genişliği haritaya
         // bildiriyoruz ki ilçe sınırı panelin altında kalmasın.
         padLeft={drawerOpen && wideScreen ? DRAWER_WIDTH_PX : 0}
@@ -461,6 +624,15 @@ export function ExplorePage() {
         </div>
       )}
 
+      {pickingRouteStart && (
+        <div className="map-banner" role="status">
+          <span>Haritada başlangıç noktasına tıkla</span>
+          <button className="btn-chip" type="button" onClick={() => setPickingRouteStart(false)}>
+            Vazgeç
+          </button>
+        </div>
+      )}
+
       <aside
         id="explore-drawer"
         className="explore-drawer"
@@ -489,6 +661,7 @@ export function ExplorePage() {
             [
               ['profil', 'Profil'],
               ['analiz', 'Analiz'],
+              ['rota', 'Rota'],
               ['harita', 'Harita'],
             ] as const
           ).map(([value, title]) => (
@@ -630,6 +803,35 @@ export function ExplorePage() {
               )}
             </section>
           )}
+
+          {tab === 'rota' &&
+            (isGuest || !authenticated ? (
+              <GuestPanel />
+            ) : (
+              <RouteBuilderPanel
+                options={routeOptions}
+                onRemoveProperty={(propertyId) =>
+                  setRouteIds((current) => current.filter((id) => id !== propertyId))
+                }
+                start={routeStart}
+                onPickStart={startPickingRouteStart}
+                pickingStart={pickingRouteStart}
+                onCreate={(body) => routeMutation.mutate(body)}
+                isCreating={routeMutation.isPending}
+                error={routeError}
+                route={activeRoute}
+                // R-122 — "Rota düzenle": çizgi kalkar, seçim korunur.
+                onCloseRoute={() => setActiveRoute(null)}
+                onDiscardRoute={() => {
+                  setActiveRoute(null);
+                  setRouteIds([]);
+                  setRouteStart(null);
+                  routeMutation.reset();
+                }}
+                onRemoveStop={handleRemoveRouteStop}
+                isReoptimizing={routeMutation.isPending}
+              />
+            ))}
 
           {tab === 'harita' && (
             <section className="drawer-section">
