@@ -119,7 +119,12 @@ public class PropertyScoreBreakdownService
                 }
             }
 
-            result[propertyId] = ToBreakdown(ScoringEngine.CalculateBreakdown(inputs), categories);
+            var poiIdByCategory = accessLookup.TryGetValue(propertyId, out var propertyAccesses)
+                ? propertyAccesses.ToDictionary(a => a.CategoryCode, a => a.PoiId)
+                : new Dictionary<string, long>();
+
+            result[propertyId] = ToBreakdown(
+                ScoringEngine.CalculateBreakdown(inputs), categories, poiIdByCategory);
         }
 
         return result;
@@ -130,7 +135,8 @@ public class PropertyScoreBreakdownService
         // ⚠️ `PoiCategory` global ad alanında (dosyada `namespace` satırı yok),
         // Vivido.Domain.Entities içinde DEĞİL — `Property` ve
         // `PropertyPoiAccess` de öyle.
-        IReadOnlyDictionary<string, PoiCategory> categories)
+        IReadOnlyDictionary<string, PoiCategory> categories,
+        IReadOnlyDictionary<string, long> poiIdByCategory)
     {
         var rows = engineResult.Categories
             .Select(c => new ScoreRowDto(
@@ -144,7 +150,9 @@ public class PropertyScoreBreakdownService
                 Contribution: c.Contribution,
                 Status: StatusOf(c.SubScore),
                 PoiCountInRadius: c.PoiCountInRadius,
-                DensityBonus: Math.Round(c.DensityBonus, 2)))
+                DensityBonus: Math.Round(c.DensityBonus, 2),
+                PoiId: poiIdByCategory.TryGetValue(c.Code, out var poiId) ? poiId : null,
+                SearchRadiusM: categories.TryGetValue(c.Code, out var radiusCat) ? radiusCat.SearchRadiusM : 0))
             // Katkısı yüksek olan üstte: tablo okunduğunda önce "bu evi ne
             // taşıyor" görünsün.
             .OrderByDescending(r => r.Contribution)

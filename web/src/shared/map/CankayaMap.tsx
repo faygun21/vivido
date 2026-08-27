@@ -85,6 +85,14 @@ interface CankayaMapProps {
   padLeft?: number;
   pois?: Poi[];
   poiCategoryNames?: Record<string, string>;
+  /**
+   * Seçili evin güçlü yönü olan POI'ler — panelden AÇILMASA bile normal
+   * ikonlarıyla (özel bir renk/halka İCAT EDİLMEDEN) gösterilir. Panelin
+   * `pois`/kategori seçimiyle hiçbir bağı yok; ayrı bir kaynağı besler
+   * (bkz. `poi-vurgu`). Kategori başına en yakın TEK POI — çağıran
+   * (ExplorePage) zaten indirgeyip gönderiyor.
+   */
+  highlightedPois?: Poi[];
   onBoundsChange?: (bounds: MapBounds) => void;
   userLocation?: UserLocation | null;
   route?: RouteDetail | null;
@@ -343,6 +351,17 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
       clusterMaxZoom: 14,
       generateId: true,
     },
+    // Seçili evin güçlü yönü olan POI'ler — panelin manuel kategori
+    // seçiminden TAMAMEN ayrı bir kaynak. `pois` kaynağı yalnızca
+    // kullanıcının panelden açtığı kategorileri taşır; buradaki, ev
+    // seçilince otomatik beliren, panel durumuna hiç dokunmayan bir
+    // "vurgu" katmanı (bkz. `highlightedPois` prop'u). Kategori başına
+    // yalnızca EN YAKIN 1 POI geldiği için (ExplorePage'de indirgeniyor)
+    // cluster'a gerek yok — birkaç nokta, birbirine çok yakın değiller.
+    'poi-vurgu': {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+    },
     konutlar: {
       type: 'geojson',
       data: { type: 'FeatureCollection', features: [] },
@@ -526,6 +545,19 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
         'icon-allow-overlap': true,
       },
     },
+    // Seçili evin güçlü yönü olan POI'ler — AYNI ikon setiyle, özel bir
+    // renk/halka icat edilmedi. `minzoom` YOK: kullanıcı listeden ev
+    // seçtiğinde henüz yakınlaşmamış olabilir, o an bile görülsün.
+    {
+      id: 'poi-vurgu-ikon',
+      type: 'symbol',
+      source: 'poi-vurgu',
+      layout: {
+        'icon-image': ['concat', 'svg-icon-', ['get', 'iconPath']],
+        'icon-size': 0.9,
+        'icon-allow-overlap': true,
+      },
+    },
   );
 
   layers.push(
@@ -696,6 +728,7 @@ export function CankayaMap({
   analysisRadiusKm = 2,
   padLeft = 0,
   pois,
+  highlightedPois,
   poiCategoryNames,
   onBoundsChange,
   userLocation = null,
@@ -1126,6 +1159,16 @@ export function CankayaMap({
     const poiSource = map.getSource('pois') as GeoJSONSource | undefined;
     poiSource?.setData(toPoiFeatureCollection(poiDataRef.current, categoryNamesRef.current) as never);
   }, [pois, status, poiCategoryNames]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== 'hazir') return;
+
+    const highlightSource = map.getSource('poi-vurgu') as GeoJSONSource | undefined;
+    highlightSource?.setData(
+      toPoiFeatureCollection(highlightedPois ?? [], categoryNamesRef.current) as never,
+    );
+  }, [highlightedPois, status, poiCategoryNames]);
 
   return (
     <div className="map-wrap" style={{ height }}>

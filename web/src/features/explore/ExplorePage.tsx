@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   CreateRouteRequest,
   LocationSearchResult,
@@ -38,6 +38,7 @@ import { TopPropertiesPanel } from './TopPropertiesPanel';
 import {
   DEFAULT_WALKING_MINUTES,
   WALKING_MINUTE_OPTIONS,
+  haversineDistanceMetres,
   isWalkingMinutes,
   type WalkingLocation,
   type WalkingMinutes,
@@ -57,6 +58,15 @@ const DRAWER_WIDTH_PX = 21.5 * 16 + 29;
 const TOP_PROPERTY_LIMIT = 20;
 const WIDE_SCREEN = '(min-width: 900px)';
 const DEFAULT_ANALYSIS_LOCATION: WalkingLocation = { lat: 39.87, lon: 32.85 };
+
+/**
+ * Yoğunluk bonusu olan bir kriterde en fazla kaç POI gösterilecek.
+ *
+ * "Dip dibe 2 market" senaryosunu göstermek yeterli — bazı kategoriler veri
+ * kalitesi sorunu yüzünden (bkz. 2026-08-27 notu, `park`) yarıçapta
+ * yüzlerce nokta dönebiliyor, sınır olmasa kalabalık sorunu geri gelirdi.
+ */
+const MAX_DENSITY_POIS_PER_CATEGORY = 8;
 
 function matchesWide(): boolean {
   return typeof window !== 'undefined' && window.matchMedia(WIDE_SCREEN).matches;
@@ -163,6 +173,73 @@ export function ExplorePage() {
     queryFn: () => api.get<PropertyDetail>(`/properties/${selectedPropertyId}`),
     enabled: selectedPropertyId !== null,
   });
+
+  // Seçili evin güçlü yönü olan POI'leri haritada vurgulamak için — panelin
+  // manuel kategori seçiminden (`selectedCategories`) TAMAMEN ayrı bir sorgu.
+  // Panel durumuna hiç dokunmuyoruz: kullanıcı "kafe" katmanını açmamış olsa
+  // bile, ev "kafeye yakınlık" güçlü yönüyle öne çıktıysa o kafe ayrıca
+  // gösterilir (bkz. CankayaMap'teki `poi-vurgu` katmanı).
+  //
+  // ⚠️ Bbox+kategori TARAMASI YOK: her gerekçe satırı zaten skoru üreten
+  // GERÇEK POI'nin id'sini taşıyor (`poiId` — bkz. `property_poi_access`).
+  // Kuş uçuşu "en yakın" TAHMİNİ (eski yaklaşım) bazen gerçek yürüme
+  // rotasında çok uzak, düz çizgide yakın görünen yanlış bir POI'yi
+  // seçiyordu (örn. aradaki orman/kampüs) — `/pois/by-id` ile doğrudan
+  // doğru POI'yi çekiyoruz.
+  //
+  // ⭐ İSTİSNA — yoğunluk bonusu olan kriterler (`densityBonus !== 0`,
+  // birden fazla POI skora katkı yaptı, örn. dip dibe 2 market): TEK POI
+  // göstermek yanlış olurdu, o yüzden skor motorunun yoğunluk sayarken
+  // kullandığı AYNI yarıçapta (`searchRadiusM`) o kategorideki TÜMÜ
+  // `/pois/near` ile çekiliyor (2026-08-27).
+  const strengths = selectedProperty?.score.strengths ?? [];
+  const singlePoiIds = Array.from(new Set(
+    strengths
+      .filter((row) => row.densityBonus === 0)
+      .map((row) => row.poiId)
+      .filter((id): id is number => id !== null),
+  ));
+  const densityRows = strengths.filter((row) => row.densityBonus !== 0);
+
+  const { data: singlePois = [] } = useQuery({
+    queryKey: ['pois', 'by-id', singlePoiIds.join(',')],
+    queryFn: () => api.get<Poi[]>(`/pois/by-id?ids=${singlePoiIds.join(',')}`),
+    enabled: singlePoiIds.length > 0,
+  });
+  const densityQueries = useQueries({
+    queries: densityRows.map((row) => ({
+      queryKey: [
+        'pois', 'near', selectedProperty?.id, row.categoryCode, row.searchRadiusM,
+      ],
+      queryFn: () =>
+        api.get<Poi[]>(
+          `/pois/near?lat=${selectedProperty!.latitude}&lon=${selectedProperty!.longitude}` +
+            `&radiusM=${row.searchRadiusM}&category=${encodeURIComponent(row.categoryCode)}`,
+        ),
+      enabled: selectedProperty != null,
+    })),
+  });
+  // ⚠️ Bazı kategoriler (örn. `park`) veri kalitesi sorunu yüzünden (tek bir
+  // yerin onlarca ayrı POI'ye bölünmüş hâli, bkz. 2026-08-27 notu) yoğunluk
+  // yarıçapında YÜZLERCE nokta dönebiliyor — kategori başına en yakın
+  // MAX_DENSITY_POIS_PER_CATEGORY tanesiyle sınırlıyoruz, yoksa "dip dibe 2
+  // market" için tek POI göstermenin çözdüğü kalabalık sorunu geri gelir.
+  const densityPois = selectedProperty
+    ? densityQueries.flatMap((q) =>
+        (q.data ?? [])
+          .map((poi) => ({
+            poi,
+            distance: haversineDistanceMetres(
+              { lat: selectedProperty.latitude, lon: selectedProperty.longitude },
+              { lat: poi.latitude, lon: poi.longitude },
+            ),
+          }))
+          .sort((a, b) => a.distance - b.distance)
+          .slice(0, MAX_DENSITY_POIS_PER_CATEGORY)
+          .map((entry) => entry.poi),
+      )
+    : [];
+  const highlightedPois = [...singlePois, ...densityPois];
 
   const persona = personas.find((p) => p.code === profile?.personaCode);
 
@@ -307,10 +384,16 @@ export function ExplorePage() {
   }
 
   // ─── R-108/109/110 — POI & konut katmanları ───
+  //
+  // `selectedCategories` BOŞ başlar ve boş kalır — harita hiçbir kategoriyi
+  // otomatik açmaz. Eskiden ilk yüklemede TÜM kategoriler işaretleniyordu,
+  // bu da haritayı baştan onlarca ikonla dolduruyordu. Artık kullanıcı ya
+  // panelden manuel açar ya da bir ev seçince o evin güçlü yönleri ayrı bir
+  // "vurgu" katmanıyla (bkz. `highlightedPois`) otomatik beliriyor — panel
+  // durumuna hiç dokunmadan.
   const [bounds, setBounds] = useState<MapBounds | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [propertiesVisible, setPropertiesVisible] = useState(true);
-  const selectionInitialized = useRef(false);
   const boundsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: poiCategories = [] } = useQuery({
@@ -318,13 +401,6 @@ export function ExplorePage() {
     queryFn: () => api.get<PoiCategory[]>('/pois/categories'),
     staleTime: 5 * 60 * 1000,
   });
-
-  useEffect(() => {
-    if (poiCategories.length > 0 && !selectionInitialized.current) {
-      selectionInitialized.current = true;
-      setSelectedCategories(poiCategories.map((c) => c.code));
-    }
-  }, [poiCategories]);
 
   function handleBoundsChange(next: MapBounds) {
     if (boundsTimer.current) clearTimeout(boundsTimer.current);
@@ -575,6 +651,7 @@ export function ExplorePage() {
         analysisRadiusKm={analysisRadiusKm}
         pois={pois}
         poiCategoryNames={poiCategoryNames}
+        highlightedPois={highlightedPois}
         onBoundsChange={handleBoundsChange}
         // Canlı konum haritada da rota başlangıcında da AYNI okuma —
         // bileşen kendi başına `getCurrentPosition` çağırmıyor.

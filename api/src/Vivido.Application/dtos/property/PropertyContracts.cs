@@ -52,7 +52,23 @@ public record ScoreRowDto(
     /// market" ile "5 market" artık aynı skoru vermiyor; kullanıcı farkı
     /// görebilsin.
     /// </summary>
-    double DensityBonus
+    double DensityBonus,
+    /// <summary>
+    /// `DurationMin`'i ÜRETEN spesifik POI — `property_poi_access.poi_id`.
+    /// Haritada "işte bu yüzden güçlü yön" derken KUŞ UÇUŞU en yakını tahmin
+    /// etmek yerine gerçekten skora giren POI'yi göstermek için (2026-08-27:
+    /// tahmin bazen gerçek yürüme rotası olmayan, ormanın öte yakasındaki bir
+    /// POI'yi seçebiliyordu). Erişim satırı yoksa null.
+    /// </summary>
+    long? PoiId,
+    /// <summary>
+    /// Bu kategorinin yoğunluk sayımında kullandığı arama yarıçapı
+    /// (`poi_categories.search_radius_m`). `DensityBonus != 0` ise (birden
+    /// fazla POI skora katkı yaptıysa) haritada TEK bir POI değil, bu
+    /// yarıçaptaki TÜMÜ gösterilir — "dip dibe 2 market varsa neden sadece
+    /// biri gözüksün" (2026-08-27).
+    /// </summary>
+    int SearchRadiusM
 );
 
 /// <summary>

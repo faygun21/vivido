@@ -102,6 +102,20 @@ export interface PropertyScoreRow {
   poiCountInRadius: number | null;
   /** Yoğunluk bonusu, puan cinsinden (±3). 0 = etkisiz. */
   densityBonus: number;
+  /**
+   * `durationMin`'i ÜRETEN spesifik POI'nin id'si. Haritada "işte bu
+   * güçlü yön" derken kuş uçuşu en yakını TAHMİN etmek yerine gerçekten
+   * skora giren POI'yi göstermek için — tahmin bazen gerçek yürüme rotası
+   * olmayan (örn. orman/kampüsün öte yakası), düz çizgide yakın görünen
+   * yanlış bir POI'yi seçebiliyordu. Erişim satırı yoksa null.
+   */
+  poiId: number | null;
+  /**
+   * Bu kategorinin yoğunluk sayımında kullandığı arama yarıçapı (metre).
+   * `densityBonus !== 0` ise (birden fazla POI skora katkı yaptıysa)
+   * haritada TEK POI değil, bu yarıçaptaki TÜMÜ gösterilir.
+   */
+  searchRadiusM: number;
 }
 
 /**
