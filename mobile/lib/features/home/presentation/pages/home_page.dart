@@ -418,17 +418,36 @@ class _MapOverviewState extends State<_MapOverview> {
     // için bir gerekçesi yoktu.
     final topInset = MediaQuery.of(context).padding.top;
 
+    // ⚠️ DİNLEYİCİ EN DIŞTA OLMAK ZORUNDA.
+    //
+    // Önce yalnızca haritayı saran bir AnimatedBuilder vardı; rota şeridi,
+    // kaydet düğmesi ve hata şeridi onun DIŞINDA kalıyordu. Sonuç: durak
+    // ekleyip çıkarınca harita güncelleniyor ama soldaki panel donuk
+    // kalıyordu. Üstteki widget da oturum denetleyicisini dinliyor,
+    // rotaları değil — yani hiçbir şey bu katmanları yeniden çizmiyordu.
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        _mapDataController,
+        widget.routes,
+        _userLocation,
+      ]),
+      builder: (context, _) => _buildMapStack(context, topInset, anchors),
+    );
+  }
+
+  Widget _buildMapStack(
+    BuildContext context,
+    double topInset,
+    List<Anchor> anchors,
+  ) {
     return Stack(
       children: [
+        // Dış AnimatedBuilder zaten dinliyor; burada ikinci bir tanesi
+        // gereksizdi.
         Positioned.fill(
-                    child: AnimatedBuilder(
-                      animation: Listenable.merge([
-                        _mapDataController,
-                        widget.routes,
-                        _userLocation,
-                      ]),
+                    child: Builder(
                       builder:
-                          (context, _) => CankayaMap(
+                          (context) => CankayaMap(
                             anchors: anchors,
                             focus: _mapFocus,
                             analysisCenter: _analysisCenter,
@@ -542,15 +561,9 @@ class _MapOverviewState extends State<_MapOverview> {
         // Eskiden haritadaki rotayı kapatmak için Rotalar sekmesine geri
         // dönmek gerekiyordu ve haritadan durak eklenemiyordu.
         if (widget.routes.activeRoute != null) ...[
-          Positioned(
-            top: topInset + 10,
-            left: 12,
-            child: _MapCircleButton(
-              icon: Icons.close,
-              tooltip: 'Rotayı kapat',
-              onPressed: widget.routes.closeActiveRoute,
-            ),
-          ),
+          // Kapatma düğmesi ŞERİDİN BAŞLIĞINDA, ayrı bir yüzen düğme
+          // değil: sol üstte durduğunda arama kutusunun üstüne biniyor ve
+          // dokunuş aramaya gidiyordu — rota da bu yüzden kapanmıyordu.
           Positioned(
             left: 12,
             top: topInset + 70,
@@ -559,6 +572,7 @@ class _MapOverviewState extends State<_MapOverview> {
               route: widget.routes.activeRoute!,
               busy: widget.routes.saving,
               onRemove: _removeStopFromMap,
+              onClose: widget.routes.closeActiveRoute,
             ),
           ),
           if (widget.routes.isPreviewing || widget.routes.hasUnsavedChanges)
@@ -706,11 +720,13 @@ class _RouteStopsRail extends StatelessWidget {
     required this.route,
     required this.busy,
     required this.onRemove,
+    required this.onClose,
   });
 
   final RouteDetail route;
   final bool busy;
   final ValueChanged<int> onRemove;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -726,16 +742,34 @@ class _RouteStopsRail extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-            child: Text(
-              '${route.stops.length} durak · ${formatDuration(route.totalDurationS)}',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: AppColors.ink,
-              ),
+            padding: const EdgeInsets.fromLTRB(12, 6, 4, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${route.stops.length} durak · ${formatDuration(route.totalDurationS)}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: onClose,
+                  icon: const Icon(Icons.close, size: 18),
+                  tooltip: 'Rotayı kapat',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 30,
+                    minHeight: 30,
+                  ),
+                ),
+              ],
             ),
           ),
+          const Divider(height: 1),
           Flexible(
             child: ListView.builder(
               shrinkWrap: true,

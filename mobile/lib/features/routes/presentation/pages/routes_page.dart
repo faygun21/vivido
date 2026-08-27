@@ -851,11 +851,15 @@ class _StartPointSheetState extends State<_StartPointSheet> {
       top: 12,
       bottom: MediaQuery.of(context).viewInsets.bottom + 16,
     ),
+    // ⚠️ KAYDIRILABİLİR OLMAK ZORUNDA. Klavye açılınca alt sayfaya kalan
+    // yükseklik düşüyor ve sabit bir Column taşıyor ("BOTTOM OVERFLOWED").
+    // Önemli konumu çok olan kullanıcıda liste zaten uzuyor.
     child: AnimatedBuilder(
       animation: widget.searchController,
       builder: (context, _) {
         final results = widget.searchController.results;
-        return Column(
+        return SingleChildScrollView(
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -931,6 +935,7 @@ class _StartPointSheetState extends State<_StartPointSheet> {
               onTap: widget.onUseDistrictCenter,
             ),
           ],
+          ),
         );
       },
     ),
