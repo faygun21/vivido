@@ -1,5 +1,5 @@
 import type { PropertySummary } from '@vivido/shared';
-import { BAND_LABEL, formatRent, splitAddress } from './propertyFormat';
+import { formatRent, splitAddress } from './propertyFormat';
 import { useFavoriteMutation } from './useFavorite';
 
 /**

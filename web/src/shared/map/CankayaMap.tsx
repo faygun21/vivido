@@ -26,7 +26,7 @@ import {
 import type { UserLocation } from './useUserLocation';
 import type { AnchorSweetSpotResult } from './anchorSweetSpot';
 import type { Poi, RouteDetail, RouteStop } from '@vivido/shared';
-import { poiCategoryColor, POI_CATEGORY_COLORS, POI_FALLBACK_COLOR } from './poiColors';
+import { poiCategoryColor } from './poiColors';
 
 setWorkerUrl(maplibreWorkerUrl);
 
