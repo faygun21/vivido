@@ -28,40 +28,78 @@ void main() {
     });
   });
 
-  testWidgets('kontroller seçimleri iletir ve alanı temizler', (tester) async {
-    double? selectedRadius;
-    int? selectedMinutes;
+  testWidgets('kompakt gösterge ayarları açar ve alanı temizler', (
+    tester,
+  ) async {
+    var opened = false;
     var cleared = false;
 
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: LocationAnalysisControls(
+          body: LocationAnalysisLauncher(
             hasSelectedLocation: true,
             analysisRadiusKm: 2,
             walkingMinutes: 15,
-            onAnalysisRadiusChanged: (value) => selectedRadius = value,
-            onWalkingMinutesChanged: (value) => selectedMinutes = value,
+            onOpen: () => opened = true,
             onClear: () => cleared = true,
           ),
         ),
       ),
     );
 
+    expect(find.text('2 km · 15 dk'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('open-location-analysis')));
+    expect(opened, isTrue);
+
+    await tester.tap(find.byKey(const Key('clear-location-analysis')));
+    expect(cleared, isTrue);
+  });
+
+  testWidgets('alt panel seçimleri yalnızca uygula ile döndürür', (
+    tester,
+  ) async {
+    LocationAnalysisSettings? applied;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder:
+              (context) => Scaffold(
+                body: FilledButton(
+                  onPressed: () async {
+                    applied = await showLocationAnalysisSettingsSheet(
+                      context,
+                      analysisRadiusKm: 2,
+                      walkingMinutes: 15,
+                    );
+                  },
+                  child: const Text('Ayarları aç'),
+                ),
+              ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Ayarları aç'));
+    await tester.pumpAndSettle();
+
     await tester.tap(find.byKey(const Key('analysis-radius-dropdown')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('5 km').last);
     await tester.pumpAndSettle();
-    expect(selectedRadius, 5);
 
     await tester.tap(find.byKey(const Key('walking-minutes-dropdown')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('30 dk').last);
     await tester.pumpAndSettle();
-    expect(selectedMinutes, 30);
 
-    await tester.tap(find.byKey(const Key('clear-location-analysis')));
-    expect(cleared, isTrue);
+    expect(applied, isNull);
+    await tester.tap(find.byKey(const Key('apply-location-analysis')));
+    await tester.pumpAndSettle();
+
+    expect(applied?.analysisRadiusKm, 5);
+    expect(applied?.walkingMinutes, 30);
   });
 }
 
