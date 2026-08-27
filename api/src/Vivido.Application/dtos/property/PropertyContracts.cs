@@ -137,14 +137,42 @@ public record PropertySummaryDto(
 );
 
 /// <summary>
+/// GeoJSON MultiPolygon — anchor koridoru artık kopuk parçalardan oluşabilir
+/// (OSRM'in rota bulamadığı bacaklar ayrı birer daire olarak kalır), bu
+/// yüzden HER ZAMAN MultiPolygon: tek parçalı koridorlar da 1 elemanlı bir
+/// MultiPolygon'a sarılıyor. Her polygon tek dış halka, delik yok.
+/// `{ type: "MultiPolygon", coordinates: [[[[lon,lat],...]], ...] }`.
+/// </summary>
+public record PolygonGeoJsonDto(
+    string Type,
+    List<List<List<double[]>>> Coordinates
+);
+
+/// <summary>
 /// `GET /properties/top` yanıtı.
 ///
-/// Anchor (özel yer) alanında hiç ev yoksa <c>Items</c> boş olabilir —
-/// bu durumda <c>NearestFallback</c>, alana EN YAKIN bütçeye uygun evi
-/// taşır ("burada yok ama en yakını şu" demek için). Anchor filtresi
-/// uygulanmadıysa ya da <c>Items</c> zaten doluysa null.
+/// Anchor (özel yer) koridorunda hiç ev yoksa <c>Items</c> boş olabilir —
+/// bu durumda <c>NearestFallback</c>, koridora EN YAKIN bütçeye uygun evi
+/// taşır ("burada yok ama en yakını şu" demek için). Anchor'lar yoksa ya
+/// da <c>showAll=true</c> ile filtre kapatıldıysa <c>CorridorPolygon</c> null.
+///
+/// ⚠️ GEÇİCİ: <c>CorridorPolygon</c> şu an bilerek kullanıcıya haritada
+/// GÖSTERİLİYOR — mentor alanın nasıl hesaplandığını gözle kontrol etmek
+/// istedi. Onay sonrası bu alan gizlenecek (frontend'de render edilmeyecek),
+/// DTO'dan çıkarmaya gerek yok.
 /// </summary>
 public record TopPropertiesResponseDto(
     IReadOnlyList<PropertySummaryDto> Items,
-    PropertySummaryDto? NearestFallback
+    PropertySummaryDto? NearestFallback,
+    PolygonGeoJsonDto? CorridorPolygon
+);
+
+/// <summary>
+/// `GET /properties` yanıtı — harita pinleri + (varsa) anchor koridoru.
+/// Bkz. <see cref="TopPropertiesResponseDto"/>'daki "GEÇİCİ" notu; aynısı
+/// burada da geçerli.
+/// </summary>
+public record PropertiesMapResponseDto(
+    IReadOnlyList<PropertyMapItemDto> Items,
+    PolygonGeoJsonDto? CorridorPolygon
 );
