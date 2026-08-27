@@ -40,15 +40,14 @@ class MapDataController extends ChangeNotifier {
 
     final propertyFuture =
         authenticated
-            ? _gateway.getAuthenticatedProperties(
-              showAll: showAllProperties,
-            )
+            ? _gateway.getAuthenticatedProperties(showAll: showAllProperties)
             : Future.value(const AuthenticatedPropertiesMap(items: []));
     final errors = <String>[];
 
     try {
       categories = await _gateway.getPoiCategories();
-      selectedCategories = categories.map((item) => item.code).toSet();
+      final availableCodes = categories.map((item) => item.code).toSet();
+      selectedCategories = selectedCategories.intersection(availableCodes);
     } on MapDataFailure catch (error) {
       errors.add(error.message);
     }

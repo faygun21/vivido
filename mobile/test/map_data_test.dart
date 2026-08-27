@@ -128,10 +128,12 @@ void main() {
         addTearDown(controller.dispose);
 
         await controller.initialize();
+        expect(controller.selectedCategories, isEmpty);
+        controller.toggleCategory('market');
         controller.updateViewport(_bounds);
         await controller.refreshViewport();
 
-        expect(controller.selectedCategories, {'market', 'park'});
+        expect(controller.selectedCategories, {'market'});
         expect(controller.properties.single.totalScore, 91);
         expect(controller.pois.single.categoryCode, 'market');
         expect(gateway.authenticatedPropertyCalls, 1);

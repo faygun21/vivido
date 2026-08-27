@@ -4,6 +4,8 @@ import '../../../favorites/application/favorites_controller.dart';
 import '../../../location_search/domain/location_search_models.dart';
 import '../../../map/presentation/widgets/cankaya_map.dart';
 import '../../../map_data/domain/map_data_models.dart';
+import '../../../map_data/presentation/widgets/map_item_details_sheet.dart';
+import '../../../property_strengths/domain/strength_poi_gateway.dart';
 import '../../../routes/application/routes_controller.dart';
 import '../../../routes/domain/route_models.dart';
 import '../../domain/property_gateway.dart';
@@ -16,6 +18,7 @@ class PropertyDetailPage extends StatefulWidget {
     required this.gateway,
     required this.favorites,
     required this.routes,
+    required this.strengthPoiGateway,
     this.onFavoriteChanged,
     super.key,
   });
@@ -24,6 +27,7 @@ class PropertyDetailPage extends StatefulWidget {
   final PropertyGateway gateway;
   final FavoritesController favorites;
   final RoutesController routes;
+  final StrengthPoiGateway strengthPoiGateway;
   final void Function(String propertyId, bool isFavorite)? onFavoriteChanged;
 
   @override
@@ -32,6 +36,9 @@ class PropertyDetailPage extends StatefulWidget {
 
 class _PropertyDetailPageState extends State<PropertyDetailPage> {
   PropertyDetail? _property;
+  List<PoiMapItem> _highlightedPois = const [];
+  bool _strengthPoisLoading = false;
+  String? _strengthPoisError;
   String? _errorMessage;
 
   @override
@@ -48,11 +55,38 @@ class _PropertyDetailPageState extends State<PropertyDetailPage> {
       );
       if (!mounted) return;
       setState(() => _property = property);
+      await _loadStrengthPois(property);
     } on PropertyDataFailure catch (error) {
       if (mounted) setState(() => _errorMessage = error.message);
     } on Object {
       if (mounted) {
         setState(() => _errorMessage = 'Konut detayı yüklenemedi.');
+      }
+    }
+  }
+
+  Future<void> _loadStrengthPois(PropertyDetail property) async {
+    setState(() {
+      _strengthPoisLoading = true;
+      _strengthPoisError = null;
+    });
+    try {
+      final pois = await widget.strengthPoiGateway.getHighlightedPois(
+        propertyLatitude: property.latitude,
+        propertyLongitude: property.longitude,
+        strengths: property.score.strengths,
+      );
+      if (!mounted || _property?.id != property.id) return;
+      setState(() => _highlightedPois = pois);
+    } on StrengthPoiFailure catch (error) {
+      if (mounted) setState(() => _strengthPoisError = error.message);
+    } on Object {
+      if (mounted) {
+        setState(() => _strengthPoisError = 'Güçlü yön noktaları yüklenemedi.');
+      }
+    } finally {
+      if (mounted && _property?.id == property.id) {
+        setState(() => _strengthPoisLoading = false);
       }
     }
   }
@@ -168,6 +202,10 @@ class _PropertyDetailPageState extends State<PropertyDetailPage> {
                     property.numericId != null &&
                     widget.routes.containsProperty(property.numericId!),
                 onToggleRoute: _toggleRoute,
+                highlightedPois: _highlightedPois,
+                strengthPoisLoading: _strengthPoisLoading,
+                strengthPoisError: _strengthPoisError,
+                onRetryStrengthPois: () => _loadStrengthPois(property),
               ),
     );
   }
@@ -178,11 +216,19 @@ class _PropertyDetailBody extends StatelessWidget {
     required this.property,
     required this.inRoute,
     required this.onToggleRoute,
+    required this.highlightedPois,
+    required this.strengthPoisLoading,
+    required this.strengthPoisError,
+    required this.onRetryStrengthPois,
   });
 
   final PropertyDetail property;
   final bool inRoute;
   final VoidCallback onToggleRoute;
+  final List<PoiMapItem> highlightedPois;
+  final bool strengthPoisLoading;
+  final String? strengthPoisError;
+  final VoidCallback onRetryStrengthPois;
 
   @override
   Widget build(BuildContext context) {
@@ -460,6 +506,33 @@ class _PropertyDetailBody extends StatelessWidget {
           ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 10),
+        if (property.score.strengths.isNotEmpty)
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.auto_awesome),
+              title: const Text('Güçlü yön hizmet noktaları'),
+              subtitle: Text(
+                strengthPoisLoading
+                    ? 'Haritada vurgulanacak noktalar yükleniyor…'
+                    : strengthPoisError ??
+                        '${highlightedPois.length} nokta haritada gösteriliyor.',
+              ),
+              trailing:
+                  strengthPoisLoading
+                      ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                      : strengthPoisError != null
+                      ? IconButton(
+                        tooltip: 'Tekrar dene',
+                        onPressed: onRetryStrengthPois,
+                        icon: const Icon(Icons.refresh),
+                      )
+                      : null,
+            ),
+          ),
+        if (property.score.strengths.isNotEmpty) const SizedBox(height: 10),
         SizedBox(
           height: 250,
           child: ExcludeFocus(
@@ -467,6 +540,8 @@ class _PropertyDetailBody extends StatelessWidget {
               anchors: const [],
               focus: focus,
               properties: [mapItem],
+              highlightedPois: highlightedPois,
+              onPoiTap: (poi) => showPoiDetailsSheet(context, poi: poi),
             ),
           ),
         ),
