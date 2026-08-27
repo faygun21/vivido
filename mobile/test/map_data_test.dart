@@ -35,17 +35,31 @@ void main() {
                   'longitude': 32.8,
                 },
               ]),
-              '/api/v1/properties' => _jsonResponse([
-                {
-                  'id': '42',
-                  'monthlyRent': 18000,
-                  'areaM2': 90,
-                  'roomCount': '2+1',
-                  'latitude': 39.91,
-                  'longitude': 32.81,
-                  'totalScore': 87.5,
+              '/api/v1/properties' => _jsonResponse({
+                'items': [
+                  {
+                    'id': '42',
+                    'monthlyRent': 18000,
+                    'areaM2': 90,
+                    'roomCount': '2+1',
+                    'latitude': 39.91,
+                    'longitude': 32.81,
+                    'totalScore': 87.5,
+                  },
+                ],
+                'corridorPolygon': {
+                  'type': 'MultiPolygon',
+                  'coordinates': [
+                    [
+                      [
+                        [32.8, 39.9],
+                        [32.81, 39.9],
+                        [32.8, 39.9],
+                      ],
+                    ],
+                  ],
                 },
-              ]),
+              }),
               '/api/v1/properties/map' => _jsonResponse([
                 {
                   'id': 43,
@@ -83,7 +97,8 @@ void main() {
 
         expect(categories.map((item) => item.code), ['market', 'park']);
         expect(pois.single.name, 'Deneme Marketi');
-        expect(authenticated.single.totalScore, 87.5);
+        expect(authenticated.items.single.totalScore, 87.5);
+        expect(authenticated.corridor?.coordinates.single.single.length, 3);
         expect(public.single.isSynthetic, isTrue);
         expect(public.single.hasElevator, isTrue);
 
@@ -178,19 +193,23 @@ class _FakeMapDataGateway implements MapDataGateway {
   ];
 
   @override
-  Future<List<PropertyMapItem>> getAuthenticatedProperties() async {
+  Future<AuthenticatedPropertiesMap> getAuthenticatedProperties({
+    bool showAll = false,
+  }) async {
     authenticatedPropertyCalls++;
-    return const [
-      PropertyMapItem(
-        id: '2',
-        latitude: 39.9,
-        longitude: 32.8,
-        monthlyRent: 20000,
-        areaM2: 100,
-        roomCount: '3+1',
-        totalScore: 91,
-      ),
-    ];
+    return const AuthenticatedPropertiesMap(
+      items: [
+        PropertyMapItem(
+          id: '2',
+          latitude: 39.9,
+          longitude: 32.8,
+          monthlyRent: 20000,
+          areaM2: 100,
+          roomCount: '3+1',
+          totalScore: 91,
+        ),
+      ],
+    );
   }
 
   @override
