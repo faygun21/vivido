@@ -2,13 +2,22 @@ import 'package:flutter/material.dart';
 
 import '../../domain/location_analysis.dart';
 
-class LocationAnalysisControls extends StatelessWidget {
-  const LocationAnalysisControls({
+final class LocationAnalysisSettings {
+  const LocationAnalysisSettings({
+    required this.analysisRadiusKm,
+    required this.walkingMinutes,
+  });
+
+  final double analysisRadiusKm;
+  final int walkingMinutes;
+}
+
+class LocationAnalysisLauncher extends StatelessWidget {
+  const LocationAnalysisLauncher({
     required this.hasSelectedLocation,
     required this.analysisRadiusKm,
     required this.walkingMinutes,
-    required this.onAnalysisRadiusChanged,
-    required this.onWalkingMinutesChanged,
+    required this.onOpen,
     required this.onClear,
     super.key,
   });
@@ -16,90 +25,208 @@ class LocationAnalysisControls extends StatelessWidget {
   final bool hasSelectedLocation;
   final double analysisRadiusKm;
   final int walkingMinutes;
-  final ValueChanged<double> onAnalysisRadiusChanged;
-  final ValueChanged<int> onWalkingMinutesChanged;
+  final VoidCallback onOpen;
   final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final label =
+        hasSelectedLocation
+            ? '${_formatRadius(analysisRadiusKm)} km · $walkingMinutes dk'
+            : 'Konum analizi';
 
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.radar, size: 20),
-                const SizedBox(width: 7),
-                const Expanded(
-                  child: Text(
-                    'Konum analizi',
-                    style: TextStyle(fontWeight: FontWeight.w800),
+    return Material(
+      elevation: 3,
+      color: colors.surface,
+      shadowColor: colors.shadow.withValues(alpha: 0.22),
+      borderRadius: BorderRadius.circular(24),
+      clipBehavior: Clip.antiAlias,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            key: const Key('open-location-analysis'),
+            onTap: onOpen,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.radar, size: 20, color: colors.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    label,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
-                ),
-                if (hasSelectedLocation)
-                  IconButton(
-                    key: const Key('clear-location-analysis'),
-                    tooltip: 'Analiz alanını temizle',
-                    visualDensity: VisualDensity.compact,
-                    onPressed: onClear,
-                    icon: const Icon(Icons.close, size: 20),
-                  ),
-              ],
+                  const SizedBox(width: 4),
+                  const Icon(Icons.tune, size: 18),
+                ],
+              ),
             ),
-            Row(
-              children: [
-                Expanded(
-                  child: _AnalysisDropdown<double>(
-                    dropdownKey: const Key('analysis-radius-dropdown'),
-                    label: 'Analiz alanı',
-                    value: analysisRadiusKm,
-                    values: analysisRadiusOptionsKm,
-                    itemLabel: (value) => '${_formatRadius(value)} km',
-                    onChanged: onAnalysisRadiusChanged,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _AnalysisDropdown<int>(
-                    dropdownKey: const Key('walking-minutes-dropdown'),
-                    label: 'Yürüme',
-                    value: walkingMinutes,
-                    values: walkingMinuteOptions,
-                    itemLabel: (value) => '$value dk',
-                    onChanged: onWalkingMinutesChanged,
-                  ),
-                ),
-              ],
+          ),
+          if (hasSelectedLocation) ...[
+            SizedBox(
+              height: 28,
+              child: VerticalDivider(width: 1, color: colors.outlineVariant),
             ),
-            const SizedBox(height: 8),
-            Text(
-              _statusText,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+            IconButton(
+              key: const Key('clear-location-analysis'),
+              tooltip: 'Analiz alanını temizle',
+              visualDensity: VisualDensity.compact,
+              onPressed: onClear,
+              icon: const Icon(Icons.close, size: 19),
             ),
           ],
-        ),
+        ],
       ),
     );
   }
+}
 
-  String get _statusText {
-    if (!hasSelectedLocation) {
-      return 'Alanı görmek için haritaya dokun veya konum ara.';
-    }
-    if (walkingMinutes >= 15) {
-      return '$walkingMinutes dakikalık yaklaşık yürüme alanı gösteriliyor.';
-    }
-    return '$walkingMinutes dakikalık yürüme alanı gösteriliyor.';
+Future<LocationAnalysisSettings?> showLocationAnalysisSettingsSheet(
+  BuildContext context, {
+  required double analysisRadiusKm,
+  required int walkingMinutes,
+}) => showModalBottomSheet<LocationAnalysisSettings>(
+  context: context,
+  useSafeArea: true,
+  isScrollControlled: true,
+  showDragHandle: true,
+  sheetAnimationStyle: AnimationStyle.noAnimation,
+  builder:
+      (_) => LocationAnalysisSheet(
+        analysisRadiusKm: analysisRadiusKm,
+        walkingMinutes: walkingMinutes,
+      ),
+);
+
+class LocationAnalysisSheet extends StatefulWidget {
+  const LocationAnalysisSheet({
+    required this.analysisRadiusKm,
+    required this.walkingMinutes,
+    super.key,
+  });
+
+  final double analysisRadiusKm;
+  final int walkingMinutes;
+
+  @override
+  State<LocationAnalysisSheet> createState() => _LocationAnalysisSheetState();
+}
+
+class _LocationAnalysisSheetState extends State<LocationAnalysisSheet> {
+  late double _analysisRadiusKm;
+  late int _walkingMinutes;
+
+  @override
+  void initState() {
+    super.initState();
+    _analysisRadiusKm = widget.analysisRadiusKm;
+    _walkingMinutes = widget.walkingMinutes;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        0,
+        20,
+        20 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: colors.primaryContainer,
+                foregroundColor: colors.onPrimaryContainer,
+                child: const Icon(Icons.radar),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Konum analizi',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text('Analiz alanını ve yürüme süresini ayarla.'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: _AnalysisDropdown<double>(
+                  dropdownKey: const Key('analysis-radius-dropdown'),
+                  label: 'Analiz alanı',
+                  value: _analysisRadiusKm,
+                  values: analysisRadiusOptionsKm,
+                  itemLabel: (value) => '${_formatRadius(value)} km',
+                  onChanged: (value) {
+                    setState(() => _analysisRadiusKm = value);
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _AnalysisDropdown<int>(
+                  dropdownKey: const Key('walking-minutes-dropdown'),
+                  label: 'Yürüme',
+                  value: _walkingMinutes,
+                  values: walkingMinuteOptions,
+                  itemLabel: (value) => '$value dk',
+                  onChanged: (value) {
+                    setState(() => _walkingMinutes = value);
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Ayarlar seçili konuma uygulanır. Konum seçili değilse haritaya dokun veya bir konum ara.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  key: const Key('apply-location-analysis'),
+                  onPressed: () {
+                    Navigator.of(context).pop(
+                      LocationAnalysisSettings(
+                        analysisRadiusKm: _analysisRadiusKm,
+                        walkingMinutes: _walkingMinutes,
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.check),
+                  label: const Text('Uygula'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -122,30 +249,18 @@ class _AnalysisDropdown<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InputDecorator(
-      decoration: InputDecoration(
-        labelText: label,
-        isDense: true,
-        contentPadding: const EdgeInsets.fromLTRB(10, 7, 6, 7),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<T>(
-          key: dropdownKey,
-          value: value,
-          isDense: true,
-          isExpanded: true,
-          items: [
-            for (final option in values)
-              DropdownMenuItem<T>(
-                value: option,
-                child: Text(itemLabel(option)),
-              ),
-          ],
-          onChanged: (nextValue) {
-            if (nextValue != null) onChanged(nextValue);
-          },
-        ),
-      ),
+    return DropdownButtonFormField<T>(
+      key: dropdownKey,
+      initialValue: value,
+      isExpanded: true,
+      decoration: InputDecoration(labelText: label, isDense: true),
+      items: [
+        for (final option in values)
+          DropdownMenuItem<T>(value: option, child: Text(itemLabel(option))),
+      ],
+      onChanged: (nextValue) {
+        if (nextValue != null) onChanged(nextValue);
+      },
     );
   }
 }
