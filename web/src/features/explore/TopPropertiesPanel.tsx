@@ -143,9 +143,6 @@ function TopPropertyCard({ property, rank, selected, onSelect }: TopPropertyCard
 
   return (
     <li className={`top-card${selected ? ' is-selected' : ''}`}>
-      {/* Kartın TAMAMI değil, içindeki düğme tıklanabilir: kalp düğmesi
-          kartın içinde duruyor ve iç içe iki tıklanabilir öge (button
-          içinde button) geçersiz HTML'dir. */}
       <button className="top-card-main" type="button" onClick={() => onSelect(property)}>
         <span className="top-card-rank">{rank}</span>
 
@@ -169,9 +166,9 @@ function TopPropertyCard({ property, rank, selected, onSelect }: TopPropertyCard
           )}
         </span>
 
+        {/* 👇 Sadece puan gözüksün diye alttaki yazıyı kaldırdık 👇 */}
         <span className={`top-card-score score-badge--${property.band}`}>
           <strong>{property.totalScore.toFixed(1)}</strong>
-          <span>{BAND_LABEL[property.band]}</span>
         </span>
       </button>
 
