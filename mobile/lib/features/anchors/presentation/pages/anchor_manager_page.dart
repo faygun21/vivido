@@ -3,7 +3,13 @@ import 'package:maplibre/maplibre.dart';
 
 import '../../../../core/models/models.dart';
 import '../../../auth/application/session_controller.dart';
+import '../../../location_search/application/location_search_controller.dart';
+import '../../../location_search/data/api_location_search_gateway.dart';
+import '../../../location_search/domain/location_search_models.dart';
+import '../../../location_search/presentation/widgets/location_search_panel.dart';
 import '../../../map/presentation/widgets/cankaya_map.dart';
+import '../../../map_data/application/map_data_controller.dart';
+import '../../../map_data/data/api_map_data_gateway.dart';
 
 class AnchorManagerPage extends StatefulWidget {
   const AnchorManagerPage({
@@ -26,10 +32,34 @@ class _AnchorManagerPageState extends State<AnchorManagerPage> {
   Geographic? _pendingPoint;
   bool _busy = false;
 
+  /// ⚠️ Bu harita eskiden BOMBOŞTU: ne konut ne POI ne arama vardı.
+  /// Kullanıcı, hiçbir referans noktası olmayan gri bir yüzeyde rastgele
+  /// bir yere dokunuyormuş gibi hissediyordu. Oysa "önemli konum" seçmek
+  /// tam olarak çevreye bakarak yapılan bir iş: nerede market var, hangi
+  /// evler yakın, aradığım cadde nerede.
+  late final MapDataController _mapData;
+  late final LocationSearchController _search;
+  LocationSearchResult? _focus;
+
   @override
   void initState() {
     super.initState();
     _anchors = [...?widget.controller.profile?.anchors];
+    _mapData = MapDataController(
+      gateway: ApiMapDataGateway(widget.controller.client),
+      authenticated: true,
+    );
+    _mapData.initialize();
+    _search = LocationSearchController(
+      ApiLocationSearchGateway(widget.controller.client),
+    );
+  }
+
+  @override
+  void dispose() {
+    _mapData.dispose();
+    _search.dispose();
+    super.dispose();
   }
 
   Future<void> _selectPoint(double lat, double lon) async {
@@ -142,15 +172,38 @@ class _AnchorManagerPageState extends State<AnchorManagerPage> {
               child: Stack(
                 children: [
                   Positioned.fill(
-                    child: CankayaMap(
-                      anchors: _anchors,
-                      pendingPoint: _pendingPoint,
-                      onMapTap: _anchors.length >= 3 ? null : _selectPoint,
+                    child: AnimatedBuilder(
+                      animation: _mapData,
+                      builder: (context, _) => CankayaMap(
+                        anchors: _anchors,
+                        pendingPoint: _pendingPoint,
+                        focus: _focus,
+                        // Konut ve POI'ler artık burada da çiziliyor:
+                        // kullanıcı önemli konumu çevresini görerek seçsin.
+                        pois: _mapData.pois,
+                        properties: _mapData.properties,
+                        onBoundsChanged: _mapData.updateViewport,
+                        onMapTap: _anchors.length >= 3 ? null : _selectPoint,
+                      ),
+                    ),
+                  ),
+                  // Arama kutusu: aradığı caddeyi/mahalleyi bulup oraya
+                  // gidebilsin. Haritayı elle sürükleyerek aramak, bu
+                  // ekranı gereksiz yere zahmetli kılıyordu.
+                  Positioned(
+                    left: 12,
+                    right: 12,
+                    top: 12,
+                    child: LocationSearchPanel(
+                      controller: _search,
+                      onSelected: (result) =>
+                          setState(() => _focus = result),
+                      onCleared: () => setState(() => _focus = null),
                     ),
                   ),
                   Positioned(
                     left: 12,
-                    top: 12,
+                    top: 74,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.92),
