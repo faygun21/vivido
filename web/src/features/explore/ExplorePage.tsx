@@ -204,10 +204,6 @@ export function ExplorePage() {
       api.get<PropertiesMapResponse>(`/properties?showAll=${showAllProperties}`),
   });
   const properties = propertiesResponse?.items ?? [];
-  // ⚠️ GEÇİCİ: mentor koridorun nasıl hesaplandığını gözle kontrol etmek
-  // istedi — bkz. TopPropertiesResponse'taki aynı not. Onay sonrası bu
-  // satır (ve CankayaMap'e verilmesi) kaldırılacak.
-  const anchorCorridor = propertiesResponse?.corridorPolygon ?? null;
 
   const { data: selectedProperty = null } = useSessionQuery({
     queryKey: ['properties', 'detail', selectedPropertyId],
@@ -677,7 +673,6 @@ export function ExplorePage() {
         userLocation={userLocation}
         // R-121 — oluşturulmuş rota: çizgi + numaralı duraklar + otomatik sığdırma.
         route={activeRoute}
-        anchorArea={anchorCorridor}
         // Çekmece haritanın üstünde yüzüyor; örttüğü genişliği haritaya
         // bildiriyoruz ki ilçe sınırı panelin altında kalmasın.
         padLeft={drawerOpen && wideScreen ? DRAWER_WIDTH_PX : 0}
