@@ -15,7 +15,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import type { Anchor, TravelMode } from '@vivido/shared';
-import { MAX_ANCHORS, anchorWeights } from '@vivido/shared';
+import { MAX_ANCHORS } from '@vivido/shared';
 import { ApiError, api } from '@/shared/api/client';
 import { useSessionQuery } from '@/shared/api/sessionQuery';
 import type { MapPoint } from '@/shared/map/CankayaMap';
@@ -33,7 +33,6 @@ import type { MapPoint } from '@/shared/map/CankayaMap';
  * harita.
  *
  * ⚠️ `priority` GÖNDERİLMEZ — sunucu atar (K-G).
- * ⚠️ `anchorWeights()` packages/shared'da ZATEN yazılı, import ediliyor.
  */
 
 export interface AnchorEditorProps {
@@ -80,6 +79,12 @@ export function AnchorEditor({
     void queryClient.invalidateQueries({ queryKey: ['anchors'] });
     // Profil de anchor listesi taşıyor; explore haritası ondan besleniyor.
     void queryClient.invalidateQueries({ queryKey: ['profile'] });
+    // Anchor eklenince/silinince/sırası değişince arama alanı (merkez +
+    // yarıçap) da değişir — /properties (harita pinleri + "En uygun evler")
+    // tazelenmezse eski alana göre hesaplanmış sonuçlar ekranda kalır.
+    // Aynı hata daha önce kayıt sihirbazındaki persona/bütçe adımlarında da
+    // vardı (bkz. LifestyleSelection/BudgetSelection'daki aynı düzeltme).
+    void queryClient.invalidateQueries({ queryKey: ['properties'] });
   }
 
   const createMutation = useMutation({
@@ -123,7 +128,6 @@ export function AnchorEditor({
     reorderMutation.mutate(next.map((a) => a.id));
   }
 
-  const weights = anchorWeights(anchors.length);
   const full = anchors.length >= MAX_ANCHORS;
 
   if (profileMissing) {
@@ -210,11 +214,10 @@ export function AnchorEditor({
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={anchors.map((a) => a.id)} strategy={verticalListSortingStrategy}>
             <ol className="anchor-list">
-              {anchors.map((anchor, index) => (
+              {anchors.map((anchor) => (
                 <SortableAnchor
                   key={anchor.id}
                   anchor={anchor}
-                  weight={weights[index] ?? 0}
                   onDelete={() => deleteMutation.mutate(anchor.id)}
                 />
               ))}
@@ -230,11 +233,9 @@ export function AnchorEditor({
 
 function SortableAnchor({
   anchor,
-  weight,
   onDelete,
 }: {
   anchor: Anchor;
-  weight: number;
   onDelete: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -261,7 +262,7 @@ function SortableAnchor({
       <span className="anchor-body">
         <strong>{anchor.label}</strong>
         <span className="muted">
-          {anchor.mode === 'car' ? 'Araçla' : 'Yürüyerek'} · ağırlık {weight.toFixed(3)}
+          {anchor.mode === 'car' ? 'Araçla' : 'Yürüyerek'}
         </span>
       </span>
 

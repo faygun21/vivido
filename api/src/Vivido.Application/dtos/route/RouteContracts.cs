@@ -19,6 +19,22 @@ public class RouteListResponse
     public int TotalDurationS { get; set; }
     public DateTime CreatedAt { get; set; }
     public int StopCount { get; set; }
+
+    /// <summary>
+    /// Kullanıcının bu rotayı gezmeyi planladığı an. NULL = plan girilmedi.
+    /// Bildirim göndermez, yalnızca listede gösterilir (013_add_route_schedule.sql).
+    /// </summary>
+    public DateTime? ScheduledAt { get; set; }
+
+    /// <summary>
+    /// Rota veritabanına kaydedildi mi?
+    ///
+    /// Önizleme (`POST /routes/preview`) hesaplanmış ama KAYDEDİLMEMİŞ bir
+    /// rota döner: `Id` boş, bu alan `false`. Arayüz buna bakıp "Kaydet"
+    /// düğmesini gösteriyor. Aksi halde kullanıcı kaydetmediği bir rotayı
+    /// kaydedilmiş sanardı.
+    /// </summary>
+    public bool IsSaved { get; set; } = true;
 }
 
 // POST /routes isteği — packages/shared CreateRouteRequest ile senkron
@@ -33,6 +49,12 @@ public class CreateRouteRequest
 
     /// <summary>'car' (varsayılan) | 'foot'</summary>
     public string? Mode { get; set; }
+
+    /// <summary>
+    /// Planlanan ziyaret zamanı — isteğe bağlı. Yalnızca kaydederken anlamlı;
+    /// önizlemede yok sayılır.
+    /// </summary>
+    public DateTime? ScheduledAt { get; set; }
 }
 
 public class RouteStartDto

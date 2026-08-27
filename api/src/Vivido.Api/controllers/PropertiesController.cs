@@ -90,8 +90,14 @@ public class PropertiesController : ControllerBase
     /// hesaplanıyor — 6.000 konutun tamamı için yapmak gereksiz iş.
     /// </summary>
     [HttpGet("top")]
-    public async Task<ActionResult<IEnumerable<PropertySummaryDto>>> GetTopProperties(
+    public async Task<ActionResult<TopPropertiesResponseDto>> GetTopProperties(
         [FromQuery] int limit = DefaultTopLimit,
+        // Anchor (özel yer) arama alanı — web'deki mor daireyle AYNI alan.
+        // Üçü de verilmezse anchor filtresi devre dışı (eskisi gibi tüm
+        // bütçeye uygun evler arasından en iyi N seçilir).
+        [FromQuery] double? anchorLat = null,
+        [FromQuery] double? anchorLon = null,
+        [FromQuery] double? anchorRadiusM = null,
         CancellationToken ct = default)
     {
         var profile = await GetProfileAsync(ct);
@@ -99,8 +105,37 @@ public class PropertiesController : ControllerBase
 
         limit = Math.Clamp(limit, 1, MaxTopLimit);
 
-        var properties = await BudgetFilteredQuery(profile).ToListAsync(ct);
-        if (properties.Count == 0) return Ok(Array.Empty<PropertySummaryDto>());
+        // Bütçeye uygun TÜM evler — 6.000 satır civarı, bellekte Haversine
+        // ile filtrelemek/en yakını aramak trivial (<10ms); ayrı bir SQL
+        // bbox turu gerektirmiyor.
+        var budgetProperties = await BudgetFilteredQuery(profile).ToListAsync(ct);
+
+        var hasAnchorArea = anchorLat is not null && anchorLon is not null && anchorRadiusM is > 0;
+
+        var properties = hasAnchorArea
+            ? budgetProperties
+                .Where(p => HaversineDistanceMetres(
+                    anchorLat!.Value, anchorLon!.Value, p.Geom.Y, p.Geom.X) <= anchorRadiusM!.Value)
+                .ToList()
+            : budgetProperties;
+
+        if (properties.Count == 0)
+        {
+            // Anchor alanında hiç ev yoksa boş liste yerine "en yakın uygun
+            // ev"i öneriyoruz — kullanıcı "burada hiçbir şey yok" duvarına
+            // çarpmasın, en azından "şuna bak, alanına çok yakın" diyebilelim.
+            if (hasAnchorArea && budgetProperties.Count > 0)
+            {
+                var nearest = budgetProperties
+                    .OrderBy(p => HaversineDistanceMetres(anchorLat!.Value, anchorLon!.Value, p.Geom.Y, p.Geom.X))
+                    .First();
+
+                var fallbackSummaries = await BuildSummariesAsync([nearest], profile, ct);
+                return Ok(new TopPropertiesResponseDto([], fallbackSummaries.SingleOrDefault()));
+            }
+
+            return Ok(new TopPropertiesResponseDto([], null));
+        }
 
         var scores = await _scoringService.ScorePropertiesAsync(
             properties.Select(p => p.Id).ToList(), profile.Id);
@@ -113,13 +148,28 @@ public class PropertiesController : ControllerBase
             .Take(limit)
             .ToList();
 
-        var topIds = top.Select(p => p.Id).ToList();
+        var items = await BuildSummariesAsync(top, profile, ct);
 
-        var addresses = await _addressService.GetAddressesAsync(topIds, ct);
-        var breakdowns = await _breakdownService.GetBreakdownsAsync(topIds, profile.Id, ct);
-        var favoriteIds = await GetFavoriteIdsAsync(profile.UserId, topIds, ct);
+        return Ok(new TopPropertiesResponseDto(items, null));
+    }
 
-        var items = top.Select(p =>
+    /// <summary>
+    /// Verilen konutlar için skor + adres + gerekçe özetini tek toplu
+    /// sorgu turuyla <see cref="PropertySummaryDto"/> listesine çevirir.
+    /// Hem "en iyi N" listesi hem de anchor alanı boşken tek bir "en yakın"
+    /// önerisi İÇİN kullanılıyor — ikinci bir kopya olmasın diye.
+    /// </summary>
+    private async Task<List<PropertySummaryDto>> BuildSummariesAsync(
+        IReadOnlyCollection<Property> properties, UserProfile profile, CancellationToken ct)
+    {
+        var ids = properties.Select(p => p.Id).ToList();
+
+        var scores = await _scoringService.ScorePropertiesAsync(ids, profile.Id);
+        var addresses = await _addressService.GetAddressesAsync(ids, ct);
+        var breakdowns = await _breakdownService.GetBreakdownsAsync(ids, profile.Id, ct);
+        var favoriteIds = await GetFavoriteIdsAsync(profile.UserId, ids, ct);
+
+        return properties.Select(p =>
         {
             var score = scores.GetValueOrDefault(p.Id, 0.0);
             breakdowns.TryGetValue(p.Id, out var breakdown);
@@ -139,9 +189,7 @@ public class PropertiesController : ControllerBase
                 TopStrength: breakdown?.Strengths.FirstOrDefault()?.Label,
                 TopWeakness: breakdown?.Weaknesses.FirstOrDefault()?.Label,
                 IsFavorite: favoriteIds.Contains(p.Id));
-        });
-
-        return Ok(items);
+        }).ToList();
     }
 
     /// <summary>
@@ -319,6 +367,29 @@ public class PropertiesController : ControllerBase
             query = query.Where(p => p.MonthlyRent <= profile.MaxMonthlyBudget.Value);
 
         return query;
+    }
+
+    /// <summary>
+    /// İki nokta arasındaki büyük daire (jeodezik) mesafesi, metre cinsinden.
+    ///
+    /// ⚠️ Web'deki `anchorSweetSpot.ts`'teki `haversineDistanceMetres` ile
+    /// BİREBİR aynı formül olmalı — aksi halde kullanıcı haritada gördüğü
+    /// mor daireyle "En uygun evler" listesinin sınırları arasında
+    /// tutarsızlık görür.
+    /// </summary>
+    private static double HaversineDistanceMetres(double lat1, double lon1, double lat2, double lon2)
+    {
+        const double earthRadiusMetres = 6_371_008.8;
+        var lat1Rad = lat1 * Math.PI / 180.0;
+        var lat2Rad = lat2 * Math.PI / 180.0;
+        var dLat = (lat2 - lat1) * Math.PI / 180.0;
+        var dLon = (lon2 - lon1) * Math.PI / 180.0;
+
+        var sinDLat = Math.Sin(dLat / 2);
+        var sinDLon = Math.Sin(dLon / 2);
+        var h = sinDLat * sinDLat + Math.Cos(lat1Rad) * Math.Cos(lat2Rad) * sinDLon * sinDLon;
+
+        return 2 * earthRadiusMetres * Math.Asin(Math.Sqrt(Math.Min(1, h)));
     }
 
     private async Task<HashSet<long>> GetFavoriteIdsAsync(

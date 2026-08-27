@@ -43,6 +43,8 @@ function fixtureRoute(id: string): RouteDetail {
       },
     ],
     legs: [],
+  scheduledAt: null,
+  isSaved: true,
     createdAt: '2026-08-25T00:00:00Z',
   };
 }

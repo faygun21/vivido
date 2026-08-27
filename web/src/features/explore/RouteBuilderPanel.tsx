@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import type { CreateRouteRequest, RouteDetail, TravelMode } from '@vivido/shared';
 import { MAX_ROUTE_STOPS, MIN_ROUTE_STOPS } from '@vivido/shared';
-import type { MapPoint } from '@/shared/map/CankayaMap';
+import type { UserLocationStatus } from '@/shared/map/useUserLocation';
+import { isWithinCankaya, type RouteStart } from '@/shared/route/routeStart';
+import { RouteStartCombobox } from './RouteStartCombobox';
 import {
-  DEFAULT_ROUTE_START,
   formatRouteDistance,
   formatRouteDuration,
   routeNameForToday,
@@ -36,53 +37,76 @@ export interface RouteBuilderPanelProps {
   /** Seçili konutlar — dizi sırası = numaralandırma sırası. */
   options: RoutePropertyOption[];
   onRemoveProperty: (propertyId: number) => void;
-  /** Haritadan seçilen başlangıç; null = varsayılan Çankaya merkezi. */
-  start: (MapPoint & { label: string }) | null;
-  /** "Haritadan seç" kipini açar/kapatır. */
-  onPickStart: () => void;
-  pickingStart: boolean;
+  /** Seçili başlangıç; null = henüz belirlenmedi (rota kurulamaz). */
+  start: RouteStart | null;
+  /** Canlı konumun durumu — panelde ne yazacağını belirler. */
+  locationStatus: UserLocationStatus;
+  /** Konum sorunluysa kullanıcıya gösterilecek Türkçe açıklama. */
+  locationMessage: string | null;
+  /** "Konumumu kullan" / "Tekrar dene". */
+  onUseLiveLocation: () => void;
+  /**
+   * Konum kutusundan bir adres seçildi.
+   *
+   * `LocationSearchResult` değil `RouteStart` alıyor: dönüştürme
+   * combobox'ta yapılıyor, panel ham arama sonucunu hiç görmüyor.
+   */
+  onPickAddress: (start: RouteStart) => void;
   /** `POST /routes` — gövde burada kurulur. */
   onCreate: (body: CreateRouteRequest) => void;
   isCreating: boolean;
   error: string | null;
   /** Oluşturulmuş rota — varsa metrik kartı gösterilir. */
   route: RouteDetail | null;
-  /** Metrik kartından "Rota düzenle": çizgi kalkar, seçim korunur (R-122). */
-  onCloseRoute: () => void;
   /** Oluşturucuyu sıfırlar: çizgi + seçim + başlangıç. */
   onDiscardRoute: () => void;
-  /** R-122 — metrik kartından bir durağı çıkarır; kalanlar yeniden optimize edilir. */
+  /**
+   * R-122 — bir durağı rotadan çıkarır; kalanlar yeniden optimize edilir.
+   * EKLEME haritadan yapılıyor (pin tıklaması), o yüzden burada karşılığı yok.
+   */
   onRemoveStop: (propertyId: number) => void;
-  /** Durak çıkarıldıktan sonra yeniden hesaplama sürüyor mu? */
+  /** Durak eklenip çıkarıldıktan sonra yeniden hesaplama sürüyor mu? */
   isReoptimizing: boolean;
+  /** Önizlenen rotayı kaydeder (`POST /routes`). */
+  onSave: (name: string, scheduledAt: string | null) => void;
+  isSaving: boolean;
 }
 
 export function RouteBuilderPanel({
   options,
   onRemoveProperty,
   start,
-  onPickStart,
-  pickingStart,
+  locationStatus,
+  locationMessage,
+  onUseLiveLocation,
+  onPickAddress,
   onCreate,
   isCreating,
   error,
   route,
-  onCloseRoute,
   onDiscardRoute,
   onRemoveStop,
   isReoptimizing,
+  onSave,
+  isSaving,
 }: RouteBuilderPanelProps) {
   const [mode, setMode] = useState<TravelMode>('car');
-  const [name, setName] = useState(routeNameForToday);
 
-  const startPoint = start ?? DEFAULT_ROUTE_START;
-  const canCreate = options.length >= MIN_ROUTE_STOPS;
+  // Başlangıç Çankaya dışındaysa rota kurulamaz — OSRM grafiği yalnızca bu
+  // ilçeyi kapsıyor, dışarıdaki bir nokta en yakın Çankaya yoluna yapışır
+  // ve mesafe anlamsız büyür. Sessizce merkeze çekmek yerine kullanıcıdan
+  // Çankaya'dan bir adres seçmesini istiyoruz.
+  const startOutside = start != null && !isWithinCankaya(start);
+  const hasUsableStart = start != null && !startOutside;
+  const canCreate = options.length >= MIN_ROUTE_STOPS && hasUsableStart;
 
   function submit() {
-    if (!canCreate || isCreating) return;
+    if (!canCreate || isCreating || !start) return;
+    // Ad boş: `POST /routes/preview` ad istemiyor, kaydetme adımında
+    // sorulacak.
     onCreate({
-      name: name.trim() || routeNameForToday(),
-      start: { lat: startPoint.lat, lon: startPoint.lon, label: startPoint.label },
+      name: '',
+      start: { lat: start.lat, lon: start.lon, label: start.label },
       propertyIds: options.map((option) => option.id),
       mode,
     });
@@ -92,11 +116,12 @@ export function RouteBuilderPanel({
     return (
       <RouteMetricsCard
         route={route}
-        onClose={onCloseRoute}
         onDiscard={onDiscardRoute}
         onRemoveStop={onRemoveStop}
         isReoptimizing={isReoptimizing}
         error={error}
+        onSave={onSave}
+        isSaving={isSaving}
       />
     );
   }
@@ -147,44 +172,45 @@ export function RouteBuilderPanel({
       </section>
 
       <section className="drawer-section">
-        <h2>Başlangıç noktası</h2>
-        <div className="route-start">
-          <span className="route-start-label">{startPoint.label}</span>
-          <button className="btn-chip" type="button" onClick={onPickStart}>
-            {pickingStart ? 'Vazgeç' : 'Haritadan seç'}
-          </button>
-        </div>
-        {pickingStart && (
-          <p className="route-hint" role="status">
-            Haritada başlangıç noktasına tıkla.
+        <h2>Nereden başlıyorsun?</h2>
+
+        <RouteStartCombobox
+          value={start}
+          onChange={onPickAddress}
+          onUseLiveLocation={onUseLiveLocation}
+          locationStatus={locationStatus}
+          locationMessage={locationMessage}
+          invalid={startOutside}
+        />
+
+        {startOutside && (
+          <p className="route-error" role="alert">
+            Bu nokta <strong>Çankaya dışında</strong>. Konutların tamamı Çankaya&apos;da ve
+            rota ağı yalnızca bu ilçeyi kapsıyor — kutuya dokunup Çankaya&apos;dan bir
+            başlangıç adresi seç.
           </p>
         )}
       </section>
 
       <section className="drawer-section">
-        <h2>Ulaşım ve ad</h2>
-        <div className="field">
-          <span>Ulaşım modu</span>
-          <div className="route-mode-toggle">
-            <button
-              className={`btn-chip${mode === 'car' ? ' is-active' : ''}`}
-              type="button"
-              onClick={() => setMode('car')}
-            >
-              Araç
-            </button>
-            <button
-              className={`btn-chip${mode === 'foot' ? ' is-active' : ''}`}
-              type="button"
-              onClick={() => setMode('foot')}
-            >
-              Yürüyerek
-            </button>
-          </div>
-        </div>
-        <div className="field">
-          <span>Rota adı</span>
-          <input value={name} onChange={(event) => setName(event.target.value)} />
+        <h2>Ulaşım</h2>
+        {/* Rota adı burada SORULMUYOR — kaydetme adımına taşındı.
+            Kullanıcı beğenmediği bir rota için ad uydurmak zorunda kalmasın. */}
+        <div className="route-mode-toggle">
+          <button
+            className={`btn-chip${mode === 'car' ? ' is-active' : ''}`}
+            type="button"
+            onClick={() => setMode('car')}
+          >
+            Araç
+          </button>
+          <button
+            className={`btn-chip${mode === 'foot' ? ' is-active' : ''}`}
+            type="button"
+            onClick={() => setMode('foot')}
+          >
+            Yürüyerek
+          </button>
         </div>
       </section>
 
@@ -195,13 +221,22 @@ export function RouteBuilderPanel({
       )}
 
       <div className="drawer-actions">
+        {/* Pasif bir düğmenin SEBEBİ yazılmazsa kullanıcı çıkmaza girer:
+            "neden basamıyorum?" sorusunun cevabı ekranda olmalı. */}
+        {!canCreate && (
+          <p className="muted route-blocked">
+            {options.length < MIN_ROUTE_STOPS
+              ? `Rota için en az ${MIN_ROUTE_STOPS} konut seç.`
+              : 'Önce başlangıç noktanı belirle.'}
+          </p>
+        )}
         <button
           className="btn-primary btn-sm"
           type="button"
           disabled={!canCreate || isCreating}
           onClick={submit}
         >
-          {isCreating ? 'Oluşturuluyor…' : 'Rota Oluştur'}
+          {isCreating ? 'Hesaplanıyor…' : 'Rota Oluştur'}
         </button>
       </div>
     </>
@@ -212,26 +247,34 @@ export function RouteBuilderPanel({
  *  R-122: her durakta "Kaldır" — çıkarılan durak kalanlarla yeniden optimize edilir. */
 function RouteMetricsCard({
   route,
-  onClose,
   onDiscard,
   onRemoveStop,
   isReoptimizing,
   error,
+  onSave,
+  isSaving,
 }: {
   route: RouteDetail;
-  onClose: () => void;
   onDiscard: () => void;
   onRemoveStop: (propertyId: number) => void;
   isReoptimizing: boolean;
   error: string | null;
+  onSave: (name: string, scheduledAt: string | null) => void;
+  isSaving: boolean;
 }) {
   const stops = [...route.stops].sort((a, b) => a.seq - b.seq);
+
+  // Kaydetme formu yalnızca istenince açılır: rotayı görmek isteyen ama
+  // kaydetmeyecek kullanıcı ad/tarih alanlarıyla karşılaşmasın.
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [name, setName] = useState(routeNameForToday);
+  const [scheduledAt, setScheduledAt] = useState('');
 
   return (
     <>
       <section className="drawer-section">
         <div className="route-metrics-head">
-          <h2>{route.name}</h2>
+          <h2>{route.isSaved ? route.name : 'Rota hazır'}</h2>
           <span className="route-mode-badge">{travelModeLabel(route.mode)}</span>
         </div>
 
@@ -244,8 +287,79 @@ function RouteMetricsCard({
           <dd>{route.stopCount} konut</dd>
         </dl>
 
-        <p className="data-badge">Rota kaydedildi · Profil → Kayıtlı Rotalarım</p>
+        {route.isSaved ? (
+          <>
+            <p className="data-badge">Rota kaydedildi · Profil → Kayıtlı Rotalarım</p>
+            {route.scheduledAt && (
+              <p className="route-schedule">🗓 {formatScheduledAt(route.scheduledAt)}</p>
+            )}
+          </>
+        ) : (
+          <p className="muted route-unsaved">
+            Bu rota <strong>henüz kaydedilmedi</strong>. Beğendiysen kaydet, beğenmediysen
+            durak çıkarıp yeniden hesaplat.
+          </p>
+        )}
       </section>
+
+      {/* ─── Kaydetme (yalnızca kaydedilmemiş rotada) ─── */}
+      {!route.isSaved && (
+        <section className="drawer-section">
+          {saveOpen ? (
+            <>
+              <h2>Rotayı kaydet</h2>
+              <label className="field">
+                <span>Rota adı</span>
+                <input
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  maxLength={120}
+                />
+              </label>
+
+              <label className="field">
+                <span>Ne zaman gezeceksin? (isteğe bağlı)</span>
+                <input
+                  type="datetime-local"
+                  value={scheduledAt}
+                  onChange={(event) => setScheduledAt(event.target.value)}
+                />
+              </label>
+
+              {/* Dürüstlük: tarih girmek bir HATIRLATICI kurmuyor. Mobil
+                  bildirim henüz yok; olmayan bir özelliği ima etmek
+                  kullanıcının randevuyu kaçırmasına yol açardı. */}
+              <p className="route-hint" role="note">
+                Tarih yalnızca planını kaydeder — şimdilik <strong>bildirim
+                gönderilmez</strong>.
+              </p>
+
+              <div className="drawer-actions">
+                <button
+                  className="btn-primary btn-sm"
+                  type="button"
+                  disabled={isSaving || name.trim().length === 0}
+                  onClick={() => onSave(name.trim(), toIsoOrNull(scheduledAt))}
+                >
+                  {isSaving ? 'Kaydediliyor…' : 'Kaydet'}
+                </button>
+                <button
+                  className="btn-chip"
+                  type="button"
+                  onClick={() => setSaveOpen(false)}
+                  disabled={isSaving}
+                >
+                  Vazgeç
+                </button>
+              </div>
+            </>
+          ) : (
+            <button className="btn-primary btn-sm" type="button" onClick={() => setSaveOpen(true)}>
+              Rotayı kaydet
+            </button>
+          )}
+        </section>
+      )}
 
       <section className="drawer-section">
         <h2>Ziyaret sırası</h2>
@@ -283,11 +397,17 @@ function RouteMetricsCard({
           ))}
         </ol>
 
+        {/* Ekleme de çıkarma da aynı yeniden-hesaplamayı tetikliyor. */}
         {isReoptimizing && (
           <p className="route-hint" role="status">
-            Kalan konutlarla yeniden hesaplanıyor…
+            Rota yeniden hesaplanıyor…
           </p>
         )}
+
+        <p className="muted route-edit-hint">
+          Haritadaki bir konuta tıklayarak rotaya <strong>ekleyebilir</strong> ya da
+          çıkarabilirsin — rota kendiliğinden yeniden hesaplanır.
+        </p>
         {error && (
           <p className="route-error" role="alert">
             {error}
@@ -295,11 +415,12 @@ function RouteMetricsCard({
         )}
       </section>
 
+      {/* "Rota düzenle" KALDIRILDI: rota açıkken haritadan konut
+          ekleyip çıkarmak zaten aynı işi yapıyor, ayrı bir düzenleme kipi
+          fazladan bir adımdan başka bir şey değildi. Geriye iki eylem
+          kalıyor: kaydet ve sıfırla. */}
       <div className="drawer-actions">
-        <button className="btn-secondary btn-sm" type="button" onClick={onClose}>
-          Rota düzenle
-        </button>
-        <button className="btn-chip" type="button" onClick={onDiscard}>
+        <button className="btn-chip" type="button" onClick={onDiscard} disabled={isSaving}>
           Sıfırla
         </button>
       </div>
@@ -307,3 +428,29 @@ function RouteMetricsCard({
   );
 }
 
+/**
+ * `datetime-local` çıktısını (`2026-08-30T14:00`) ISO'ya çevirir.
+ *
+ * Değer YEREL saattir ve saat dilimi taşımaz. `new Date(...)` bunu yerel
+ * kabul edip `toISOString()` ile UTC'ye çeviriyor — sunucudaki
+ * `timestamptz` sütunu da böyle bekliyor. Ham string'i göndersek sunucu
+ * onu UTC sanır ve randevu 3 saat kayardı.
+ */
+function toIsoOrNull(localValue: string): string | null {
+  if (!localValue) return null;
+  const parsed = new Date(localValue);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+/** ISO → '30 Ağustos Cumartesi, 14:00'. */
+export function formatScheduledAt(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('tr-TR', {
+    day: 'numeric',
+    month: 'long',
+    weekday: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}

@@ -22,6 +22,19 @@ interface TopPropertiesPanelProps {
   selectedId: string | null;
   onSelect: (property: PropertySummary) => void;
   onClose: () => void;
+  /**
+   * Liste boşken NEDEN boş olduğu — ikisi çok farklı düzeltmeler ister:
+   *   · 'budget'      → bütçeye uyan hiç ev yok, kira aralığını genişletmeli.
+   *   · 'anchor-area' → bütçeye uyan evler VAR ama hiçbiri özel yerlerin
+   *                      çevresindeki alana düşmüyor — "Tüm evleri göster"i
+   *                      açmalı ya da özel yerlerini gözden geçirmeli.
+   *   · null          → liste zaten dolu.
+   */
+  emptyReason: 'budget' | 'anchor-area' | null;
+  onShowAllProperties: () => void;
+  /** Anchor alanında hiç ev yoksa sunucunun önerdiği "alana en yakın" ev. */
+  nearestFallback: PropertySummary | null;
+  onSelectFallback: (property: PropertySummary) => void;
 }
 
 export function TopPropertiesPanel({
@@ -31,6 +44,10 @@ export function TopPropertiesPanel({
   selectedId,
   onSelect,
   onClose,
+  emptyReason,
+  onShowAllProperties,
+  nearestFallback,
+  onSelectFallback,
 }: TopPropertiesPanelProps) {
   return (
     <aside
@@ -59,10 +76,39 @@ export function TopPropertiesPanel({
       <div className="top-panel-body">
         {isLoading && <p className="muted top-panel-note">Konutlar skorlanıyor…</p>}
 
-        {!isLoading && items.length === 0 && (
+        {!isLoading && emptyReason === 'budget' && (
           <p className="muted top-panel-note">
             Bütçe aralığına uyan konut bulunamadı. Profilinden kira aralığını genişletmeyi dene.
           </p>
+        )}
+
+        {!isLoading && emptyReason === 'anchor-area' && (
+          <>
+            <p className="muted top-panel-note">
+              Bütçene uyan konutlar var ama hiçbiri özel yerlerinin çevresindeki
+              alana düşmüyor.{' '}
+              <button type="button" className="top-panel-note-action" onClick={onShowAllProperties}>
+                Tüm evleri göster
+              </button>{' '}
+              ile bakabilir ya da özel yerlerini gözden geçirebilirsin.
+            </p>
+
+            {nearestFallback && (
+              <>
+                <p className="muted top-panel-note top-panel-note--fallback-label">
+                  Alanına en yakın uygun ev:
+                </p>
+                <ol className="top-list">
+                  <TopPropertyCard
+                    property={nearestFallback}
+                    rank="≈"
+                    selected={nearestFallback.id === selectedId}
+                    onSelect={onSelectFallback}
+                  />
+                </ol>
+              </>
+            )}
+          </>
         )}
 
         <ol className="top-list">
@@ -85,7 +131,8 @@ export function TopPropertiesPanel({
 
 interface TopPropertyCardProps {
   property: PropertySummary;
-  rank: number;
+  /** Normalde 1'den başlayan sıra numarası; "en yakın" önerisinde "≈". */
+  rank: number | string;
   selected: boolean;
   onSelect: (property: PropertySummary) => void;
 }

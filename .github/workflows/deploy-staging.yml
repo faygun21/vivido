@@ -226,10 +226,44 @@ jobs:
             kontrol "$WK" 200
           fi
 
+          # ⭐ OSRM ayakta mı? Rota oluşturma buna bağlı ve arızası SESSİZ:
+          # site tamamen sağlıklı görünürken yalnızca "Rota Oluştur" 503 döner
+          # ve kimse fark etmez. Staging'de tam olarak bu oldu — osrm servisleri
+          # `profiles: ["routing"]` yüzünden hiç başlamıyordu ve API'ye
+          # `Routing__*` adresleri verilmemişti.
+          #
+          # Konteynerler dışarıya port yayınlamıyor (doğrusu bu), o yüzden
+          # kontrolü sunucunun İÇİNDEN, compose ağı üzerinden yapıyoruz.
+          #
+          # ⚠️ `exec -T api curl` DENEME: api imajı `dotnet/aspnet:10.0`
+          # runtime'ı ve içinde curl YOK — o hâliyle bu adım OSRM tamamen
+          # sağlıklıyken bile "executable file not found" ile patlıyordu.
+          #
+          # `--network container:vivido-api` curl'ü api'nin TAM ağ alanında
+          # çalıştırır: aynı DNS çözücü, aynı rotalar, imaja hiç dokunmadan.
+          # Ağ adını keşfetmek de gerekmiyor ("api buraya ulaşabiliyor mu?"
+          # sorusunun birebir karşılığı).
+          if ! ssh "${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}" \
+                 'docker run --rm --network container:vivido-api curlimages/curl:latest \
+                    -sf --max-time 10 "http://osrm-car:5000/route/v1/driving/32.85,39.92;32.86,39.93" \
+                    >/dev/null' </dev/null; then
+            echo "::error::osrm-car API ağından yanıt vermiyor — rota oluşturma 503 dönecek."
+            HATA=1
+          else
+            echo '  ✓ osrm-car                   API ağından erişilebilir'
+          fi
+
           exit $HATA
 
       - name: Başarısızlıkta sunucu logları
         if: failure()
         run: |
+          # osrm-car/foot DA loglanıyor: bu ikisi veri eksikse açılışta ölüp
+          # yeniden başlar (`Restarting (1)`) ve sebebi YALNIZCA kendi
+          # loglarında yazar. Bir kez `ps` tablosundan tahmin etmek zorunda
+          # kalındı; caddy logu bot taramasıyla dolu olduğu için de kolayca
+          # gözden kaçıyor. Az satır, çok bilgi: osrm önce gelsin.
           ssh "${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}" \
-            'cd /opt/vivido && docker compose -f docker-compose.prod.yml ps && docker compose -f docker-compose.prod.yml logs --tail 60 api caddy'
+            'cd /opt/vivido && docker compose -f docker-compose.prod.yml ps \
+             && docker compose -f docker-compose.prod.yml logs --tail 30 osrm-car osrm-foot \
+             && docker compose -f docker-compose.prod.yml logs --tail 60 api caddy'

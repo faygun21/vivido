@@ -159,6 +159,10 @@ function buildRoute(body: CreateRouteRequest): RouteDetail {
     totalDurationS,
     createdAt,
     stopCount: stops.length,
+    scheduledAt: body.scheduledAt ?? null,
+    // Mock her zaman KAYDEDİLMİŞ rota üretiyor; önizleme yolunu taklit
+    // etmiyor (MSW şu an kapalı, gerçek API kullanılıyor).
+    isSaved: true,
     geometry: { type: 'LineString', coordinates: coords },
     stops,
     legs,
@@ -192,6 +196,7 @@ export const routesHandlers = [
         totalDurationS: route.totalDurationS,
         createdAt: route.createdAt,
         stopCount: route.stopCount,
+        scheduledAt: route.scheduledAt,
       }));
 
     return HttpResponse.json(list);
