@@ -1,5 +1,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Canlı konum — rota başlangıcı ve haritadaki "buradayım" noktası.
+
+         COARSE de isteniyor çünkü Android 12+ kullanıcıya "yaklaşık konum"
+         verme seçeneği sunuyor; yalnızca FINE isteseydik kullanıcı yaklaşık
+         konumu seçtiğinde izin REDDEDİLMİŞ sayılırdı. Rota başlangıcı için
+         yaklaşık konum fazlasıyla yeterli.
+
+         Arka plan konumu BİLEREK YOK: uygulama yalnızca kullanıcı ekrandayken
+         ve açıkça istediğinde konum okuyor. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <application
         android:label="vivido_mobile"
         android:name="${applicationName}"

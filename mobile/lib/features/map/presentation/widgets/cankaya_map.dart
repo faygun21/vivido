@@ -9,6 +9,7 @@ import 'package:maplibre/maplibre.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/models/models.dart';
+import '../../../location/application/user_location_controller.dart';
 import '../../../location_analysis/domain/location_analysis.dart';
 import '../../../location_search/domain/location_search_models.dart';
 import '../../../map_data/domain/map_data_models.dart';
@@ -79,6 +80,7 @@ class CankayaMap extends StatefulWidget {
     this.onPoiTap,
     this.onPropertyTap,
     this.route,
+    this.userLocation,
     super.key,
   });
 
@@ -95,6 +97,10 @@ class CankayaMap extends StatefulWidget {
   final PoiTapCallback? onPoiTap;
   final PropertyTapCallback? onPropertyTap;
   final RouteDetail? route;
+
+  /// Kullanıcının canlı konumu. null ise nokta çizilmez — konum istenmemiş
+  /// ya da alınamamış demektir.
+  final UserLocation? userLocation;
 
   @override
   State<CankayaMap> createState() => _CankayaMapState();
@@ -437,6 +443,18 @@ class _CankayaMapState extends State<CankayaMap> {
               ),
             ];
     final markers = <Marker>[
+      // Canlı konum — listenin BAŞINDA, yani en altta çiziliyor: anchor
+      // pin'leri ve rota durakları onun üstünde kalsın, kullanıcı kendi
+      // noktası yüzünden bir durağı kaçırmasın.
+      if (widget.userLocation != null)
+        Marker(
+          point: Geographic(
+            lon: widget.userLocation!.longitude,
+            lat: widget.userLocation!.latitude,
+          ),
+          size: const Size(26, 26),
+          child: const _UserLocationDot(),
+        ),
       for (final anchor in widget.anchors)
         Marker(
           point: Geographic(lon: anchor.lon, lat: anchor.lat),
@@ -580,6 +598,35 @@ Feature<Polygon> _polygonFeature({
           Geographic(lon: point.longitude, lat: point.latitude),
       ],
     ]),
+  );
+}
+
+/// "Buradayım" noktası — haritalardaki alışılmış mavi daire.
+///
+/// Vurgu rengi (terracotta) BİLEREK kullanılmadı: o renk konut ve rota
+/// öğelerinin rengi. Kullanıcının kendi konumu bir içerik değil, bir
+/// referans noktası; ayrı bir renkte olması onu içerikten ayırıyor.
+class _UserLocationDot extends StatelessWidget {
+  const _UserLocationDot();
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Container(
+      width: 18,
+      height: 18,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1D74F5),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 3),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+    ),
   );
 }
 

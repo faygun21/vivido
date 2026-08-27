@@ -9,6 +9,7 @@ import '../../../auth/application/session_controller.dart';
 import '../../../favorites/application/favorites_controller.dart';
 import '../../../favorites/data/api_favorites_gateway.dart';
 import '../../../favorites/presentation/pages/favorites_page.dart';
+import '../../../location/application/user_location_controller.dart';
 import '../../../location_search/application/location_search_controller.dart';
 import '../../../location_search/data/api_location_search_gateway.dart';
 import '../../../location_search/domain/location_search_models.dart';
@@ -198,6 +199,7 @@ class _MapOverview extends StatefulWidget {
 class _MapOverviewState extends State<_MapOverview> {
   late final LocationSearchController _searchController;
   late final MapDataController _mapDataController;
+  final UserLocationController _userLocation = UserLocationController();
   LocationSearchResult? _mapFocus;
   AnalysisCoordinate? _analysisCenter;
   double _analysisRadiusKm = defaultAnalysisRadiusKm;
@@ -220,7 +222,47 @@ class _MapOverviewState extends State<_MapOverview> {
   void dispose() {
     _searchController.dispose();
     _mapDataController.dispose();
+    _userLocation.dispose();
     super.dispose();
+  }
+
+  /// Konum düğmesi. Konum İSTENMEDEN alınmıyor — uygulama açılır açılmaz
+  /// izin sormak, kullanıcının neden sorulduğunu anlamadan reddetmesine yol
+  /// açıyor ve bir kez "bir daha sorma" denince sistem diyaloğu bir daha
+  /// hiç açılmıyor.
+  Future<void> _goToMyLocation() async {
+    final result = await _userLocation.request();
+    if (!mounted) return;
+
+    if (result != null) {
+      setState(() {
+        // Haritayı oraya taşımak için mevcut odak mekanizmasını kullanıyoruz.
+        _mapFocus = LocationSearchResult(
+          id: 'canli-konum',
+          label: 'Canlı konumum',
+          kind: 'live',
+          source: 'device',
+          latitude: result.latitude,
+          longitude: result.longitude,
+        );
+      });
+      return;
+    }
+
+    final message = _userLocation.message;
+    if (message == null) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: _userLocation.needsAppSettings
+            ? SnackBarAction(
+                label: 'Ayarlar',
+                onPressed: _userLocation.openSettings,
+              )
+            : null,
+      ),
+    );
   }
 
   Future<void> _openProperty(PropertyMapItem property) async {
@@ -286,6 +328,7 @@ class _MapOverviewState extends State<_MapOverview> {
                       animation: Listenable.merge([
                         _mapDataController,
                         widget.routes,
+                        _userLocation,
                       ]),
                       builder:
                           (context, _) => CankayaMap(
@@ -300,6 +343,7 @@ class _MapOverviewState extends State<_MapOverview> {
                                     ? _mapDataController.properties
                                     : const [],
                             route: widget.routes.activeRoute,
+                            userLocation: _userLocation.location,
                             onBoundsChanged: _mapDataController.updateViewport,
                             onPoiTap: (poi) {
                               showPoiDetailsSheet(
@@ -350,7 +394,20 @@ class _MapOverviewState extends State<_MapOverview> {
         Positioned(
           top: topInset + 74,
           right: 12,
-          child: MapLayerButton(controller: _mapDataController),
+          child: Column(
+            children: [
+              MapLayerButton(controller: _mapDataController),
+              const SizedBox(height: 10),
+              _MapCircleButton(
+                icon: _userLocation.status == UserLocationStatus.ready
+                    ? Icons.my_location
+                    : Icons.location_searching,
+                busy: _userLocation.status == UserLocationStatus.locating,
+                tooltip: 'Konumuma git',
+                onPressed: _goToMyLocation,
+              ),
+            ],
+          ),
         ),
         Positioned(
           left: 12,
@@ -458,6 +515,43 @@ class _PickPointBanner extends StatelessWidget {
             visualDensity: VisualDensity.compact,
           ),
         ],
+      ),
+    ),
+  );
+}
+
+/// Harita üstündeki yuvarlak eylem düğmesi — katman düğmesiyle aynı dilde.
+class _MapCircleButton extends StatelessWidget {
+  const _MapCircleButton({
+    required this.icon,
+    required this.onPressed,
+    required this.tooltip,
+    this.busy = false,
+  });
+
+  final IconData icon;
+  final VoidCallback onPressed;
+  final String tooltip;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: AppColors.surface,
+    shape: const CircleBorder(),
+    elevation: 3,
+    shadowColor: Colors.black26,
+    child: InkWell(
+      customBorder: const CircleBorder(),
+      onTap: busy ? null : onPressed,
+      child: SizedBox(
+        width: 48,
+        height: 48,
+        child: busy
+            ? const Padding(
+                padding: EdgeInsets.all(14),
+                child: CircularProgressIndicator(strokeWidth: 2.4),
+              )
+            : Icon(icon, size: 22, color: AppColors.ink),
       ),
     ),
   );
