@@ -381,15 +381,31 @@ class _MapOverviewState extends State<_MapOverview> {
             ),
           ),
 
-        // Boş durum ipucu — YALNIZCA hiç önemli konum yokken.
+        // Harita verisi hatası. Controller `errorMessage` atıyordu ama onu
+        // gösteren hiçbir şey yoktu: `/properties` sözleşmesi kırıldığında
+        // tek belirti katman panelindeki "0 konut" yazısıydı ve sorunun
+        // sunucu tarafında olduğu hiçbir yerden anlaşılmıyordu.
+        if (_mapDataController.errorMessage != null)
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 74,
+            child: _MapHintBanner(
+              icon: Icons.cloud_off_outlined,
+              text: _mapDataController.errorMessage!,
+              tone: _BannerTone.error,
+            ),
+          )
+        // Boş durum ipucu — YALNIZCA hiç önemli konum yokken VE hata yokken.
         //
         // Eski sabit yardım metni her zaman görünüyordu ve kalıcı olarak yer
         // kaplıyordu. Oysa "numaralar öncelik sırasını gösterir" bilgisi,
         // haritada zaten numaralı pin gören birine bir şey katmıyor. Asıl
         // gerekli olan, HİÇ konumu olmayan kullanıcıya nereye gideceğini
         // söylemek; o yüzden ipucu yalnızca o durumda ve yüzen bir şerit
-        // olarak çıkıyor.
-        if (anchors.isEmpty)
+        // olarak çıkıyor. Hata şeridiyle aynı yeri paylaştıkları için
+        // ikisi birbirini dışlıyor — hata daha acil.
+        else if (anchors.isEmpty)
           Positioned(
             left: 12,
             right: 12,
@@ -447,40 +463,59 @@ class _PickPointBanner extends StatelessWidget {
   );
 }
 
+enum _BannerTone { info, error }
+
 /// Harita üstünde yüzen ince bilgi şeridi.
 class _MapHintBanner extends StatelessWidget {
-  const _MapHintBanner({required this.icon, required this.text});
+  const _MapHintBanner({
+    required this.icon,
+    required this.text,
+    this.tone = _BannerTone.info,
+  });
 
   final IconData icon;
   final String text;
+  final _BannerTone tone;
 
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      boxShadow: AppShadows.md,
-    ),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: AppColors.accent),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(
-                fontSize: 12.5,
-                height: 1.35,
-                color: AppColors.inkMuted,
+  Widget build(BuildContext context) {
+    final isError = tone == _BannerTone.error;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        boxShadow: AppShadows.md,
+        // Hata şeridi ince bir çerçeveyle ayrışıyor: aynı yerde çıkan
+        // bilgi şeridiyle karıştırılmasın.
+        border: isError
+            ? Border.all(color: AppColors.bandPoor, width: 1.2)
+            : null,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: isError ? AppColors.bandPoor : AppColors.accent,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                text,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  height: 1.35,
+                  color: isError ? AppColors.ink : AppColors.inkMuted,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _ProfileView extends StatelessWidget {

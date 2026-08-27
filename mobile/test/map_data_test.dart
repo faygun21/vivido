@@ -35,17 +35,28 @@ void main() {
                   'longitude': 32.8,
                 },
               ]),
-              '/api/v1/properties' => _jsonResponse([
-                {
-                  'id': '42',
-                  'monthlyRent': 18000,
-                  'areaM2': 90,
-                  'roomCount': '2+1',
-                  'latitude': 39.91,
-                  'longitude': 32.81,
-                  'totalScore': 87.5,
-                },
-              ]),
+              // ⚠️ Girişli uç NESNE döner (anchor koridoru eklenince
+              // değişti). Sahte yanıt eskiden düz dizi veriyordu; gerçek
+              // API değişince mobil "beklenen biçimde değil" hatasına
+              // düşüp haritada 0 konut gösteriyordu ama test yanlış şekli
+              // kodladığı için yeşil kalmaya devam etti.
+              //
+              // Hemen aşağıdaki `/properties/map` (misafir ucu) HÂLÂ
+              // dizi döndürüyor — ikisi bilerek farklı.
+              '/api/v1/properties' => _jsonResponse({
+                'items': [
+                  {
+                    'id': '42',
+                    'monthlyRent': 18000,
+                    'areaM2': 90,
+                    'roomCount': '2+1',
+                    'latitude': 39.91,
+                    'longitude': 32.81,
+                    'totalScore': 87.5,
+                  },
+                ],
+                'corridorPolygon': null,
+              }),
               '/api/v1/properties/map' => _jsonResponse([
                 {
                   'id': 43,
@@ -98,6 +109,39 @@ void main() {
         expect(publicRequest.queryParameters['north'], '40.000000');
       },
     );
+
+    test('girisli uc dizi donerse ANLASILIR bir hata verir', () async {
+      // Sözleşme yeniden değişirse (ya da eski bir sunucuya bağlanılırsa)
+      // sessizce "0 konut" göstermek yerine hata üretmeli: sessizlik,
+      // bu regresyonun günlerce fark edilmemesinin sebebiydi.
+      final client = ApiClient(
+        baseUrl: 'http://localhost/api/v1',
+        tokenStore: MemoryTokenStore(),
+        httpClient: MockClient((_) async => _jsonResponse(<Object>[])),
+      );
+      addTearDown(client.close);
+
+      expect(
+        () => ApiMapDataGateway(client).getAuthenticatedProperties(),
+        throwsA(isA<MapDataFailure>()),
+      );
+    });
+
+    test('items alani eksikse hata verir', () async {
+      final client = ApiClient(
+        baseUrl: 'http://localhost/api/v1',
+        tokenStore: MemoryTokenStore(),
+        httpClient: MockClient(
+          (_) async => _jsonResponse({'corridorPolygon': null}),
+        ),
+      );
+      addTearDown(client.close);
+
+      expect(
+        () => ApiMapDataGateway(client).getAuthenticatedProperties(),
+        throwsA(isA<MapDataFailure>()),
+      );
+    });
   });
 
   group('MapDataController', () {
