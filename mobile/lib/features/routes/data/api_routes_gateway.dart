@@ -30,6 +30,29 @@ class ApiRoutesGateway implements RoutesGateway {
   }
 
   @override
+  Future<RouteDetail> previewRoute({
+    required RouteStart start,
+    required List<int> propertyIds,
+    required RouteTravelMode mode,
+  }) async {
+    try {
+      // `name` GÖNDERİLMİYOR: sunucu tarafında ad yalnızca kaydederken
+      // zorunlu (RoutesController.PreviewRoute). İsim sormadan önizleme
+      // yapabilmemizin sebebi bu.
+      final json =
+          await _client.post('/routes/preview', {
+                'start': start.toJson(),
+                'propertyIds': propertyIds,
+                'mode': mode.apiValue,
+              })
+              as Map<String, dynamic>;
+      return RouteDetail.fromJson(json);
+    } on ApiException catch (error) {
+      throw _failure(error);
+    }
+  }
+
+  @override
   Future<RouteDetail> createRoute({
     required String name,
     required RouteStart start,

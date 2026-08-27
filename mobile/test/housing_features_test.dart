@@ -218,6 +218,117 @@ void main() {
       expect(controller.draft, isEmpty);
     });
 
+    test('onizleme rotayi KAYDETMEZ ve taslagi korur', () async {
+      final gateway = _FakeRoutesGateway();
+      final controller = RoutesController(gateway);
+      addTearDown(controller.dispose);
+      controller
+        ..addProperty(_draft(42))
+        ..addProperty(_draft(43));
+
+      final ok = await controller.previewRoute(
+        start: const RouteStart(latitude: 39.9, longitude: 32.8, label: 'Ev'),
+        mode: RouteTravelMode.car,
+      );
+
+      expect(ok, isTrue);
+      // Asil degismez: onizleme sunucuda KAYIT YARATMAZ. Eskiden "optimize
+      // et" rotayi dogrudan kaydediyordu ve kullanici begenmedigi rotayi
+      // silmek zorunda kaliyordu.
+      expect(gateway.createCallCount, 0);
+      expect(controller.savedRoutes, isEmpty);
+      expect(controller.isPreviewing, isTrue);
+      expect(controller.activeRoute?.isSaved, isFalse);
+      // Taslak duruyor: begenmezse evleri bastan secmesin.
+      expect(controller.draft, hasLength(2));
+    });
+
+    test('durak eklenince rota YENIDEN optimize edilir', () async {
+      final gateway = _FakeRoutesGateway();
+      final controller = RoutesController(gateway);
+      addTearDown(controller.dispose);
+      controller
+        ..addProperty(_draft(42))
+        ..addProperty(_draft(43));
+      await controller.previewRoute(
+        start: const RouteStart(latitude: 39.9, longitude: 32.8, label: 'Ev'),
+        mode: RouteTravelMode.car,
+      );
+
+      final ok = await controller.reoptimize([42, 43, 44]);
+
+      expect(ok, isTrue);
+      // Ekleme/cikarma sunucuya yeni bir hesap attirmali; yoksa ev listeye
+      // eklenir ama sira eski kalir ve "en uygun ziyaret sirasi" bozulur.
+      expect(gateway.previewCallCount, 2);
+      expect(gateway.previewedPropertyIds, [42, 43, 44]);
+      expect(controller.hasUnsavedChanges, isTrue);
+    });
+
+    test('rotada iki konuttan az kalamaz', () async {
+      final gateway = _FakeRoutesGateway();
+      final controller = RoutesController(gateway);
+      addTearDown(controller.dispose);
+      controller
+        ..addProperty(_draft(42))
+        ..addProperty(_draft(43));
+      await controller.previewRoute(
+        start: const RouteStart(latitude: 39.9, longitude: 32.8, label: 'Ev'),
+        mode: RouteTravelMode.car,
+      );
+
+      final ok = await controller.reoptimize([42]);
+
+      expect(ok, isFalse);
+      expect(controller.errorMessage, contains('en az 2'));
+      // Basarisiz istek sunucuya gitmemeli.
+      expect(gateway.previewCallCount, 1);
+    });
+
+    test('onizlenen rota kaydedilince sunucuya yazilir', () async {
+      final gateway = _FakeRoutesGateway();
+      final controller = RoutesController(gateway);
+      addTearDown(controller.dispose);
+      controller
+        ..addProperty(_draft(42))
+        ..addProperty(_draft(43));
+      await controller.previewRoute(
+        start: const RouteStart(latitude: 39.9, longitude: 32.8, label: 'Ev'),
+        mode: RouteTravelMode.car,
+      );
+
+      final saved = await controller.saveActiveRoute(name: 'Cumartesi turu');
+
+      expect(saved, isTrue);
+      expect(gateway.createCallCount, 1);
+      expect(controller.activeRoute?.isSaved, isTrue);
+      expect(controller.hasUnsavedChanges, isFalse);
+      expect(controller.savedRoutes.single.name, 'Cumartesi turu');
+      expect(controller.draft, isEmpty);
+    });
+
+    test('rota kapatilinca kaydedilmemis degisiklikler atilir', () async {
+      final gateway = _FakeRoutesGateway();
+      final controller = RoutesController(gateway);
+      addTearDown(controller.dispose);
+      controller
+        ..addProperty(_draft(42))
+        ..addProperty(_draft(43));
+      await controller.previewRoute(
+        start: const RouteStart(latitude: 39.9, longitude: 32.8, label: 'Ev'),
+        mode: RouteTravelMode.car,
+      );
+      await controller.reoptimize([42, 43, 44]);
+
+      controller.closeActiveRoute();
+
+      expect(controller.activeRoute, isNull);
+      expect(controller.hasUnsavedChanges, isFalse);
+      // Kapatmak KAYITLI rotalara dokunmamali.
+      expect(gateway.deletedIds, isEmpty);
+      expect(gateway.createCallCount, 0);
+    });
+
     test(
       'rota kaydedildikten sonra liste yenileme hatası başarıyı geri almaz',
       () async {
@@ -352,6 +463,38 @@ class _FakeRoutesGateway implements RoutesGateway {
   int createCallCount = 0;
   final List<String> deletedIds = [];
   RouteDetail? lastCreated;
+
+  int previewCallCount = 0;
+  List<int>? previewedPropertyIds;
+
+  @override
+  Future<RouteDetail> previewRoute({
+    required RouteStart start,
+    required List<int> propertyIds,
+    required RouteTravelMode mode,
+  }) async {
+    previewCallCount++;
+    previewedPropertyIds = propertyIds;
+    final templateStops = _routeDetailJson['stops']! as List<Object?>;
+    return RouteDetail.fromJson({
+      ..._routeDetailJson,
+      // Önizleme KAYDEDİLMEMİŞ bir rota döner: id boş, isSaved false.
+      'id': '',
+      'isSaved': false,
+      'mode': mode.apiValue,
+      'start': start.toJson(),
+      'stopCount': propertyIds.length,
+      'stops': [
+        for (var index = 0; index < propertyIds.length; index++)
+          {
+            ...(templateStops[index % templateStops.length]
+                as Map<String, dynamic>),
+            'propertyId': propertyIds[index],
+            'sequence': index + 1,
+          },
+      ],
+    });
+  }
 
   @override
   Future<RouteDetail> createRoute({

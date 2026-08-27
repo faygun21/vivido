@@ -22,6 +22,24 @@ class RoutesController extends ChangeNotifier {
   int _routesDataVersion = 0;
   int _openRequestVersion = 0;
 
+  /// Düzenlenen KAYITLI rotanın id'si. Kaydederken bunun üzerine
+  /// yazılıyor — yoksa her düzenleme yeni bir rota yaratır ve kullanıcının
+  /// kayıtlı rotaları çoğalırdı.
+  String? _editedRouteId;
+
+  /// Önizlemeden beri değişiklik yapıldı mı? "Rotayı kaydet" düğmesi buna
+  /// bakıyor.
+  bool _hasUnsavedChanges = false;
+
+  /// Önizlemede kullanılan başlangıç noktası; yeniden optimize ederken
+  /// aynısı kullanılsın diye saklanıyor.
+  RouteStart? _pendingStart;
+
+  bool get hasUnsavedChanges => _hasUnsavedChanges;
+
+  /// Ekranda kaydedilmemiş bir rota var mı?
+  bool get isPreviewing => activeRoute != null && !activeRoute!.isSaved;
+
   bool containsProperty(int propertyId) =>
       draft.any((item) => item.id == propertyId);
 
@@ -71,6 +89,152 @@ class RoutesController extends ChangeNotifier {
         loading = false;
         _notify();
       }
+    }
+  }
+
+  /// Rotayı hesaplar ve ekranda gösterir — KAYDETMEZ.
+  ///
+  /// Taslak (`draft`) BİLEREK temizlenmiyor: kullanıcı önizlemeyi beğenmezse
+  /// seçtiği evleri baştan seçmek zorunda kalmamalı.
+  Future<bool> previewRoute({
+    required RouteStart start,
+    required RouteTravelMode mode,
+  }) async {
+    if (draft.length < minRouteStops || draft.length > maxRouteStops) {
+      errorMessage = 'Rota için 2 ile 8 arasında konut seçmelisin.';
+      _notify();
+      return false;
+    }
+
+    saving = true;
+    errorMessage = null;
+    _notify();
+    try {
+      activeRoute = await _gateway.previewRoute(
+        start: start,
+        propertyIds: draft.map((item) => item.id).toList(growable: false),
+        mode: mode,
+      );
+      _pendingStart = start;
+      return true;
+    } on RoutesFailure catch (error) {
+      errorMessage = error.message;
+      return false;
+    } on Object {
+      errorMessage = 'Rota oluşturulamadı.';
+      return false;
+    } finally {
+      saving = false;
+      _notify();
+    }
+  }
+
+  /// Ekrandaki rotanın duraklarını değiştirip YENİDEN optimize eder.
+  ///
+  /// Ekleme ve çıkarma aynı yoldan geçiyor: her ikisinde de sıralama
+  /// baştan hesaplanmalı, yoksa ev listeye eklenir ama rota eski sırayı
+  /// korur ve "en uygun ziyaret sırası" vaadi bozulur.
+  Future<bool> reoptimize(List<int> propertyIds) async {
+    final route = activeRoute;
+    if (route == null) return false;
+
+    if (propertyIds.length < minRouteStops) {
+      errorMessage = 'Rotada en az 2 konut kalmalı.';
+      _notify();
+      return false;
+    }
+    if (propertyIds.length > maxRouteStops) {
+      errorMessage = 'Bir rotaya en fazla 8 konut ekleyebilirsin.';
+      _notify();
+      return false;
+    }
+
+    saving = true;
+    errorMessage = null;
+    _notify();
+    try {
+      final next = await _gateway.previewRoute(
+        start: _pendingStart ?? route.start,
+        propertyIds: propertyIds,
+        mode: route.mode,
+      );
+      activeRoute = next;
+      // Kayıtlı bir rotayı düzenliyorsak artık kaydedilmemiş bir sürüm
+      // ekranda: kullanıcı değişikliği kaydedene kadar sunucudaki hâli
+      // eskisi olarak kalıyor.
+      _editedRouteId ??= route.isSaved ? route.id : null;
+      _hasUnsavedChanges = true;
+      return true;
+    } on RoutesFailure catch (error) {
+      errorMessage = error.message;
+      return false;
+    } on Object {
+      errorMessage = 'Rota güncellenemedi.';
+      return false;
+    } finally {
+      saving = false;
+      _notify();
+    }
+  }
+
+  /// Ekrandaki rotayı kaydeder.
+  ///
+  /// ⚠️ API'de GÜNCELLEME UCU YOK (`PUT /routes/{id}` diye bir şey yok), o
+  /// yüzden kayıtlı bir rota düzenlendiğinde yeni bir rota oluşturup
+  /// eskisini siliyoruz. Sıra ÖNEMLİ: önce oluştur, sonra sil. Tersi olsaydı
+  /// oluşturma hata verdiğinde kullanıcı hem eski hem yeni rotayı kaybederdi.
+  /// Silme hata verirse iki rota kalır — can sıkıcı ama veri kaybı değil.
+  Future<bool> saveActiveRoute({required String name}) async {
+    final route = activeRoute;
+    if (route == null) return false;
+    if (name.trim().isEmpty) {
+      errorMessage = 'Rota adı zorunludur.';
+      _notify();
+      return false;
+    }
+
+    saving = true;
+    errorMessage = null;
+    _notify();
+    try {
+      final created = await _gateway.createRoute(
+        name: name,
+        start: _pendingStart ?? route.start,
+        propertyIds: route.propertyIds,
+        mode: route.mode,
+      );
+
+      final replaced = _editedRouteId;
+      if (replaced != null && replaced != created.id) {
+        try {
+          await _gateway.deleteRoute(replaced);
+          savedRoutes = savedRoutes
+              .where((item) => item.id != replaced)
+              .toList();
+        } on Object {
+          // Eski rota silinemedi. Yeni rota kaydedildi, veri kaybı yok;
+          // kullanıcıyı burada uyarmak yerine listede iki kayıt görmesine
+          // izin veriyoruz — istediğini elle silebilir.
+        }
+      }
+
+      activeRoute = created;
+      _editedRouteId = null;
+      _hasUnsavedChanges = false;
+      _upsertSummary(created);
+      _routesLoaded = true;
+      draft = const [];
+      await _refreshRoutesBestEffort();
+      return true;
+    } on RoutesFailure catch (error) {
+      errorMessage = error.message;
+      return false;
+    } on Object {
+      errorMessage = 'Rota kaydedilemedi.';
+      return false;
+    } finally {
+      saving = false;
+      _notify();
     }
   }
 
@@ -227,10 +391,20 @@ class RoutesController extends ChangeNotifier {
     }
   }
 
+  /// Haritadaki rotayı kapatır. Kayıtlı rotalara DOKUNMAZ.
+  ///
+  /// Düzenleme durumu da sıfırlanıyor: kaydedilmemiş değişiklikler
+  /// atılıyor, sunucudaki kayıtlı hâli olduğu gibi kalıyor.
   void closeActiveRoute() {
+    // Uçuştaki `openRoute` isteğini geçersiz kılar: kapattıktan sonra
+    // gecikmeli bir yanıt gelip rotayı geri açmasın.
     _openRequestVersion++;
     openingRouteId = null;
     activeRoute = null;
+    _editedRouteId = null;
+    _hasUnsavedChanges = false;
+    _pendingStart = null;
+    errorMessage = null;
     _notify();
   }
 
