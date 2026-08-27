@@ -114,7 +114,6 @@ export function PropertyDetailPanel({ property, onClose, onBack }: PropertyDetai
           <ul className="feature-grid">
             <FeatureItem label="Kat" value={formatFloor(property.features.floorNo, property.features.totalFloors)} />
             <FeatureItem label="Bina yaşı" value={property.features.buildingAge != null ? `${property.features.buildingAge} yıl` : null} />
-            <FeatureItem label="m² başı" value={property.features.rentPerM2 != null ? formatRent(property.features.rentPerM2) : null} />
             <FeatureItem label="Depozito" value={property.features.deposit != null ? formatRent(property.features.deposit) : null} />
           </ul>
 
@@ -124,22 +123,6 @@ export function PropertyDetailPanel({ property, onClose, onBack }: PropertyDetai
             <Tag active={property.features.isFurnished}>Eşyalı</Tag>
             <Tag active={property.features.petsAllowed}>Evcil hayvan</Tag>
           </ul>
-        </section>
-
-        {/* Bütçe skorun PARÇASI DEĞİL — o yüzden gerekçe tablosunun dışında,
-            kendi başlığıyla duruyor. */}
-        <section className={`budget-note budget-note--${score.budget.status}`}>
-          <h3>Bütçe uyumu</h3>
-          <p>{score.budget.message}</p>
-          {score.budget.ratioToMax != null && (
-            <div
-              className="budget-bar"
-              role="img"
-              aria-label={`Kira, üst bütçenin yüzde ${Math.round(score.budget.ratioToMax * 100)}'i`}
-            >
-              <span style={{ width: `${Math.min(score.budget.ratioToMax * 100, 100)}%` }} />
-            </div>
-          )}
         </section>
 
         {hasBreakdown && (
@@ -178,19 +161,6 @@ export function PropertyDetailPanel({ property, onClose, onBack }: PropertyDetai
                 )}
               </div>
             </div>
-
-            {/* Zayıf halka cezası ayrı duruyor çünkü bir KRİTER değil, tüm
-                skora uygulanan bir kısıtlama. Kategori satırlarının arasına
-                koysaydık "bu da bir kriter" sanılırdı. */}
-            {score.weakLink && (
-              <div className="weak-link-note">
-                <div className="weak-link-head">
-                  <span className="weak-link-label">Zayıf halka cezası</span>
-                  <strong className="weak-link-points">{score.weakLink.points.toFixed(1)}</strong>
-                </div>
-                <p className="muted">{score.weakLink.message}</p>
-              </div>
-            )}
 
             <button
               className="btn-chip reason-toggle"

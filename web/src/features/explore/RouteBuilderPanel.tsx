@@ -130,10 +130,6 @@ export function RouteBuilderPanel({
     <>
       <section className="drawer-section">
         <h2>Ziyaret rotası</h2>
-        <p className="muted">
-          Haritada <strong>{MIN_ROUTE_STOPS}–{MAX_ROUTE_STOPS} konuta</strong> tıklayarak
-          rotana ekle; sistem en kısa ziyaret sırasını hesaplar.
-        </p>
 
         <div className="route-count">
           <span>Seçilen konut</span>
