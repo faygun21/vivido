@@ -45,8 +45,13 @@ const _poiFallbackIconId = 'vivido-poi-ikon-market';
 
 String _poiIconId(String categoryCode) => 'vivido-poi-ikon-$categoryCode';
 
-/// İkonların mantıksal kenar uzunluğu (px). Kaynak SVG'ler 24×24 viewBox.
-const double _iconPx = 24;
+/// İkonların haritaya kaydedildiği piksel boyu.
+///
+/// Kaynak SVG'ler 24×24 viewBox; 3× çözünürlükte rasterleştiriyoruz ki
+/// yüksek yoğunluklu ekranlarda bulanık durmasınlar. Ekrandaki boy
+/// `72 × icon-size` olarak hesaplanıyor (katman tanımlarındaki notlara bakın).
+const int _iconRenderPx = 72;
+const double _iconRenderPxD = 72;
 
 /// Çankaya sınırı — `pubspec.yaml` altında kayıtlı varlık.
 const _districtAssetPath = 'assets/geo/cankaya.geojson';
@@ -142,33 +147,62 @@ class _CankayaMapState extends State<CankayaMap> {
 
   /// Konut ve POI ikonlarını harita motoruna imaj olarak kaydeder.
   ///
-  /// SVG'ler doğrudan verilemiyor: `addImage` ham piksel bekliyor, MapLibre
-  /// SVG çözemiyor. `addImageFromWidget` bir Flutter widget'ını çizip
-  /// piksele döküyor, biz de `flutter_svg` ile SVG'yi o widget'ta
-  /// gösteriyoruz. Böylece webdeki AYNI dosyaları kullanıyoruz — ikonu
-  /// mobil için yeniden çizmek iki üründe iki farklı simge demek olurdu.
+  /// ⚠️ `addImageFromWidget` + `SvgPicture.asset` KULLANMAYIN — denendi,
+  /// yarış durumu üretiyor:
   ///
-  /// SVG'ler siyah dolgulu; `colorFilter` ile paletin rengine boyanıyorlar.
+  /// `addImageFromWidget` widget'ı TEK BİR çizim geçişinde piksele döküyor.
+  /// `SvgPicture.asset` ise dosyayı ASENKRON yüklüyor ve hazır olana kadar
+  /// boş bir kutu çiziyor. Önbellek soğuksa (uygulamanın ilk açılışı, temiz
+  /// kurulum, yavaş cihaz) o tek geçiş BOŞ kareyi yakalıyor ve haritaya
+  /// içi boş bir imaj kaydediliyor. Belirti: konutlar içi boş beyaz nokta,
+  /// POI'ler ikonsuz renkli daire. Uygulama yeniden kurulunca önbellek
+  /// ısındığı için "kendiliğinden düzeliyor" gibi görünüyor — düzelmiyor,
+  /// sadece yarışı kazanıyor.
+  ///
+  /// Bu yüzden SVG önce `vg.loadPicture` ile AÇIKÇA çözülüyor (await), sonra
+  /// tuvale senkron çiziliyor. Widget ağacı yok, bekleyecek bir şey yok.
+  ///
+  /// Web'deki AYNI dosyalar kullanılıyor; ikonu mobil için yeniden çizmek
+  /// iki üründe iki farklı simge demek olurdu. SVG'ler siyah dolgulu,
+  /// `saveLayer` + `srcIn` ile paletin rengine boyanıyorlar.
   Future<void> _loadMapIcons() async {
     final style = _styleController;
     if (style == null) return;
 
     Future<void> register(String id, String asset, Color color) async {
+      PictureInfo? info;
       try {
-        await style.addImageFromWidget(
+        info = await vg.loadPicture(SvgAssetLoader(asset), null);
+
+        final source = info.size;
+        if (source.isEmpty) return;
+
+        await style.addImageFromCanvas(
           id: id,
-          logicalSize: const Size(_iconPx, _iconPx),
-          imageSize: const Size(_iconPx * 3, _iconPx * 3),
-          widget: SvgPicture.asset(
-            asset,
-            width: _iconPx,
-            height: _iconPx,
-            colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
-          ),
+          width: _iconRenderPx,
+          height: _iconRenderPx,
+          painter: (canvas) {
+            // Renklendirme katmanı: srcIn, altındaki çizimin ALFA'sını
+            // koruyup rengini değiştiriyor. Doğrudan `drawPicture` üstüne
+            // renk basmak simgenin boşluklarını da doldururdu.
+            canvas.saveLayer(
+              const Rect.fromLTWH(0, 0, _iconRenderPxD, _iconRenderPxD),
+              Paint()..colorFilter = ColorFilter.mode(color, BlendMode.srcIn),
+            );
+            canvas.scale(
+              _iconRenderPxD / source.width,
+              _iconRenderPxD / source.height,
+            );
+            canvas.drawPicture(info!.picture);
+            canvas.restore();
+          },
         );
       } on Object {
         // Tek bir ikon yüklenemezse harita çalışmaya devam etsin: ilgili
         // katman o simgeyi çizmez, altındaki renkli daire yerinde kalır.
+      } finally {
+        // `loadPicture` dokümantasyonu elden çıkarmayı ÇAĞIRANA bırakıyor.
+        info?.picture.dispose();
       }
     }
 
@@ -719,18 +753,23 @@ String get _mapStyle => jsonEncode({
       'maxzoom': 14,
       'attribution': '© OpenStreetMap katkıcıları · © OpenMapTiles',
     },
+    // KÜMELEME EŞİKLERİ — bu sayılar POI/konutların ne kadar yakınlaşınca
+    // tek tek görüneceğini belirliyor ve fazla yüksekti: kullanıcı
+    // POI'leri görebilmek için sokak seviyesine kadar inmek zorunda
+    // kalıyordu. `clusterMaxZoom` bu değerin ÜSTÜNDE kümelemeyi bırakır,
+    // yani tekil noktalar ancak ondan sonra belirir.
     _poiSourceId: {
       'type': 'geojson',
       'data': {'type': 'FeatureCollection', 'features': <Object>[]},
       'cluster': true,
-      'clusterMaxZoom': 14,
+      'clusterMaxZoom': 13,
       'clusterRadius': 42,
     },
     _propertySourceId: {
       'type': 'geojson',
       'data': {'type': 'FeatureCollection', 'features': <Object>[]},
       'cluster': true,
-      'clusterMaxZoom': 15,
+      'clusterMaxZoom': 14,
       'clusterRadius': 45,
     },
     _routeSourceId: {
@@ -961,18 +1000,17 @@ String get _mapStyle => jsonEncode({
         '!',
         ['has', 'point_count'],
       ],
-      'minzoom': 14,
+      'minzoom': 13,
       'paint': {
-        // Yakınlaştıkça büyüyor: ikonun sığacağı yer ancak zoom 15.5'ten
-        // sonra oluşuyor, daha erken büyütmek noktaları birbirine
-        // yapıştırırdı.
+        // Yakınlaştıkça büyüyor: küçük daireye ikon sığmıyor, o yüzden
+        // ikon katmanı dairenin yeterince büyüdüğü zoom'da devreye giriyor.
         'circle-radius': [
           'interpolate',
           ['linear'],
           ['zoom'],
-          14,
-          6,
-          15.5,
+          13,
+          5,
+          14.5,
           10,
         ],
         'circle-color': _poiColorExpression(),
@@ -989,8 +1027,9 @@ String get _mapStyle => jsonEncode({
         ['has', 'point_count'],
       ],
       // Daireden GEÇ beliriyor: küçük dairenin üstünde ikon okunmaz,
-      // sadece lekelenir.
-      'minzoom': 15.5,
+      // sadece lekelenir. Daire 14.5'te 10 yarıçapa ulaşıyor, ikon da
+      // orada başlıyor.
+      'minzoom': 14.5,
       // Ekrandaki boy = 72 × icon-size (bkz. konut ikonundaki hesap).
       // POI dairesi zoom 15.5'te 10 yarıçapında (çap 20 px); ikon ~11 px
       // olsun: 11/72 ≈ 0.15.
