@@ -9,6 +9,7 @@ import 'package:vivido_mobile/features/favorites/application/favorites_controlle
 import 'package:vivido_mobile/features/favorites/data/api_favorites_gateway.dart';
 import 'package:vivido_mobile/features/favorites/domain/favorite_models.dart';
 import 'package:vivido_mobile/features/favorites/domain/favorites_gateway.dart';
+import 'package:vivido_mobile/features/properties/application/property_catalog_controller.dart';
 import 'package:vivido_mobile/features/properties/data/api_property_gateway.dart';
 import 'package:vivido_mobile/features/routes/application/routes_controller.dart';
 import 'package:vivido_mobile/features/routes/data/api_routes_gateway.dart';
@@ -25,7 +26,16 @@ void main() {
         httpClient: MockClient((request) async {
           requests.add(request);
           return switch (request.url.path) {
-            '/api/v1/properties/top' => _jsonResponse([_propertySummaryJson]),
+            // ⚠️ Bu uç NESNE döner, dizi DEĞİL. Sahte yanıt eskiden düz
+            // dizi veriyordu; gerçek API anchor filtresiyle nesneye
+            // çevrilince mobil istemci patladı ama test yanlış şekli
+            // kodladığı için yeşil kalmaya devam etti. Konutlar sekmesinin
+            // hiç açılmamasının sebebi buydu.
+            '/api/v1/properties/top' => _jsonResponse({
+              'items': [_propertySummaryJson],
+              'nearestFallback': null,
+              'corridorPolygon': null,
+            }),
             '/api/v1/properties/42' => _jsonResponse(_propertyDetailJson),
             _ => _jsonResponse({'title': 'Bulunamadı'}, statusCode: 404),
           };
@@ -38,12 +48,65 @@ void main() {
       final detail = await gateway.getPropertyDetail('42');
 
       expect(requests.first.url.queryParameters['limit'], '12');
-      expect(top.single.address.neighborhoodName, 'Ayrancı');
-      expect(top.single.isFavorite, isTrue);
+      // Anchor koridoru varsayılan olarak AÇIK (showAll=false) — web ile
+      // aynı davranış.
+      expect(requests.first.url.queryParameters['showAll'], 'false');
+      expect(top.items.single.address.neighborhoodName, 'Ayrancı');
+      expect(top.items.single.isFavorite, isTrue);
       expect(detail.features.hasParking, isTrue);
       expect(detail.score.rows.single.categoryCode, 'market');
       expect(detail.score.weakLink?.points, -2.5);
       expect(detail.score.budget.ratioToMax, 0.8);
+    });
+
+    test('koridor bosken en yakin ev onerisi tasinir', () async {
+      final client = ApiClient(
+        baseUrl: 'http://localhost/api/v1',
+        tokenStore: MemoryTokenStore(),
+        httpClient: MockClient((request) async {
+          return _jsonResponse({
+            'items': <Object>[],
+            'nearestFallback': _propertySummaryJson,
+            'corridorPolygon': null,
+          });
+        }),
+      );
+      addTearDown(client.close);
+
+      final top = await ApiPropertyGateway(client).getTopProperties();
+
+      // "Uygun ev yok" ile "burada yok ama en yakını şu" farklı mesajlar;
+      // arayüz ikisini ayırt edebilsin diye alan taşınıyor.
+      expect(top.items, isEmpty);
+      expect(top.nearestFallback?.address.neighborhoodName, 'Ayrancı');
+    });
+
+    test('tum evleri goster acikken sunucuya showAll gonderilir', () async {
+      final requests = <http.Request>[];
+      final client = ApiClient(
+        baseUrl: 'http://localhost/api/v1',
+        tokenStore: MemoryTokenStore(),
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          return _jsonResponse({
+            'items': [_propertySummaryJson],
+            'nearestFallback': null,
+            'corridorPolygon': null,
+          });
+        }),
+      );
+      addTearDown(client.close);
+
+      final controller = PropertyCatalogController(ApiPropertyGateway(client));
+      await controller.load();
+      await controller.setShowAll(true);
+
+      // Filtre SUNUCUDA uygulanıyor; elde süzmek yanlış olurdu çünkü
+      // koridor dışındaki evler zaten yanıtta hiç yok.
+      expect(requests, hasLength(2));
+      expect(requests.first.url.queryParameters['showAll'], 'false');
+      expect(requests.last.url.queryParameters['showAll'], 'true');
+      expect(controller.showAll, isTrue);
     });
 
     test('favori GET POST DELETE isteklerini doğru gönderir', () async {

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vivido_mobile/core/theme/app_colors.dart';
 import 'package:vivido_mobile/core/theme/app_theme.dart';
+import 'package:vivido_mobile/features/map_data/presentation/poi_category_colors.dart';
 
 /// Mobil paletin web ile aynı kaldığını doğrular.
 ///
@@ -91,6 +92,36 @@ void main() {
 
     test('zemin rengi web --bg ile aynı', () {
       expect(AppTheme.light.scaffoldBackgroundColor, AppColors.bg);
+    });
+  });
+
+  group('POI kategori görünümü', () {
+    test('renk tanımlı her kategorinin ikonu da var', () {
+      // Renk ve ikon aynı şeyi anlatıyor: kategorinin haritada nasıl
+      // göründüğü. Biri eklenip diğeri unutulursa POI rengiyle çizilir ama
+      // ikonsuz kalır — çalışma zamanında hata vermez, sadece eksik görünür.
+      for (final code in poiCategoryColors.keys) {
+        expect(
+          poiCategoryIconAssets,
+          contains(code),
+          reason: '"$code" kategorisinin rengi var ama ikonu yok',
+        );
+      }
+    });
+
+    test('ikon dosyalari diskte mevcut', () {
+      // Harita ikon yüklemesi hatayı SESSİZCE yutuyor (tek bir ikon
+      // yüzünden haritayı bozmanın anlamı yok). O sessizlik, dosya adı
+      // yanlış yazıldığında kimseye bir şey söylemezdi.
+      for (final asset in poiCategoryIconAssets.values.toSet()) {
+        expect(File(asset).existsSync(), isTrue, reason: '$asset bulunamadı');
+      }
+      expect(File('assets/icons/home_kahve.svg').existsSync(), isTrue);
+    });
+
+    test('ikon klasoru pubspec icinde kayitli', () {
+      final pubspec = File('pubspec.yaml').readAsStringSync();
+      expect(pubspec, contains('assets/icons/'));
     });
   });
 

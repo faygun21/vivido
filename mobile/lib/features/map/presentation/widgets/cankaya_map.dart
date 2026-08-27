@@ -3,9 +3,11 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:maplibre/maplibre.dart';
 
 import '../../../../core/config/app_config.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/models/models.dart';
 import '../../../location_analysis/domain/location_analysis.dart';
 import '../../../location_search/domain/location_search_models.dart';
@@ -32,6 +34,19 @@ const _routeLineLayerId = 'vivido-route-line';
 const _districtSourceId = 'vivido-district';
 const _districtFillLayerId = 'vivido-district-fill';
 const _districtLineLayerId = 'vivido-district-line';
+const _propertyClusterCountLayerId = 'vivido-property-cluster-count';
+const _propertyIconLayerId = 'vivido-property-icons';
+const _poiIconLayerId = 'vivido-poi-icons';
+const _propertyIconImageId = 'vivido-ev-ikon';
+
+/// Kategorisi eşleşmeyen POI'ler için — ikon katmanı `icon-image` bulamazsa
+/// MapLibre o simgeyi hiç çizmez, altındaki renkli daire yine görünür.
+const _poiFallbackIconId = 'vivido-poi-ikon-market';
+
+String _poiIconId(String categoryCode) => 'vivido-poi-ikon-$categoryCode';
+
+/// İkonların mantıksal kenar uzunluğu (px). Kaynak SVG'ler 24×24 viewBox.
+const double _iconPx = 24;
 
 /// Çankaya sınırı — `pubspec.yaml` altında kayıtlı varlık.
 const _districtAssetPath = 'assets/geo/cankaya.geojson';
@@ -122,6 +137,51 @@ class _CankayaMapState extends State<CankayaMap> {
     } on Object {
       // Stil yeniden yüklenirken eski controller kısa süreliğine geçersiz
       // olabilir. Yeni onStyleLoaded çağrısı güncel veriyi tekrar yazar.
+    }
+  }
+
+  /// Konut ve POI ikonlarını harita motoruna imaj olarak kaydeder.
+  ///
+  /// SVG'ler doğrudan verilemiyor: `addImage` ham piksel bekliyor, MapLibre
+  /// SVG çözemiyor. `addImageFromWidget` bir Flutter widget'ını çizip
+  /// piksele döküyor, biz de `flutter_svg` ile SVG'yi o widget'ta
+  /// gösteriyoruz. Böylece webdeki AYNI dosyaları kullanıyoruz — ikonu
+  /// mobil için yeniden çizmek iki üründe iki farklı simge demek olurdu.
+  ///
+  /// SVG'ler siyah dolgulu; `colorFilter` ile paletin rengine boyanıyorlar.
+  Future<void> _loadMapIcons() async {
+    final style = _styleController;
+    if (style == null) return;
+
+    Future<void> register(String id, String asset, Color color) async {
+      try {
+        await style.addImageFromWidget(
+          id: id,
+          logicalSize: const Size(_iconPx, _iconPx),
+          imageSize: const Size(_iconPx * 3, _iconPx * 3),
+          widget: SvgPicture.asset(
+            asset,
+            width: _iconPx,
+            height: _iconPx,
+            colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+          ),
+        );
+      } on Object {
+        // Tek bir ikon yüklenemezse harita çalışmaya devam etsin: ilgili
+        // katman o simgeyi çizmez, altındaki renkli daire yerinde kalır.
+      }
+    }
+
+    await register(
+      _propertyIconImageId,
+      'assets/icons/home_kahve.svg',
+      AppColors.accent,
+    );
+
+    for (final entry in poiCategoryIconAssets.entries) {
+      // POI ikonu BEYAZ: altında kategori renginde dolu bir daire var,
+      // ikonu da renkli yapmak ikisini birbirine karıştırırdı.
+      await register(_poiIconId(entry.key), entry.value, Colors.white);
     }
   }
 
@@ -434,6 +494,7 @@ class _CankayaMapState extends State<CankayaMap> {
           },
           onStyleLoaded: (style) {
             _styleController = style;
+            unawaited(_loadMapIcons());
             unawaited(_loadDistrictBoundary());
             unawaited(_updateMapSources());
             if (widget.route != null) unawaited(_fitRoute());
@@ -579,6 +640,14 @@ String _poiFeatureCollection(List<PoiMapItem> pois) => jsonEncode({
           'id': poi.id,
           'name': poi.name,
           'category': poi.categoryCode,
+          // İkon id'si burada, ÖZELLİK olarak hesaplanıyor. Alternatifi
+          // katman içinde uzun bir `match` ifadesi yazmaktı; kategori
+          // listesi büyüdükçe stil okunamaz hâle gelirdi. Tanımsız
+          // kategorilerde bilinen bir id'ye düşüyoruz — MapLibre var
+          // olmayan bir `icon-image` gördüğünde o simgeyi hiç çizmez.
+          'iconId': poiCategoryIconAssets.containsKey(poi.categoryCode)
+              ? _poiIconId(poi.categoryCode)
+              : _poiFallbackIconId,
         },
         'geometry': {
           'type': 'Point',
@@ -633,6 +702,15 @@ List<Object> _poiColorExpression() {
 String get _mapStyle => jsonEncode({
   'version': 8,
   'name': 'Vivido Çankaya',
+  // ⚠️ GLYPHS OLMADAN HİÇBİR METİN ÇİZİLMEZ.
+  //
+  // Küme dairelerinin içi boştu ve haritada kaç konut olduğu okunamıyordu.
+  // Sebep eksik bir katman değil, stilde `glyphs` tanımının hiç
+  // olmamasıydı: MapLibre `text-field` içeren her `symbol` katmanı için
+  // font atlası ister, kaynak yoksa katmanı sessizce boş çizer.
+  //
+  // Karo sunucusu bu fontu zaten sunuyor (web de aynı kaynağı kullanıyor).
+  'glyphs': '${AppConfig.tileBaseUrl}/fonts/{fontstack}/{range}.pbf',
   'sources': {
     'karolar': {
       'type': 'vector',
@@ -777,29 +855,55 @@ String get _mapStyle => jsonEncode({
       'layout': {'line-cap': 'round', 'line-join': 'round'},
       'paint': {'line-color': '#2563eb', 'line-width': 5, 'line-opacity': 0.95},
     },
+    // ── Konut kümesi ────────────────────────────────────────────────────
+    // Eski hâlde daireler ÇOK BÜYÜKTÜ (16–32 px yarıçap) ve içleri boştu:
+    // uzaklaşınca ekran, altındaki haritayı tamamen örten dev turuncu
+    // lekelerle doluyordu ve hiçbiri kaç ev olduğunu söylemiyordu.
+    //
+    // Artık çaplar küçüldü, kademeler konut sayısına göre daha erken
+    // ayrışıyor ve içine sayı yazılıyor (bkz. `_propertyClusterCountLayerId`).
+    // Renk paletten geliyor — `--accent` (#C0421D) ile aynı aile.
     {
       'id': _propertyClusterLayerId,
       'type': 'circle',
       'source': _propertySourceId,
       'filter': ['has', 'point_count'],
       'paint': {
-        'circle-color': '#ea580c',
-        'circle-opacity': 0.85,
-        'circle-stroke-width': 2,
+        'circle-color': '#C0421D',
+        'circle-opacity': 0.92,
+        'circle-stroke-width': 2.5,
         'circle-stroke-color': '#ffffff',
         'circle-radius': [
           'step',
           ['get', 'point_count'],
+          13,
+          10,
           16,
-          25,
-          20,
-          100,
-          26,
-          500,
-          32,
+          50,
+          19,
+          200,
+          23,
         ],
       },
     },
+    // Kümedeki konut sayısı. `point_count_abbreviated` büyük sayıları
+    // kısaltıyor (1200 -> 1.2k), yoksa rozete sığmazdı.
+    {
+      'id': _propertyClusterCountLayerId,
+      'type': 'symbol',
+      'source': _propertySourceId,
+      'filter': ['has', 'point_count'],
+      'layout': {
+        'text-field': ['get', 'point_count_abbreviated'],
+        'text-font': ['Noto Sans Regular'],
+        'text-size': 12,
+        'text-allow-overlap': true,
+      },
+      'paint': {'text-color': '#ffffff'},
+    },
+    // ── Tekil konut ─────────────────────────────────────────────────────
+    // Beyaz zeminli yuvarlak + üstünde ev ikonu. Daire ikonun okunmasını
+    // sağlıyor: ikon doğrudan haritaya basılsaydı açık zeminde kaybolurdu.
     {
       'id': _propertyPointLayerId,
       'type': 'circle',
@@ -809,10 +913,28 @@ String get _mapStyle => jsonEncode({
         ['has', 'point_count'],
       ],
       'paint': {
-        'circle-radius': 8,
-        'circle-color': '#c2410c',
-        'circle-stroke-color': '#ffffff',
+        'circle-radius': 11,
+        'circle-color': '#ffffff',
+        'circle-stroke-color': '#C0421D',
         'circle-stroke-width': 2,
+      },
+    },
+    {
+      'id': _propertyIconLayerId,
+      'type': 'symbol',
+      'source': _propertySourceId,
+      'filter': [
+        '!',
+        ['has', 'point_count'],
+      ],
+      // İKON BOYUTU HESABI: imajlar 3× çözünürlükte kaydediliyor
+      // (24 × 3 = 72 px), `icon-size` ise o piksel boyutunu ölçekliyor.
+      // Yani ekrandaki boy = 72 × icon-size. Daire yarıçapı 11 (çap 22 px),
+      // ikonun içinde rahat durması için ~13 px hedefliyoruz: 13/72 ≈ 0.18.
+      'layout': {
+        'icon-image': _propertyIconImageId,
+        'icon-size': 0.18,
+        'icon-allow-overlap': true,
       },
     },
     // ⚠️ POI KÜME DAİRESİ (mor halka) BİLEREK YOK.
@@ -826,6 +948,11 @@ String get _mapStyle => jsonEncode({
     //
     // Kaynaktaki `cluster: true` DURUYOR: kümeleme, çizilmese de
     // `point_count` özelliğini üretiyor ve aşağıdaki filtre ona dayanıyor.
+    //
+    // Nokta, kategori rengiyle dolu bir daire; üstüne (daha da yakınlaşınca)
+    // kategori ikonu biniyor. İkonu doğrudan haritaya basmak yerine renkli
+    // daire üzerinde göstermek iki işi birden yapıyor: renk kategoriyi
+    // uzaktan, ikon yakından anlatıyor.
     {
       'id': _poiPointLayerId,
       'type': 'circle',
@@ -836,10 +963,41 @@ String get _mapStyle => jsonEncode({
       ],
       'minzoom': 14,
       'paint': {
-        'circle-radius': 6,
+        // Yakınlaştıkça büyüyor: ikonun sığacağı yer ancak zoom 15.5'ten
+        // sonra oluşuyor, daha erken büyütmek noktaları birbirine
+        // yapıştırırdı.
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          14,
+          6,
+          15.5,
+          10,
+        ],
         'circle-color': _poiColorExpression(),
         'circle-stroke-color': '#ffffff',
         'circle-stroke-width': 1.5,
+      },
+    },
+    {
+      'id': _poiIconLayerId,
+      'type': 'symbol',
+      'source': _poiSourceId,
+      'filter': [
+        '!',
+        ['has', 'point_count'],
+      ],
+      // Daireden GEÇ beliriyor: küçük dairenin üstünde ikon okunmaz,
+      // sadece lekelenir.
+      'minzoom': 15.5,
+      // Ekrandaki boy = 72 × icon-size (bkz. konut ikonundaki hesap).
+      // POI dairesi zoom 15.5'te 10 yarıçapında (çap 20 px); ikon ~11 px
+      // olsun: 11/72 ≈ 0.15.
+      'layout': {
+        'icon-image': ['get', 'iconId'],
+        'icon-size': 0.15,
+        'icon-allow-overlap': true,
       },
     },
   ],

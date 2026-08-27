@@ -249,8 +249,17 @@ class _MapOverviewState extends State<_MapOverview> {
     setState(() {
       _analysisRadiusKm = settings.analysisRadiusKm;
       _walkingMinutes = settings.walkingMinutes;
+      // "Uygula" analizi hemen ÇİZMEZ, önce nokta seçtirir. Eskiden alan
+      // haritaya her dokunuşta kuruluyordu: kullanıcı haritayı gezerken
+      // ya da bir pin'e denk gelmeyen boş bir yere bastığında istemediği
+      // hâlde sarı daire çıkıyordu. Artık analiz açıkça istenen bir eylem.
+      _pickingAnalysisPoint = true;
     });
   }
+
+  /// Analiz merkezi seçme kipi. Yalnızca "Uygula" sonrası açılır ve İLK
+  /// dokunuşta kapanır — kipin açık kaldığını unutup haritayı kirletmesin.
+  bool _pickingAnalysisPoint = false;
 
   @override
   Widget build(BuildContext context) {
@@ -303,12 +312,17 @@ class _MapOverviewState extends State<_MapOverview> {
                             },
                             onPropertyTap: _openProperty,
                             onMapTap: (latitude, longitude) {
+                              // Analiz alanı YALNIZCA seçim kipindeyken
+                              // kurulur. Kip dışındaki dokunuşlar haritayı
+                              // olduğu gibi bırakır.
+                              if (!_pickingAnalysisPoint) return;
                               setState(() {
                                 _mapFocus = null;
                                 _analysisCenter = AnalysisCoordinate(
                                   latitude: latitude,
                                   longitude: longitude,
                                 );
+                                _pickingAnalysisPoint = false;
                               });
                             },
                           ),
@@ -323,13 +337,10 @@ class _MapOverviewState extends State<_MapOverview> {
           child: LocationSearchPanel(
             controller: _searchController,
             onSelected: (result) {
-              setState(() {
-                _mapFocus = result;
-                _analysisCenter = AnalysisCoordinate(
-                  latitude: result.latitude,
-                  longitude: result.longitude,
-                );
-              });
+              // Arama yalnızca haritayı o noktaya taşır; analiz alanı
+              // ÇİZMEZ. Adres aramak "burayı analiz et" demek değil,
+              // "buraya bak" demek.
+              setState(() => _mapFocus = result);
             },
             onCleared: () {
               setState(() => _mapFocus = null);
@@ -355,6 +366,21 @@ class _MapOverviewState extends State<_MapOverview> {
           ),
         ),
 
+        // Analiz noktası seçme kipi göstergesi. Kip sessiz olsaydı
+        // kullanıcı "Uygula"ya bastıktan sonra hiçbir şey olmadığını
+        // sanırdı; şerit hem ne beklendiğini söylüyor hem de vazgeçme
+        // yolu veriyor.
+        if (_pickingAnalysisPoint)
+          Positioned(
+            top: topInset + 74,
+            left: 12,
+            right: 68,
+            child: _PickPointBanner(
+              onCancel: () =>
+                  setState(() => _pickingAnalysisPoint = false),
+            ),
+          ),
+
         // Boş durum ipucu — YALNIZCA hiç önemli konum yokken.
         //
         // Eski sabit yardım metni her zaman görünüyordu ve kalıcı olarak yer
@@ -378,6 +404,47 @@ class _MapOverviewState extends State<_MapOverview> {
       ],
     );
   }
+}
+
+/// Analiz noktası seçilmesini bekleyen şerit.
+class _PickPointBanner extends StatelessWidget {
+  const _PickPointBanner({required this.onCancel});
+
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: AppColors.accent,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      boxShadow: AppShadows.md,
+    ),
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 6, 8),
+      child: Row(
+        children: [
+          const Icon(Icons.touch_app_outlined, size: 18, color: Colors.white),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Analiz için haritada bir nokta seç',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: onCancel,
+            icon: const Icon(Icons.close, size: 18, color: Colors.white),
+            tooltip: 'Vazgeç',
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 /// Harita üstünde yüzen ince bilgi şeridi.

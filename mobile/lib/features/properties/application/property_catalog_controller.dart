@@ -12,9 +12,27 @@ class PropertyCatalogController extends ChangeNotifier {
   bool loading = false;
   String? errorMessage;
 
+  /// Koridora hiç ev düşmediyse gösterilecek "en yakın ev" (bkz.
+  /// [TopProperties.nearestFallback]).
+  PropertySummary? nearestFallback;
+
+  /// "Tüm evleri göster" açık mı? Kapalıyken (varsayılan) sunucu, profildeki
+  /// özel yerlerden hesapladığı anchor koridoruna göre filtreliyor — web ile
+  /// aynı davranış, aynı hesapla iki üründe aynı liste görünsün diye.
+  bool showAll = false;
+
   bool _loaded = false;
   bool _disposed = false;
   int _loadVersion = 0;
+
+  /// [showAll] değiştirildiğinde liste sunucudan YENİDEN çekilir: filtre
+  /// istemcide değil sunucuda uygulanıyor, elde süzmek yanlış sonuç verirdi
+  /// (koridor dışındaki evler zaten hiç gelmemiş oluyor).
+  Future<void> setShowAll(bool value) async {
+    if (showAll == value) return;
+    showAll = value;
+    await load(force: true);
+  }
 
   Future<void> load({bool force = false}) async {
     if (!force && _loaded) return;
@@ -23,9 +41,10 @@ class PropertyCatalogController extends ChangeNotifier {
     errorMessage = null;
     _notify();
     try {
-      final loadedItems = await _gateway.getTopProperties();
+      final response = await _gateway.getTopProperties(showAll: showAll);
       if (requestVersion != _loadVersion) return;
-      items = loadedItems;
+      items = response.items;
+      nearestFallback = response.nearestFallback;
       _loaded = true;
     } on PropertyDataFailure catch (error) {
       if (requestVersion != _loadVersion) return;

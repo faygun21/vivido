@@ -49,3 +49,7 @@ flutter:
     # belirsiz duruyordu. Uygulama ile paketleniyor: 124 KB, ağa bağlı
     # olmadan da çiziliyor. Web tarafı güncellenirse bu dosya da güncellenmeli.
     - assets/geo/cankaya.geojson
+    # Harita ikonları — web/public/*.svg'nin KOPYALARI. Konut ve POI
+    # kategorileri iki üründe aynı simgeyle gösterilsin diye aynı dosyalar
+    # kullanılıyor (web tarafı değişirse buradakiler de yenilenmeli).
+    - assets/icons/
