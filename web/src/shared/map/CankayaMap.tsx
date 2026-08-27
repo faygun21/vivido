@@ -24,8 +24,7 @@ import {
   type AnalysisRadiusKm,
 } from './analysisArea';
 import type { UserLocation } from './useUserLocation';
-import type { AnchorSweetSpotResult } from './anchorSweetSpot';
-import type { Poi, RouteDetail, RouteStop } from '@vivido/shared';
+import type { Poi, PolygonGeoJson, RouteDetail, RouteStop } from '@vivido/shared';
 import { poiCategoryColor } from './poiColors';
 
 setWorkerUrl(maplibreWorkerUrl);
@@ -89,7 +88,17 @@ interface CankayaMapProps {
   onBoundsChange?: (bounds: MapBounds) => void;
   userLocation?: UserLocation | null;
   route?: RouteDetail | null;
-  anchorArea?: AnchorSweetSpotResult | null;
+  /**
+   * Anchor'lardan (özel yerler) hesaplanan koridor — sunucunun OSRM'den
+   * gerçek rota alıp buffer'ladığı GeoJSON Polygon (bkz.
+   * `PropertiesController.BuildAnchorAreaAsync`). Verilirse haritada mor
+   * bir halka olarak çizilir. `null`/`undefined` halkayı kaldırır.
+   *
+   * ⚠️ GEÇİCİ: mentor alanın nasıl hesaplandığını gözle kontrol etmek
+   * istedi — onay sonrası bu prop'un çağrılması kaldırılacak (katmanın
+   * kendisine dokunmaya gerek yok, sadece veri akmayı bırakacak).
+   */
+  anchorArea?: PolygonGeoJson | null;
 }
 
 const GEO_DISTRICT = '/geo/cankaya.geojson';
@@ -1071,7 +1080,9 @@ export function CankayaMap({
 
     anchorSource.setData({
       type: 'FeatureCollection',
-      features: anchorArea ? [anchorArea.polygon] : [],
+      features: anchorArea
+        ? [{ type: 'Feature', properties: {}, geometry: anchorArea }]
+        : [],
     });
   }, [anchorArea, status]);
 
