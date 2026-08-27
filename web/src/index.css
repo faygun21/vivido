@@ -2186,3 +2186,14 @@ button svg,
 }
 
 .btn-chip.is-danger:hover { background: color-mix(in srgb, #b91c1c 18%, var(--surface)); }
+
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox için okları gizler */
+input[type=number] {
+  -moz-appearance: textfield;
+}
