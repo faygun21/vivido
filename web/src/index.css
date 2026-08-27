@@ -72,7 +72,7 @@ a { color: var(--accent); }
   gap: 1rem;
   height: var(--header-h);
   padding: 0 1.25rem;
-  background: var(--surface);
+  background: var(--bg);
   border-bottom: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
 }
 
@@ -87,14 +87,11 @@ a { color: var(--accent); }
   text-decoration: none;
 }
 
-/* Marka işareti: logo dosyası olmadan da kimlik veren küçük bir aksan. */
-.brand::before {
-  content: "";
-  width: 0.55rem;
-  height: 0.55rem;
-  border-radius: 50%;
-  background: var(--accent);
+.brand-logo {
+  height: 3rem; 
+  width: auto;
   flex: none;
+  object-fit: contain;
 }
 
 .app-nav {
@@ -183,7 +180,7 @@ a { color: var(--accent); }
   display: flex;
   align-items: center;
   border-top: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
-  background: var(--surface);
+  background: var(--bg);
   color: var(--ink-muted);
   font-size: 0.78rem;
 }
@@ -692,9 +689,22 @@ button svg,
   max-width: 30rem;
 }
 
-.map-topbar-search .location-search {
-  position: static;
-  width: 100%;
+.explore-drawer .location-search,
+.drawer-body .location-search,
+.drawer-head + div .location-search {
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  width: 100% !important;
+  box-shadow: none !important; /* Eğer harita üstünde gölgesi kalıyorsa diye */
+}
+
+.explore-drawer .location-search input,
+.drawer-head + div .location-search input {
+  padding: 0.6rem 0.85rem !important; /* İç boşluğu daralttık */
+  font-size: 0.85rem !important;      /* Yazı boyutunu küçülttük */
+  border-radius: 0.7rem !important;   /* Köşelerini menüye uyarladık */
 }
 
 .map-fab {
@@ -762,7 +772,7 @@ button svg,
 }
 
 .map-banner .btn-chip {
-  border-color: color-mix(in srgb, #fff 45%, transparent);
+  border-color: color-mix(in srgb, var(--bg) 45%, transparent);
   background: color-mix(in srgb, #fff 18%, transparent);
   color: var(--accent-ink);
 }
@@ -791,20 +801,21 @@ button svg,
 .property-panel,
 .top-panel {
   position: absolute;
-  top: 0.9rem;
-  bottom: 0.9rem;
-  right: 0.9rem;
+  top: 0;
+  bottom: 0;
+  right: 0;
   width: 22.5rem;
-  max-width: calc(100% - 1.8rem);
+  max-width: 100%;
   display: flex;
   flex-direction: column;
-  border: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
-  border-radius: 1.1rem;
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  border-radius: 0;
   background: var(--surface);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
+  background: var(--bg);
 }
-
 /* Detay listenin üstünde. */
 .property-panel { z-index: 9; }
 .top-panel { z-index: 8; }
@@ -1290,7 +1301,8 @@ button svg,
   align-items: flex-start;
   gap: 0.6rem;
   width: 100%;
-  padding: 0.65rem 2.3rem 0.65rem 0.7rem;
+  /* Kalp artık sağ boşlukta olmadığı için eski 2.3rem değerini daralttık */
+  padding: 0.65rem 0.7rem 0.65rem 0.7rem; 
   border: 0;
   border-radius: inherit;
   background: transparent;
@@ -1339,27 +1351,30 @@ button svg,
 .top-card-reason--bad  { color: #9a3412; }
 
 .top-card-score {
-  display: grid;
+  display: flex; 
   place-items: center;
-  /* 2.9rem'de "Çok uygun" iki satıra sarıyordu; bant etiketi tek satırda
-     kalmalı, yoksa rozet kartın yüksekliğini gereksiz büyütüyor. */
-  width: 3.5rem;
-  padding: 0.3rem 0.15rem;
+  justify-content: center;
+  width: 3rem;     /* Altındaki yazı kalktığı için kutuyu karemsi/dar yaptık */
+  height: 2.2rem;  /* Yüksekliği sabitledik */
+  padding: 0;
   flex: none;
   border-radius: 0.65rem;
   color: var(--accent-ink);
-  line-height: 1.15;
+  line-height: 1;
 }
 
-.top-card-score strong { font-size: 1.05rem; font-weight: 700; }
+.top-card-score strong { 
+  font-size: 1.15rem; /* Yazı kalktığı için puanı azıcık büyüttük */
+  font-weight: 700; 
+}
 .top-card-score span { font-size: 0.56rem; opacity: 0.9; white-space: nowrap; }
 
 .top-card-fav {
   position: absolute;
-  top: 0.45rem;
-  right: 0.45rem;
-  width: 1.7rem;
-  height: 1.7rem;
+  top: 3.2rem;     /* 👈 Skor rozetinin hemen altına indirdik */
+  right: 1.1rem;   /* 👈 Skor rozetini tam ortalayacak hizada bıraktık */
+  width: 2.2rem;   /* 👈 Genişliği artırdık (eski: 1.7rem) */
+  height: 2.2rem;  /* 👈 Yüksekliği artırdık (eski: 1.7rem) */
   padding: 0;
   display: grid;
   place-items: center;
@@ -1367,10 +1382,9 @@ button svg,
   border-radius: 50%;
   background: transparent;
   color: var(--ink-muted);
-  font-size: 1rem;
+  font-size: 1.5rem; /* 👈 İkon boyutunu büyüttük (eski: 1rem) */
   line-height: 1;
 }
-
 .top-card-fav:hover { background: var(--input-bg); color: var(--accent); }
 .top-card-fav.is-active { color: var(--accent); }
 .top-card-fav:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -1438,25 +1452,29 @@ button svg,
 }
 
 /* ── Çekmece ── */
-
 .explore-drawer {
   position: absolute;
   z-index: 8;
-  top: 0.9rem;
-  left: 0.9rem;
-  bottom: 0.9rem;
-  width: 21.5rem;
-  max-width: calc(100% - 1.8rem);
+  top: 0;             /* En üst şeride (header) tam sıfırlansın */
+  left: 0;            /* Sol kenara yapışsın, boşluk kalmasın */
+  bottom: 0;          /* Alt şeride kadar uzansın */
+  width: 22rem;       /* Genişliği sabit bir sidebar boyutu */
+  max-width: 100%;
   display: flex;
   flex-direction: column;
-  border: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
-  border-radius: 1.1rem;
-  background: var(--surface);
+  
+  /* ── Sidebar Görünümü İçin Güncellemeler ── */
+  border-top: 0;
+  border-left: 0;
+  border-bottom: 0;
+  border-right: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  border-radius: 0;   /* Köşelerdeki kavisler kaldırıldı, düz sidebar oldu */
+  background: var(--bg);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
-  /* Kapalıyken sola kayar. `visibility` geçişin SONUNDA kapanır: görünmeyen
-     panel fare olaylarını ve odağı yakalamasın. */
-  transform: translateX(calc(-100% - 1.2rem));
+  
+  /* Açılıp kapanma animasyonu */
+  transform: translateX(-100%);
   visibility: hidden;
   transition: transform 0.22s ease, visibility 0s linear 0.22s;
 }
@@ -1679,7 +1697,7 @@ button svg,
 
 .locked-list .lock { flex: none; }
 
-/* ── Profildeki favori kartları ──
+/* ── Favorilerim sayfasındaki konut kartları ──
    Keşfet ekranındaki kartlarla aynı dili konuşur (skor rozeti solda, adres
    iki satır, ✓/✗ gerekçe) ama sayfa akışında olduğu için biraz daha ferah. */
 
@@ -1697,6 +1715,28 @@ button svg,
 
 .favorite-card--missing { color: var(--ink-muted); font-size: 0.88rem; }
 
+.favorite-card-main {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.favorite-card-main:hover .favorite-title,
+.favorite-card-main:focus-visible .favorite-title { color: var(--accent); }
+.favorite-card-main:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 0.5rem;
+}
+
 .favorite-score {
   display: grid;
   place-items: center;
@@ -1711,11 +1751,11 @@ button svg,
 .favorite-score strong { font-size: 1.1rem; font-weight: 700; }
 .favorite-score span { font-size: 0.58rem; opacity: 0.9; }
 
-.favorite-body { flex: 1; min-width: 0; }
+.favorite-body { display: grid; flex: 1; min-width: 0; }
 .favorite-body p { margin: 0; }
 
 .favorite-title { font-size: 0.92rem; font-weight: 700; }
-.favorite-address { font-size: 0.84rem; margin-top: 0.1rem !important; }
+.favorite-address { display: block; font-size: 0.84rem; margin-top: 0.1rem !important; }
 
 .favorite-reasons {
   display: flex;
@@ -1728,6 +1768,7 @@ button svg,
 
 .favorite-meta { margin-top: 0.3rem !important; font-size: 0.74rem; }
 .favorite-remove { flex: none; align-self: center; }
+.favorites-page-intro { margin-top: -0.4rem; margin-bottom: 1.25rem; }
 
 /* ── Dar ekran ──
    21.5rem'lik panel telefonda haritanın üstünde yüzemez; alttan açılan

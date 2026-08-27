@@ -12,10 +12,6 @@ import {
   type MapOptions,
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-// ⚠️ `?worker&url`: Vite worker'ı KENDİ bağımlılıklarıyla paketleyip
-// yayımlanan dosyanın adresini veriyor. `?url` tek başına yetmez —
-// worker içeride `maplibre-gl-shared.mjs`'i import ediyor, ham varlık
-// olarak kopyalansa o import çözülemezdi.
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { GLYPHS_URL, MAP_ATTRIBUTION, TILE_URL, USE_RASTER_BASEMAP } from '@/shared/config';
 import {
@@ -29,43 +25,12 @@ import {
 } from './analysisArea';
 import type { UserLocation } from './useUserLocation';
 import type { Poi, PolygonGeoJson, RouteDetail, RouteStop } from '@vivido/shared';
-import { poiCategoryColor, POI_CATEGORY_COLORS, POI_FALLBACK_COLOR } from './poiColors';
+import { poiCategoryColor } from './poiColors';
 
-/**
- * ⭐ ÜRETİM DERLEMESİNDE HARİTAYI BOŞ ÇİZEN HATANIN DÜZELTMESİ
- *
- * MapLibre 6, worker dosyasının adını ÇALIŞMA ANINDA kuruyor:
- *
- *     new Worker(new URL(dev ? `…-worker-dev.mjs` : `…-worker.mjs`,
- *                        import.meta.url), { type: 'module' })
- *
- * Ad bir üçlü operatörden geldiği için Vite 8 / Rolldown bunu statik
- * olarak göremiyor ve worker parçasını çıktıya HİÇ EKLEMİYOR. Sonuç
- * `dist/` içinde yalnızca `index-*.js` + CSS; worker isteği 404'e düşüyor.
- *
- * Belirtisi sinsi: MapLibre GeoJSON ayrıştırmayı ve karo çizimini worker'da
- * yapar. Worker ölünce HİÇBİR veri katmanı çizilmez — ama arka plan rengi,
- * +/− kontrolü ve atıf ana iş parçacığında olduğu için çalışmaya devam eder.
- * Harita "var" görünür, bomboştur ve HATA FIRLATMAZ; konsol tertemiz kalır.
- *
- * `docs/04-MEVCUT-DURUM.md` §4.5 aynı belirtiyi geliştirme sunucusu için
- * kaydetmiş ve "üretim derlemesi etkilenmez" demişti. Etkileniyormuş —
- * kimse fark etmemişti çünkü `vite build` çıktısı ilk kez staging'de sunuldu.
- *
- * Modül kapsamında çağrılıyor: ilk harita oluşturulmadan önce çalışması şart.
- */
 setWorkerUrl(maplibreWorkerUrl);
 
-/** `StyleSpecification` maplibre-gl tarafından yeniden dışa aktarılmıyor. */
 type MapStyle = NonNullable<MapOptions['style']>;
 
-/**
- * GeoJSON için yerel asgari tipler.
- *
- * `@types/geojson` yalnızca maplibre'ın alt bağımlılığı; web'in doğrudan
- * bağımlılığı değil, bu yüzden global `GeoJSON` ad alanı derlemeye girmiyor.
- * İhtiyacımız olan yüzey bu kadar küçükken pnpm-lock'u değiştirmeye değmez.
- */
 interface GeoFeature {
   type: 'Feature';
   properties: Record<string, unknown> | null;
@@ -76,28 +41,6 @@ interface GeoCollection {
   features: GeoFeature[];
 }
 
-/**
- * Çankaya haritası — ortak bileşen.
- *
- * Veri kaynağı: veri ekibinin ürettiği GeoJSON'lar (`web/public/geo/`).
- *   · cankaya.geojson            → ilçe sınırı (OSM relation/1812321)
- *   · cankaya-mahalleler.geojson → 124 mahalle poligonu
- *
- * ⚠️ Kurulum sırası önemli: GeoJSON'lar haritadan ÖNCE indirilir ve
- * kaynak/katman tanımları başlangıç stiline gömülür. `map.on('load')`
- * içinde `addSource`/`addLayer` çağırmak, React StrictMode'un geliştirme
- * modundaki çift mount'uyla yarışıyor — ilk harita `load` olayı gelmeden
- * `remove()` ediliyor ve katmanlar sessizce hiç eklenmemiş oluyordu.
- *
- * ⚠️ Neden vektör/raster karo yok: `cankaya.mbtiles` artefaktı henüz
- * yayınlanmadı (`data/artifacts/` boş, GitHub release yok). Altlık gelince
- * bu katmanların ALTINA serilir.
- *
- * Neden metin katmanı (symbol) yok: MapLibre'da metin çizmek `glyphs`
- * uç noktası ister, o da tileserver'a bağlı. Mahalle adı bunun yerine
- * fare üzerine gelince HTML rozetinde gösteriliyor — dış bağımlılık sıfır.
- */
-
 export interface MapPoint {
   lat: number;
   lon: number;
@@ -106,11 +49,8 @@ export interface MapPoint {
 export interface MapMarker extends MapPoint {
   id: string;
   label: string;
-  /** 1 = en önemli. Pin üzerinde numara olarak görünür. */
   priority?: number;
-  /** CSS sınıfı — varsayılan `map-pin`; rota seçimi gibi farklı renkler için. */
   className?: string;
-  /** Pin metni — `priority`'ye üstün gelir (ör. rota başlangıcı için "A"). */
   text?: string;
 }
 
@@ -120,7 +60,6 @@ export interface MapFocus extends MapPoint {
   bounds?: { south: number; west: number; north: number; east: number } | null;
 }
 
-/** Haritanın görünüm alanı (R-108 — bbox tabanlı POI çekme için). */
 export interface MapBounds {
   south: number;
   west: number;
@@ -128,68 +67,26 @@ export interface MapBounds {
   east: number;
 }
 
-/**
- * Bir konut noktası — R-109 gereği tek tek `Marker` DOM elemanı DEĞİL,
- * `konutlar` GeoJSON kaynağına yazılıp MapLibre'ın kendi cluster
- * motoruyla çizilir (bkz. `buildStyle`). Yüzlerce/binlerce nokta için
- * tek yol bu; DOM marker'lar bu ölçekte tarayıcıyı kilitler.
- */
 export interface PropertyPoint extends MapPoint {
   id: string;
 }
 
 interface CankayaMapProps {
-  /** Verilirse haritaya tıklanabilir hale gelir (anchor ekleme akışı). */
   onMapClick?: (point: MapPoint) => void;
-  /** Kümelenmemiş bir konut noktasına tıklandığında id'siyle çağrılır. */
   onPropertyClick?: (id: string) => void;
   markers?: MapMarker[];
-  /** Bütçeye uygun konutlar — haritada kümeli olarak gösterilir. */
   properties?: PropertyPoint[];
-  /** Arama sonucu değiştiğinde haritayı bu konuma taşır. */
   focus?: MapFocus | null;
-  /** Harita kabının yüksekliği (CSS değeri). */
   height?: string;
   selectedLocation?: WalkingLocation | null;
-  /** Analiz merkezindeki sürüklenebilir işaretçi bırakıldığında yeni konumu bildirir. */
   onSelectedLocationChange?: (location: WalkingLocation) => void;
   walkingMinutes?: WalkingMinutes;
   analysisRadiusKm?: AnalysisRadiusKm;
-  /**
-   * Görünür alanın solunda kaç piksellik kısmın ÖRTÜLÜ olduğu.
-   *
-   * Keşfet ekranında çekmece haritanın üstünde yüzüyor; padding verilmezse
-   * ilçe sınırının solu panelin altında kalır ve kullanıcı haritayı elle
-   * kaydırmak zorunda kalır. MapLibre `padding`i hem `fitBounds` hem de
-   * ortalama hesabına katar.
-   */
   padLeft?: number;
-  /**
-   * R-108/109/110 — haritada gösterilecek POI'ler (kategori filtresi API'de
-   * uygulanmış halde gelir; burada yalnızca çizilir).
-   */
   pois?: Poi[];
-  /* NOT: konutlar için ikinci bir prop YOK. Yukarıdaki `properties`
-     (PropertyPoint[]) tek kaynak — `konutlar` cluster katmanını o besliyor. */
-  /** POI popup'ında Türkçe kategori adı göstermek için kod → ad haritası. */
   poiCategoryNames?: Record<string, string>;
-  /** Harita taşındığında görünüm alanını (bbox) yukarı bildirir. */
   onBoundsChange?: (bounds: MapBounds) => void;
-  /**
-   * Kullanıcının canlı konumu — haritadaki mavi nokta.
-   *
-   * ⚠️ Bileşen bunu KENDİSİ İSTEMİYOR, dışarıdan alıyor: aynı koordinat rota
-   * başlangıcı olarak da kullanılıyor. İçeride ayrıca `getCurrentPosition`
-   * çağırsaydık tarayıcı iki kez izin sorar ve iki farklı okuma yüzünden
-   * haritadaki nokta ile rotanın başladığı yer birbirini tutmazdı.
-   * Kaynak: `useUserLocation` (ExplorePage).
-   */
   userLocation?: UserLocation | null;
-  /**
-   * R-121 — oluşturulmuş ziyaret rotası. Verilirse `rota` GeoJSON kaynağına
-   * çizgi yazılır, duraklar numaralı mavi pinlerle basılır ve harita rotanın
-   * tamamını kapsayacak şekilde yakınlaştırılır. `null` çizgiyi kaldırır.
-   */
   route?: RouteDetail | null;
   /**
    * Anchor'lardan (özel yerler) hesaplanan koridor — sunucunun OSRM'den
@@ -206,17 +103,8 @@ interface CankayaMapProps {
 
 const GEO_DISTRICT = '/geo/cankaya.geojson';
 const GEO_NEIGHBOURHOODS = '/geo/cankaya-mahalleler.geojson';
-
-/** Çankaya kaba bbox — sınır verisi okunamazsa kullanılacak yedek görünüm. */
 const FALLBACK_CENTER: [number, number] = [32.85, 39.87];
 
-/**
- * Kendi karo sunucumuzdan gelen sokak / bina / su katmanları.
- *
- * Şema: OpenMapTiles (Planetiler'ın varsayılan çıktısı). `source-layer`
- * adları o şemadan gelir — `transportation`, `building`, `water`…
- * Alta serilir; mahalle poligonları bunların ÜSTÜNDE yarı saydam durur.
- */
 function vectorBasemapLayers(): unknown[] {
   return [
     {
@@ -249,7 +137,6 @@ function vectorBasemapLayers(): unknown[] {
       paint: {
         'fill-color': '#d9d4cc',
         'fill-outline-color': '#c2bcb2',
-        // Uzakta bina kalabalığı haritayı okunmaz yapıyor; yakınlaştıkça belirginleşsin.
         'fill-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0.25, 16, 0.85],
       },
     },
@@ -278,7 +165,6 @@ function vectorBasemapLayers(): unknown[] {
   ];
 }
 
-/** Etiketler en üstte — karo sunucusu varsa (glyph gerekir). */
 function vectorLabelLayers(): unknown[] {
   return [
     {
@@ -310,44 +196,128 @@ function vectorLabelLayers(): unknown[] {
   ];
 }
 
+/** Sol menüdeki mantıkla birebir aynı çalışan ikon belirleme fonksiyonu. */
+function getCategoryIconPath(code: string, name?: string): string {
+  const lowerCode = (code || '').toLowerCase();
+  const lowerName = (name || '').toLowerCase();
+
+  if (
+    lowerCode.includes('cafe') || 
+    lowerCode.includes('kafe') || 
+    lowerCode.includes('restaurant') || 
+    lowerCode.includes('restoran') ||
+    lowerCode.includes('coffee') ||
+    lowerCode.includes('food') ||
+    lowerCode.includes('dining') ||
+    lowerName.includes('kafe') ||
+    lowerName.includes('restoran')
+  ) {
+    return '/cafe.svg';
+  }
+
+  if (
+    lowerCode.includes('bus') || 
+    lowerCode.includes('durak') || 
+    lowerCode.includes('transport') || 
+    lowerCode.includes('transit') || 
+    lowerCode.includes('ulasim')
+  ) {
+    return '/bus.svg';
+  }
+
+  if (
+    lowerCode.includes('hastane') || 
+    lowerCode.includes('hospital') || 
+    lowerCode.includes('saglik') || 
+    lowerCode.includes('health') || 
+    lowerCode.includes('asm') || 
+    lowerCode.includes('eczane') ||
+    lowerCode.includes('pharmacy') ||
+    lowerCode.includes('drugstore') ||
+    lowerName.includes('eczane') ||
+    lowerName.includes('hastane')
+  ) {
+    return '/hastane.svg';
+  }
+
+  if (
+    lowerCode.includes('park') || 
+    lowerCode.includes('yesil') || 
+    lowerCode.includes('green')
+  ) {
+    return '/park.svg';
+  }
+
+  if (
+    lowerCode.includes('school') || 
+    lowerCode.includes('okul') || 
+    lowerCode.includes('education') || 
+    lowerCode.includes('egitim')
+  ) {
+    return '/kep_kahve.svg';
+  }
+
+  if (
+    lowerCode.includes('sport') || 
+    lowerCode.includes('spor') || 
+    lowerCode.includes('gym')
+  ) {
+    return '/sport_kahve.svg';
+  }
+
+  if (
+    lowerCode.includes('market') || 
+    lowerCode.includes('avm') || 
+    lowerCode.includes('supermarket') || 
+    lowerCode.includes('alisveris')
+  ) {
+    return '/avm.svg';
+  }
+
+  return '/icons.svg';
+}
+
 /**
- * Kümelenmemiş konut noktası için ev ikonu — canvas'ta çizilip
- * `map.addImage`'a ham piksel olarak verilir. `text-field`/emoji YERİNE
- * bunu kullanıyoruz: emoji glyph'leri de MapLibre'ın `glyphs` uç noktasına
- * (harita karo sunucusu) muhtaç, sunucu yoksa hiç görünmez. Tarayıcının
- * kendi 2D canvas'ı ise fontu HER ZAMAN çizebiliyor, sunucudan bağımsız.
+ * Sol menüdeki SVG'leri harita motoruna imaj olarak kaydeder.
  */
-function drawHouseIcon(size = 36): ImageData {
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
+function loadCustomMapImages(map: MapLibreMap) {
+  const addSvgIcon = (id: string, url: string) => {
+    if (map.hasImage(id)) return;
+    
+    // Tarayıcının SVG decode hatasını atlatmak için belirli boyutla native Image kullanıyoruz
+    const img = new Image(32, 32); 
+    img.onload = () => {
+      if (!map.hasImage(id)) {
+        map.addImage(id, img);
+      }
+    };
+    img.onerror = () => console.warn(`Harita ikonu yüklenemedi: ${url}`);
+    img.src = url;
+  };
 
-  const cx = size / 2;
-  const cy = size / 2;
-  const r = size / 2 - 2;
+  // 1. Konutlar için ev ikonu
+  addSvgIcon('ev-ikon', '/home_kahve.svg');
 
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fillStyle = '#ea580c';
-  ctx.fill();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = '#fff';
-  ctx.stroke();
+  // 2. Diğer POI ikonları
+  const uniquePaths = [
+    '/cafe.svg',
+    '/bus.svg',
+    '/hastane.svg',
+    '/park.svg',
+    '/kep_kahve.svg',
+    '/sport_kahve.svg',
+    '/avm.svg',
+    '/icons.svg',
+  ];
 
-  ctx.font = `${Math.round(size * 0.55)}px sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#fff';
-  ctx.fillText('🏠', cx, cy + 1);
-
-  return ctx.getImageData(0, 0, size, size);
+  for (const path of uniquePaths) {
+    addSvgIcon(`svg-icon-${path}`, path);
+  }
 }
 
 function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): MapStyle {
   const sources: Record<string, unknown> = {
     ilce: { type: 'geojson', data: district },
-    // feature-state ile hover boyaması yapabilmek için id şart.
     mahalleler: { type: 'geojson', data: neighbourhoods, generateId: true },
     'yurume-alani': {
       type: 'geojson',
@@ -365,9 +335,6 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
       type: 'geojson',
       data: { type: 'FeatureCollection', features: [] },
     },
-    // R-108 — POI noktaları. Kaynak burada bir kez kurulur; veri geldikçe
-    // yalnızca `setData` ile güncellenir (`map.on('load')` yarışı StrictMode
-    // çift mount'unda katmanları sessizce kaybettiriyordu).
     pois: {
       type: 'geojson',
       data: { type: 'FeatureCollection', features: [] },
@@ -376,12 +343,6 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
       clusterMaxZoom: 14,
       generateId: true,
     },
-    // Konut noktaları — R-109: yakınlaştırma seviyesine göre gruplanmalı.
-    // Yüzlerce/binlerce konutu tek tek DOM `Marker` elemanı olarak basmak
-    // (eskiden yapıldığı gibi) hem tarayıcıyı kilitliyor hem de üst üste
-    // binen pin'ler tek bir nokta gibi görünüyordu. MapLibre'ın kendi
-    // GeoJSON cluster desteği ikisini birden çözüyor: uzakta tek küme
-    // dairesi, yakınlaşınca gerçek noktalar — hepsi GPU'da çiziliyor.
     konutlar: {
       type: 'geojson',
       data: { type: 'FeatureCollection', features: [] },
@@ -389,8 +350,6 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
       clusterMaxZoom: 15,
       clusterRadius: 45,
     },
-    // R-121 — oluşturulan rota çizgisi. Kaynak bir kez kurulur; veri `setData`
-    // ile güncellenir (diğer GeoJSON kaynaklarıyla aynı StrictMode kuralı).
     rota: {
       type: 'geojson',
       data: { type: 'FeatureCollection', features: [] },
@@ -416,8 +375,6 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
     };
     layers.push({ id: 'osm', type: 'raster', source: 'osm' });
   } else {
-    // Altlık yokken ilçe alanını beyaza boyamak, mahalle sınırlarını
-    // okunur kılıyor. Altlık varsa sokakları örteceği için eklenmez.
     layers.push({
       id: 'ilce-dolgu',
       type: 'fill',
@@ -511,7 +468,6 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
       source: 'ilce',
       paint: { 'line-color': '#0b3d35', 'line-width': 2.4 },
     },
-    // Küme dairesi — çaptaki basamaklar içindeki konut sayısına göre büyür.
     {
       id: 'konut-kumeleri',
       type: 'circle',
@@ -525,17 +481,27 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
         'circle-radius': [
           'step',
           ['get', 'point_count'],
-          16, // < 25 konut
+          16,
           25, 20,
           100, 26,
           500, 32,
         ],
       },
     },
-    // Kümelenmemiş tek konut — yeterince yakınlaşınca kümenin yerini alır.
-    // `icon-image` kullanıyoruz (düz daire değil): resim `map.addImage` ile
-    // canvas'ta ÇİZİLİP eklendiği için MapLibre'ın `glyphs` uç noktasına
-    // (karo sunucusu) bağlı değil — sunucu olmasa da ev ikonu görünür.
+    // 🔥 Konutların turuncu arka plan dairesi
+    {
+      id: 'konut-noktalar-arkaplan',
+      type: 'circle',
+      source: 'konutlar',
+      filter: ['!', ['has', 'point_count']],
+      paint: {
+        'circle-color': '#ea580c',
+        'circle-radius': 14,
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#fff',
+      },
+    },
+    // 🔥 Konutların SVG ikonu (dairenin tam ortasına oturan)
     {
       id: 'konut-noktalar',
       type: 'symbol',
@@ -543,38 +509,25 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
       filter: ['!', ['has', 'point_count']],
       layout: {
         'icon-image': 'ev-ikon',
-        'icon-size': 1,
+        'icon-size': 0.6,
+        'icon-allow-overlap': true,
+      },
+    },
+    // POI Katmanı (Mevcut yapısı korundu)
+    {
+      id: 'poi-nokta',
+      type: 'symbol',
+      source: 'pois',
+      filter: ['!', ['has', 'point_count']],
+      minzoom: 14,
+      layout: {
+        'icon-image': ['concat', 'svg-icon-', ['get', 'iconPath']],
+        'icon-size': 0.8,
         'icon-allow-overlap': true,
       },
     },
   );
 
-  // R-108 — POI nokta katmanları (uzakta küme, yakında tekil).
-  //
-  // ⚠️ Burada KONUT katmanı YOK. Konutlar `konutlar` kaynağından
-  // `konut-kumeleri` / `konut-noktalar` / `konut-kume-sayisi` katmanlarıyla
-  // çiziliyor (yukarısı). İki ayrı konut katmanı olursa aynı ev haritaya
-  // iki kez basılır ve tıklama hangi katmana gittiği belirsizleşir.
-  // Küme dairesi (mor halka) BİLEREK YOK: uzaklaşınca hiçbir şey çizilmiyor,
-  // yeterince yakınlaşınca (zoom 14+) noktalar doğrudan kendi kategori
-  // renkleriyle beliriyor. Önceki mor küme dairesi + sayı ikilisi, altındaki
-  // farklı renkteki gerçek noktaları gizleyip kafa karıştırıyordu.
-  layers.push({
-    id: 'poi-nokta',
-    type: 'circle',
-    source: 'pois',
-    filter: ['!', ['has', 'point_count']],
-    minzoom: 14,
-    paint: {
-      'circle-radius': 6,
-      'circle-color': poiCategoryColorExpression(),
-      'circle-stroke-color': '#ffffff',
-      'circle-stroke-width': 1.5,
-    },
-  });
-
-  // R-121 — rota çizgisi: geniş koyu gölge şerit + üstte parlak mavi çizgi.
-  // Kaynak boşken hiçbir şey çizilmez; `setData` ile dolunca görünür olur.
   layers.push(
     {
       id: 'rota-cizgi-golge',
@@ -595,13 +548,8 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
     },
   );
 
-  // Etiketler her şeyin üstünde kalmalı.
   if (hasVectorTiles) layers.push(...vectorLabelLayers());
 
-  // Küme içindeki konut sayısı — `text-field` gerektirdiği için `glyphs`
-  // uç noktası şart (yalnızca karo sunucusu varken tanımlı, bkz. yukarısı).
-  // Sunucu yoksa küme dairesi (zaten eklendi) sayı olmadan görünür — bina
-  // adları için kullanılan hover-rozeti yaklaşımıyla aynı kısıt.
   if (hasVectorTiles) {
     layers.push({
       id: 'konut-kume-sayisi',
@@ -617,26 +565,19 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
     });
   }
 
-  // Stil koşullu kurulduğu için TypeScript `type: 'raster'` gibi alanları
-  // string-literal birleşimine daraltamıyor. Tek noktada dönüştürüyoruz;
-  // şekil MapLibre style-spec v8 ile birebir uyumlu (validateStyleMin: 0 hata).
   return {
     version: 8,
-    // `glyphs` yalnızca symbol katmanı varken anlamlı; karo sunucusu yoksa
-    // hiç metin çizmediğimiz için dış bir font kaynağına da bağlanmıyoruz.
     ...(hasVectorTiles ? { glyphs: GLYPHS_URL } : {}),
     sources,
     layers,
   } as MapStyle;
 }
 
-/** Bir GeoJSON nesnesinin sınırlayıcı kutusunu hesaplar. */
 function boundsOf(geojson: GeoCollection): LngLatBounds {
   const bounds = new LngLatBounds();
 
   const visit = (coords: unknown): void => {
     if (!Array.isArray(coords)) return;
-    // [lon, lat] yaprağı
     if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
       bounds.extend(coords as [number, number]);
       return;
@@ -652,45 +593,33 @@ function boundsOf(geojson: GeoCollection): LngLatBounds {
   return bounds;
 }
 
-// ─── R-108/109/110 — POI & konut katmanları ────────────────────────────────
-
-/** POI dizisini GeoJSON FeatureCollection'a çevirir (küme katmanı için). */
-function toPoiFeatureCollection(pois: Poi[]): GeoCollection {
+function toPoiFeatureCollection(pois: Poi[], categoryNames?: Record<string, string>): GeoCollection {
   return {
     type: 'FeatureCollection',
-    features: pois.map((poi) => ({
-      type: 'Feature',
-      properties: {
-        id: poi.id,
-        name: poi.name,
-        category: poi.categoryCode,
-      },
-      geometry: { type: 'Point', coordinates: [poi.longitude, poi.latitude] },
-    })),
+    features: pois.map((poi) => {
+      const displayNameTr = categoryNames?.[poi.categoryCode] || poi.categoryCode;
+      const iconPath = getCategoryIconPath(poi.categoryCode, displayNameTr);
+      return {
+        type: 'Feature',
+        properties: {
+          id: poi.id,
+          name: poi.name,
+          category: poi.categoryCode,
+          iconPath: iconPath,
+        },
+        geometry: { type: 'Point', coordinates: [poi.longitude, poi.latitude] },
+      };
+    }),
   };
 }
 
-/** POI nokta rengi: kategori bazlı `match` ifadesi. */
-function poiCategoryColorExpression(): unknown {
-  const pairs = Object.entries(POI_CATEGORY_COLORS).flat();
-  return ['match', ['get', 'category'], ...pairs, POI_FALLBACK_COLOR];
-}
-
-/** POI/konut etkileşimlerini bir kez başlar: imleç, popup. */
 function wirePoiInteractions(
   map: MapLibreMap,
   categoryNames: { current: Record<string, string> },
 ): void {
-  // Konut katmanlarinin imlec/tiklama dinleyicileri yukarida, harita
-  // kurulumunda baglaniyor (konut-kumeleri / konut-noktalar).
-  //
-  // POI kümesi (mor halka) katmanı kaldırıldı — dolayısıyla küme
-  // imleç/tıklama/yakınlaşma dinleyicileri de yok; POI'ler artık zaten
-  // sadece zoom 14+'ta, doğrudan tekil nokta olarak beliriyor.
   map.on('mouseenter', 'poi-nokta', () => { map.getCanvas().style.cursor = 'pointer'; });
   map.on('mouseleave', 'poi-nokta', () => { map.getCanvas().style.cursor = ''; });
 
-  // R-110 — POI popup'ı
   map.on('click', 'poi-nokta', (e) => {
     const feature = e.features?.[0];
     if (!feature || !map) return;
@@ -708,7 +637,6 @@ function wirePoiInteractions(
   });
 }
 
-/** Görünüm alanını (bbox) yukarı bildirir (R-108 — bbox tabanlı veri çekme). */
 function reportBounds(map: MapLibreMap, cb?: (bounds: MapBounds) => void): void {
   if (!cb) return;
   const b = map.getBounds();
@@ -728,7 +656,6 @@ function escapeHtml(value: string): string {
   });
 }
 
-/** R-110 — POI popup içeriği (ad + kategori + temel bilgi). */
 function poiPopupHtml(name: string, categoryName: string, categoryCode: string): string {
   return `
     <div class="vivido-popup">
@@ -740,7 +667,6 @@ function poiPopupHtml(name: string, categoryName: string, categoryCode: string):
     </div>`;
 }
 
-/** R-121 — rota durağı popup içeriği (konut özeti + bacak bilgisi). */
 function routeStopPopupHtml(stop: RouteStop): string {
   const property = stop.property;
   const rent = property.monthlyRent.toLocaleString('tr-TR');
@@ -772,8 +698,8 @@ export function CankayaMap({
   pois,
   poiCategoryNames,
   onBoundsChange,
-  route = null,
   userLocation = null,
+  route = null,
   anchorArea = null,
 }: CankayaMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -781,15 +707,10 @@ export function CankayaMap({
   const markerObjectsRef = useRef<Marker[]>([]);
   const analysisMarkerRef = useRef<Marker | null>(null);
   const userLocationMarkerRef = useRef<Marker | null>(null);
-  // R-121 — rota durağı pinleri (anchor pin deseni) ve fit-zoom tekrar koruması.
   const routeStopMarkersRef = useRef<Marker[]>([]);
   const lastRouteIdRef = useRef<string | null>(null);
-  // Harita bir kez kuruluyor; kurulum anındaki padding'i efektin bağımlılık
-  // listesine sokmadan okuyabilmek için ref'te tutuyoruz.
   const padLeftRef = useRef(padLeft);
   padLeftRef.current = padLeft;
-  // onMapClick her render'da yeni referans olabilir; listener'ı yeniden
-  // bağlamak yerine ref üzerinden güncel tutuyoruz.
   const clickHandlerRef = useRef(onMapClick);
   clickHandlerRef.current = onMapClick;
   const propertyClickHandlerRef = useRef(onPropertyClick);
@@ -797,8 +718,6 @@ export function CankayaMap({
   const selectedLocationChangeHandlerRef = useRef(onSelectedLocationChange);
   selectedLocationChangeHandlerRef.current = onSelectedLocationChange;
 
-  // R-108/109/110 — POI/konut verisi ve kategori adları da listener'lar
-  // kurulduktan sonra değişebilir; ref'ler üzerinden güncel tutulur.
   const poiDataRef = useRef<Poi[]>([]);
   poiDataRef.current = pois ?? [];
   const categoryNamesRef = useRef<Record<string, string>>({});
@@ -810,7 +729,6 @@ export function CankayaMap({
   const [status, setStatus] = useState<'yukleniyor' | 'hazir' | 'hata'>('yukleniyor');
   const [errorText, setErrorText] = useState<string | null>(null);
 
-  // ─── Haritayı bir kez kur ───
   useEffect(() => {
     let cancelled = false;
     let map: MapLibreMap | null = null;
@@ -822,12 +740,8 @@ export function CankayaMap({
           fetchGeo(GEO_NEIGHBOURHOODS),
         ]);
 
-        // StrictMode geliştirme modunda efekti iki kez çalıştırır; ilk
-        // çalıştırmanın isteği dönerse haritayı kurmadan çıkıyoruz.
         if (cancelled || !containerRef.current) return;
 
-        // cankaya.geojson içinde sınır poligonunun yanında bir de etiket
-        // node'u (Point) var — dolgu/çizgi katmanları için ayıklıyoruz.
         const district: GeoCollection = {
           type: 'FeatureCollection',
           features: districtRaw.features.filter(
@@ -853,36 +767,11 @@ export function CankayaMap({
         });
         mapRef.current = map;
 
-        // Ev ikonu `konut-noktalar` katmanının `icon-image`'ı — stil tam
-        // yüklenmeden `addImage` "Style is not done loading" ile patlıyor,
-        // o yüzden `load` olayını bekliyoruz.
         map.on('load', () => {
-          if (!map || map.hasImage('ev-ikon')) return;
-          map.addImage('ev-ikon', drawHouseIcon());
+          if (!map) return;
+          loadCustomMapImages(map);
         });
 
-        /**
-         * ⭐ `status = 'hazir'` STİL YÜKLENDİKTEN SONRA kurulur.
-         *
-         * DÜZELTİLEN HATA — rota çizgisi haritada hiç görünmüyordu.
-         *
-         * Bayrak eskiden `setup()` sonunda SENKRON kuruluyordu; oysa MapLibre
-         * stili asenkron yükler. `getSource(...)` stil yüklenene kadar
-         * `undefined` döner, dolayısıyla ona bakan her efekt
-         * (`if (!source) return`) sessizce vazgeçiyordu. Bağımlılığı bir daha
-         * değişmeyen efekt de BİR DAHA DENENMİYORDU.
-         *
-         * Neden yalnızca rota kırılıyordu: `konutlar`, `pois`, `mahalleler`
-         * verileri React Query'den SONRADAN geliyor, efektleri yeniden
-         * çalışıyor ve o sırada stil hazır oluyor. Rota ise Profil'den
-         * gelindiğinde store'da HAZIR: efekt bir kez, çok erken çalışıyor ve
-         * çizgi hiç çizilmiyordu. Duraklar ve `fitBounds` çalıştığı için
-         * (ikisi de `getSource` istemez) arıza "yarısı çalışıyor" gibi
-         * görünüyordu.
-         *
-         * `once` yerine önce `isStyleLoaded()`: olay biz dinlemeye başlamadan
-         * ateşlenmişse harita sonsuza kadar "yükleniyor" durumunda kalırdı.
-         */
         const markReady = () => {
           if (!cancelled) setStatus('hazir');
         };
@@ -890,28 +779,22 @@ export function CankayaMap({
         else map.once('load', markReady);
 
         map.addControl(new NavigationControl({ showCompass: false }), 'top-right');
-        // ODbL: atıf kapatılamaz olmalı.
         map.addControl(
           new AttributionControl({ compact: false, customAttribution: MAP_ATTRIBUTION }),
           'bottom-right',
         );
 
-        // Sessiz kalmasın: stil/karo hataları ekranda görünsün.
         map.on('error', (e) => {
           console.error('MapLibre hatası', e.error);
           setErrorText(e.error?.message ?? 'Bilinmeyen harita hatası');
         });
 
-        // Kümelenmemiş bir konuta tıklanınca detay açılır; genel harita
-        // tıklaması (konum analizi) bu durumda TETİKLENMEMELİ — ikisi aynı
-        // canvas üzerinde olduğu için önce konut katmanını sorguluyoruz.
-        map.on('click', 'konut-noktalar', (e) => {
+        map.on('click', 'konut-noktalar-arkaplan', (e) => {
           const feature = e.features?.[0];
           const id = feature?.properties?.id as string | undefined;
           if (id) propertyClickHandlerRef.current?.(id);
         });
 
-        // Kümeye tıklayınca o küme açılana kadar yakınlaştır (R-109: "yakınlaştıkça görünür").
         map.on('click', 'konut-kumeleri', (e) => {
           const feature = e.features?.[0];
           const clusterId = feature?.properties?.cluster_id as number | undefined;
@@ -926,7 +809,7 @@ export function CankayaMap({
           }).catch(() => {});
         });
 
-        for (const layerId of ['konut-kumeleri', 'konut-noktalar']) {
+        for (const layerId of ['konut-kumeleri', 'konut-noktalar-arkaplan', 'konut-noktalar']) {
           map.on('mouseenter', layerId, () => {
             const canvas = map?.getCanvas();
             if (canvas) canvas.style.cursor = 'pointer';
@@ -939,27 +822,21 @@ export function CankayaMap({
 
         map.on('click', (e) => {
           if (!map) return;
-          // POI ya da konut noktası/kümesi tıklanınca analiz/anchor akışı
-          // tetiklenmesin; o katmanların kendi dinleyicileri var.
           const hits = map.queryRenderedFeatures(e.point, {
-            layers: ['poi-nokta', 'konut-kumeleri', 'konut-noktalar'],
+            layers: ['poi-nokta', 'konut-kumeleri', 'konut-noktalar-arkaplan', 'konut-noktalar'],
           });
           if (hits.length > 0) return;
 
           clickHandlerRef.current?.({ lat: e.lngLat.lat, lon: e.lngLat.lng });
         });
 
-        // ─── R-108/109/110 — POI & konut etkileşimi (popup, küme zoom'u) ───
         wirePoiInteractions(map, categoryNamesRef);
 
-        // Görünüm alanını yukarı bildir (bbox tabanlı veri çekme). Harita
-        // kurulumunda ve her taşımada güncel kalır.
         reportBounds(map, boundsHandlerRef.current);
         map.on('moveend', () => {
           if (map) reportBounds(map, boundsHandlerRef.current);
         });
 
-        // ─── Mahalle vurgulama ───
         let hoveredId: string | number | undefined;
 
         map.on('mousemove', 'mahalle-dolgu', (e) => {
@@ -983,10 +860,6 @@ export function CankayaMap({
           hoveredId = undefined;
           setHoveredName(null);
         });
-
-        // NOT: `setStatus('hazir')` buradan KALDIRILDI — yukarıdaki
-        // `markReady` stil yüklenince kuruyor. Burada kurmak, kaynaklar
-        // henüz yokken "hazır" demek oluyordu.
       } catch (err) {
         console.error('Çankaya GeoJSON katmanları yüklenemedi', err);
         if (!cancelled) {
@@ -1007,18 +880,6 @@ export function CankayaMap({
     };
   }, []);
 
-
-  // ── Kullanıcının GPS konumu ──
-  //
-  // ⚠️ `status` BAĞIMLILIĞI ŞART. Önceki hâli `[]` ile yalnızca mount'ta
-  // çalışıyor ve `if (!map) return` ile sessizce vazgeçiyordu. Harita
-  // asenkron kurulduğu (iki GeoJSON `fetch`'i) için mount anında `mapRef`
-  // hâlâ boş; izin ÖNCEDEN verilmişse geri çağrı anında döner, harita
-  // hazır değildir ve işaretçi bir daha denenmeden düşerdi. Sonuç:
-  // kullanıcı ne izin penceresi görürdü ne de konumunu.
-  //
-  // Artık koordinat `useUserLocation` içinde tutuluyor; burası yalnızca
-  // harita hazır olduğunda çiziyor. Konum önce gelse de kaybolmuyor.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || status !== 'hazir') return;
@@ -1037,8 +898,6 @@ export function CankayaMap({
       .addTo(map);
   }, [userLocation, status]);
 
-
-  // ─── İşaretçiler (anchor'lar) ───
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -1066,12 +925,8 @@ export function CankayaMap({
         new Marker({ element: el }).setLngLat([focus.lon, focus.lat]).addTo(map),
       );
     }
-    // `status` bağımlılığı şart: harita asenkron kurulduğu için ilk render'da
-    // mapRef henüz boş olabiliyor, hazır olunca işaretçiler yeniden basılır.
   }, [markers, focus, status]);
 
-  // Analiz ve yürüme alanlarının ortak merkezi. İşaretçi sürüklendiğinde iki alan
-  // da aynı state üzerinden yeni konumda yeniden hesaplanır.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || status !== 'hazir') return;
@@ -1104,7 +959,6 @@ export function CankayaMap({
     }
   }, [selectedLocation, status]);
 
-  // ─── Konum arama sonucu ───
   useEffect(() => {
     const map = mapRef.current;
     if (!map || status !== 'hazir' || !focus) return;
@@ -1122,7 +976,6 @@ export function CankayaMap({
     }
   }, [focus, status]);
 
-  // ─── Konut noktaları (cluster kaynağı) ───
   useEffect(() => {
     const source = mapRef.current?.getSource('konutlar') as GeoJSONSource | undefined;
     if (!source) return;
@@ -1135,10 +988,8 @@ export function CankayaMap({
         geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
       })),
     });
-    // `status` şart: kaynak asenkron kurulur, harita hazır olmadan `getSource` boş döner.
   }, [properties, status]);
 
-  // ─── R-121 — rota çizgisi (`rota` GeoJSON kaynağına setData) ───
   useEffect(() => {
     const source = mapRef.current?.getSource('rota') as GeoJSONSource | undefined;
     if (!source || status !== 'hazir') return;
@@ -1159,7 +1010,6 @@ export function CankayaMap({
     });
   }, [route, status]);
 
-  // ─── R-121 — numaralı durak pinleri (anchor `map-pin` deseni yeniden kullanılır) ───
   useEffect(() => {
     const map = mapRef.current;
     if (!map || status !== 'hazir') return;
@@ -1184,7 +1034,6 @@ export function CankayaMap({
     }
   }, [route, status]);
 
-  // ─── R-121 — rota değişince tamamını görünüme sığdır (her rota id'si bir kez) ───
   useEffect(() => {
     const map = mapRef.current;
     if (!map || status !== 'hazir') return;
@@ -1208,25 +1057,11 @@ export function CankayaMap({
     });
   }, [route, status]);
 
-  // İmleci tıklanabilirlik durumuna göre değiştir.
   useEffect(() => {
     const canvas = mapRef.current?.getCanvas();
     if (canvas) canvas.style.cursor = onMapClick ? 'crosshair' : '';
   }, [onMapClick, status]);
 
-  /**
-   * Panel açılıp kapandıkça haritayı yatayda kaydırır.
-   *
-   * Neden `setPadding`/`easeTo({padding})` DEĞİL: `fitBoundsOptions.padding`
-   * yalnızca ilk yerleştirmenin HESABINA girer, haritanın kalıcı padding'ini
-   * ayarlamaz. İkisini karıştırınca kurulumda dolgu iki kez sayılıp ilçe
-   * kırpılıyor, panel kapanınca da harita yerinde kalıyordu (ikisi de
-   * görüldü).
-   *
-   * `panBy` yakınlaştırmayı ve kullanıcının kendi kaydırmasını korur:
-   * yalnızca örtülen genişliğin yarısı kadar öteler. Süre panelin CSS
-   * geçişiyle (0.22s) aynı — ikisi birlikte hareket etsin.
-   */
   const previousPadRef = useRef(padLeft);
   useEffect(() => {
     const map = mapRef.current;
@@ -1284,15 +1119,13 @@ export function CankayaMap({
     });
   }, [analysisRadiusKm, selectedLocation, walkingMinutes, status]);
 
-  // ─── R-108 — POI verisi geldikçe kaynağı güncelle ───
-  // Kaynaklar buildStyle'da kurulur; burada yalnızca setData ile veri değişir.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || status !== 'hazir') return;
 
     const poiSource = map.getSource('pois') as GeoJSONSource | undefined;
-    poiSource?.setData(toPoiFeatureCollection(poiDataRef.current) as never);
-  }, [pois, status]);
+    poiSource?.setData(toPoiFeatureCollection(poiDataRef.current, categoryNamesRef.current) as never);
+  }, [pois, status, poiCategoryNames]);
 
   return (
     <div className="map-wrap" style={{ height }}>

@@ -11,6 +11,7 @@ import PreferencesRanking from "@/features/auth/PreferencesRanking";
 import BudgetSelection from "@/features/auth/BudgetSelection";
 import { ExplorePage } from '@/features/explore/ExplorePage';
 import { ProfilePage } from '@/features/profile/ProfilePage';
+import { FavoritesPage } from '@/features/favorites/FavoritesPage';
 import { NotFoundPage } from '@/features/NotFoundPage';
 
 export const router = createBrowserRouter([
@@ -64,6 +65,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute allowGuest>
             <ExplorePage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'favorites',
+        element: (
+          <ProtectedRoute>
+            <FavoritesPage />
           </ProtectedRoute>
         ),
       },

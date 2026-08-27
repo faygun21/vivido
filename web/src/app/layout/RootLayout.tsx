@@ -46,7 +46,8 @@ export function RootLayout() {
     <div className={`app-shell${fullBleed ? ' app-shell--full' : ''}`}>
       <header className="app-header">
         <Link to={brandTarget} className="brand">
-          Vivido
+        <img src="/images/logo.svg" alt="Vivido Logo" className="brand-logo" />
+        Vivido
         </Link>
 
         <nav className="app-nav">
@@ -57,6 +58,12 @@ export function RootLayout() {
                 className={({ isActive }) => `nav-btn${isActive ? ' is-active' : ''}`}
               >
                 Keşfet
+              </NavLink>
+              <NavLink
+                to="/favorites"
+                className={({ isActive }) => `nav-btn${isActive ? ' is-active' : ''}`}
+              >
+                Favorilerim
               </NavLink>
               <NavLink
                 to="/profile"

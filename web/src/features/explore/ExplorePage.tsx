@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   CreateRouteRequest,
@@ -51,59 +51,17 @@ import {
 import { useUserLocation } from '@/shared/map/useUserLocation';
 import { startFromLiveLocation, type RouteStart } from '@/shared/route/routeStart';
 
-/**
- * Ana ekran — Çankaya haritası.
- *
- * ⭐ DÜZEN: harita ARKA PLAN değil, ekranın kendisidir.
- *
- * Eskiden 22rem'lik sabit bir sütun haritayı yanda sıkıştırıyordu ve
- * `.app-main` 68rem ile sınırlı olduğu için geniş ekranlarda harita
- * gereğinden küçük kalıyordu. Artık harita kenardan kenara; profil, konum
- * analizi ve harita bilgisi sol üstteki ☰ düğmesinin açtığı **çekmecede**.
- * Çekmece haritanın ÜSTÜNDE yüzer (yanına itmez) — böylece panel açıkken
- * de harita tam genişlikte kalır.
- *
- * İki kitlesi var:
- *   · giriş yapmış kullanıcı — profil özeti, anchor yönetimi, konum analizi
- *   · misafir (W0) — harita ve konutların temel bilgileri; skor YOK
- */
-
 type DrawerTab = 'profil' | 'analiz' | 'harita' | 'rota';
 
-/**
- * Konut tipleri artık `packages/shared`'dan geliyor.
- *
- * Eskiden bu dosyada YEREL arayüzler olarak yeniden tanımlıydılar; sunucu
- * yanıtı değiştiğinde derleme geçiyor, ekran sessizce boş kalıyordu.
- * Sözleşme tek yerde yaşamalı (CONTRIBUTING §6).
- */
-
-/** CSS'teki `21.5rem` + kenar boşluğunun piksel karşılığı (16px kök punto). */
 const DRAWER_WIDTH_PX = 21.5 * 16 + 29;
-
-/**
- * Listede kaç konut gösterilecek.
- *
- * Sunucu 50'de kesiyor; buradaki değer o tavanı aşarsa sessizce kırpılır.
- */
 const TOP_PROPERTY_LIMIT = 20;
-
-/** Çekmecenin yüzen panel mi yoksa alttan açılan sayfa mı olduğu eşiği. */
 const WIDE_SCREEN = '(min-width: 900px)';
-
-/** Analiz sekmesi ilk açıldığında alanların yerleştirileceği Çankaya merkezi. */
 const DEFAULT_ANALYSIS_LOCATION: WalkingLocation = { lat: 39.87, lon: 32.85 };
 
 function matchesWide(): boolean {
   return typeof window !== 'undefined' && window.matchMedia(WIDE_SCREEN).matches;
 }
 
-/**
- * Ekran genişliği eşiğini React durumu olarak izler.
- *
- * Yalnızca CSS ile çözülemiyor: harita padding'i ve çekmecenin ilk açıklığı
- * JavaScript tarafında biliniyor olmalı.
- */
 function useWideScreen(): boolean {
   const [wide, setWide] = useState(matchesWide);
 
@@ -118,8 +76,9 @@ function useWideScreen(): boolean {
 }
 
 export function ExplorePage() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const wideScreen = useWideScreen();
-  // Çekmece geniş ekranda açık başlar; dar ekranda haritayı kapatmasın diye kapalı.
   const [drawerOpen, setDrawerOpen] = useState(matchesWide);
   const [tab, setTab] = useState<DrawerTab>('profil');
   const [mapFocus, setMapFocus] = useState<MapFocus | null>(null);
@@ -129,19 +88,19 @@ export function ExplorePage() {
     DEFAULT_ANALYSIS_RADIUS_KM,
   );
 
-  /**
-   * Haritaya tıklamak iki farklı iş yapabilir. Kip olmadan hangisinin
-   * kastedildiği bilinemez, o yüzden açıkça iki mod var:
-   *   · normal  → analiz konumu seçilir (yürüme/analiz alanı çizilir)
-   *   · picking → yeni bir anchor noktası seçilir
-   */
   const [picking, setPicking] = useState(false);
   const [pendingAnchor, setPendingAnchor] = useState<MapPoint | null>(null);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
-  // Sağdaki liste kapalı başlar: kullanıcı önce haritayı görsün, listeyi
-  // isteyince açsın. Soldaki çekmece geniş ekranda açık başlıyor; ikisi
-  // birden açık açılsaydı harita iki panel arasında sıkışırdı.
   const [topPanelOpen, setTopPanelOpen] = useState(false);
+
+  useEffect(() => {
+    const focus = (location.state as { favoriteFocus?: MapFocus } | null)?.favoriteFocus;
+    if (!focus) return;
+
+    setMapFocus(focus);
+    setSelectedPropertyId(focus.id);
+    navigate('/explore', { replace: true, state: null });
+  }, [location.state, navigate]);
 
   // ─── R-120/121 — rota oluşturucu durumu ───
   const [routeIds, setRouteIds] = useState<number[]>([]);
@@ -160,7 +119,6 @@ export function ExplorePage() {
     request: requestUserLocation,
   } = useUserLocation();
 
-  // R-121/123 — aktif rota iki ekran arasında paylaşılır (Profil → Explore).
   const activeRoute = useRouteStore((s) => s.activeRoute);
   const setActiveRoute = useRouteStore((s) => s.setActiveRoute);
 
@@ -168,11 +126,6 @@ export function ExplorePage() {
   const status = useAuthStore((s) => s.status);
   const authenticated = status === 'authenticated';
 
-  // `useSessionQuery` iki şeyi birden halleder: anahtarı oturum kimliğine
-  // bağlar (başka hesabın verisi okunamaz) ve misafirken korumalı uç
-  // noktaya istek atılmasını engeller. Atılsaydı 401 → yenileme denemesi →
-  // refresh token yok → `onSessionExpired` → `clearSession()` zinciri
-  // çalışır ve misafir kendi kendini kapı dışarı ederdi.
   const { data: profile } = useSessionQuery({
     queryKey: ['profile'],
     queryFn: () => api.get<UserProfile>('/profile'),
@@ -360,15 +313,12 @@ export function ExplorePage() {
   const selectionInitialized = useRef(false);
   const boundsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Kategorileri tek sefer çeker; paneldeki isimler ve renkler buradan gelir.
   const { data: poiCategories = [] } = useQuery({
     queryKey: ['poi-categories'],
     queryFn: () => api.get<PoiCategory[]>('/pois/categories'),
     staleTime: 5 * 60 * 1000,
   });
 
-  // İlk yüklemede tüm kategorileri açık başlat; kullanıcı sonradan kapatırsa
-  // geri dönüp hepsini yeniden seçme.
   useEffect(() => {
     if (poiCategories.length > 0 && !selectionInitialized.current) {
       selectionInitialized.current = true;
@@ -376,14 +326,11 @@ export function ExplorePage() {
     }
   }, [poiCategories]);
 
-  // Harita taşındıkça gelen bbox'ı debounce ile sorguya işle.
   function handleBoundsChange(next: MapBounds) {
     if (boundsTimer.current) clearTimeout(boundsTimer.current);
     boundsTimer.current = setTimeout(() => setBounds(next), 250);
   }
 
-  // Bekleyen debounce zamanlayıcısı unmount'ta temizlenmezse setState sonrası
-  // uyarı üretir; ekran kapanınca sızıntı kalmasın.
   useEffect(() => {
     return () => {
       if (boundsTimer.current) clearTimeout(boundsTimer.current);
@@ -407,18 +354,6 @@ export function ExplorePage() {
     staleTime: 30_000,
   });
 
-  /*
-   * ⚠️ Burada bbox tabanlı bir KONUT sorgusu YOK — bilerek.
-   *
-   * Konutlar zaten yukarıdaki `['properties', 'map']` sorgusundan geliyor:
-   * o uç nokta kullanıcının kira aralığına göre süzüyor ve her konutu
-   * SKORLUYOR (W3/W5). İkinci bir bbox sorgusu aynı evleri skorsuz olarak
-   * bir kez daha çizerdi — aynı ev haritada iki pin.
-   *
-   * `/properties/map` (herkese açık, skorsuz) sunucuda duruyor ve misafir
-   * görünümü için hazır; ekrana bağlanması ayrı bir iş (bkz. PR açıklaması).
-   */
-
   const poiCategoryNames = Object.fromEntries(
     poiCategories.map((c) => [c.code, c.displayNameTr]),
   );
@@ -431,10 +366,6 @@ export function ExplorePage() {
     );
   }
 
-  // Esc geçici durumları EN İÇTEKİNDEN dışarıya doğru, TEK TEK iptal eder:
-  // önce nokta seçme kipleri (anchor / rota başlangıcı), sonra açık konut
-  // detayı, sonra paneller. Hepsini birden kapatmak kullanıcının tek tuşla
-  // ekranı boşaltmasına yol açardı.
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.key !== 'Escape') return;
@@ -482,8 +413,6 @@ export function ExplorePage() {
       : []),
   ];
 
-  // R-120 — seçilen konutlar oluşturulmadan önce numaralı mavi pinlerle gösterilir.
-  // Rota oluşunca yerlerini rota durağı pinleri alır (CankayaMap `route` prop'u).
   const routeSelectionMarkers: MapMarker[] = routeIds
     .map((id) => properties.find((p) => Number(p.id) === id))
     .filter((property): property is PropertyMapItem => property != null)
@@ -496,7 +425,6 @@ export function ExplorePage() {
       className: 'map-pin map-pin--route',
     }));
 
-  // Rota panelinin listesi — seçim sırası korunur.
   const routeOptions: RoutePropertyOption[] = routeIds
     .map((id) => properties.find((p) => Number(p.id) === id))
     .filter((property): property is PropertyMapItem => property != null)
@@ -524,7 +452,6 @@ export function ExplorePage() {
   }));
 
   function handlePropertyClick(id: string) {
-    // R-120 — "Rota" sekmesindeyken pin tıklaması detay yerine seçimi ekler/çıkarır.
     if (tab === 'rota') {
       const propertyId = Number(id);
 
@@ -554,13 +481,6 @@ export function ExplorePage() {
     setSelectedPropertyId(id);
   }
 
-  /**
-   * Listeden bir konut seçildi.
-   *
-   * Haritayı o eve uçuruyoruz — aksi halde kullanıcı listede gördüğü evin
-   * haritada NEREDE olduğunu bilmiyor ve iki panel birbirinden kopuk iki
-   * uygulama gibi davranıyordu.
-   */
   function handleTopSelect(property: PropertySummary) {
     setSelectedPropertyId(property.id);
     setMapFocus({
@@ -569,9 +489,6 @@ export function ExplorePage() {
       lat: property.latitude,
       lon: property.longitude,
     });
-    // Liste KAPATILMIYOR: detay onun üstünde açılıyor ve "← Listeye dön"
-    // ile geri dönülüyor. Kapatsaydık geri dönülecek bir liste kalmaz,
-    // kullanıcı düğmeye yeniden basmak zorunda kalırdı.
   }
 
   function handleMapClick(point: MapPoint) {
@@ -588,9 +505,6 @@ export function ExplorePage() {
   function startPicking() {
     setPicking(true);
     setPendingAnchor(null);
-    // Dar ekranda çekmece haritanın tamamını kaplıyor; seçim yapılabilsin
-    // diye kapatıyoruz. Geniş ekranda yüzen panel haritanın solunu örtüyor
-    // ama tıklanacak alan zaten açıkta.
     if (!wideScreen) setDrawerOpen(false);
   }
 
@@ -637,10 +551,7 @@ export function ExplorePage() {
   }
 
   const anchorCount = profile?.anchors.length ?? 0;
-
   const showTopPanelToggle = authenticated && !isGuest;
-  // Sağ yuva doluysa harita kontrolleri ve üst şerit sola kayar — ikisi de
-  // aynı yuvayı paylaşıyor (master-detail), bkz. index.css `--right-slot`.
   const rightSlotOpen = topPanelOpen || selectedProperty !== null;
 
   return (
@@ -653,10 +564,7 @@ export function ExplorePage() {
       }
     >
       <CankayaMap
-        // Rota oluşunca seçim pinleri yerine rota durağı pinleri + çizgi çizilir.
         markers={activeRoute ? markers : [...markers, ...routeSelectionMarkers]}
-        // Katman panelindeki "Konutlar" anahtarı kapalıysa boş dizi gider —
-        // kaynak yerinde kalır, yalnızca verisi boşalır.
         properties={propertiesVisible ? propertyPoints : []}
         focus={mapFocus}
         onMapClick={handleMapClick}
@@ -682,8 +590,6 @@ export function ExplorePage() {
         <PropertyDetailPanel
           property={selectedProperty}
           onClose={() => setSelectedPropertyId(null)}
-          // "← Listeye dön" yalnızca listeden gelindiğinde anlamlı; harita
-          // pin'ine tıklayıp gelen kullanıcının dönecek bir listesi yok.
           onBack={topPanelOpen ? () => setSelectedPropertyId(null) : undefined}
         />
       )}
@@ -714,36 +620,28 @@ export function ExplorePage() {
         />
       )}
 
-      {/* Harita üstü kontroller: ☰ + konum arama aynı satırda durur ki
-          çekmece düğmesi arama kutusunun altında kaybolmasın. */}
+      {/* Harita üstü kontroller: Sadece hamburger ve "En uygun evler" düğmesi kaldı */}
       <div className="map-topbar">
-        <button
-          className="map-fab"
-          type="button"
-          aria-expanded={drawerOpen}
-          aria-controls="explore-drawer"
-          aria-label={drawerOpen ? 'Paneli kapat' : 'Paneli aç'}
-          onClick={() => setDrawerOpen((open) => !open)}
-        >
-          <span className="map-fab-bars" aria-hidden="true" />
-        </button>
-
-        {authenticated && (
-          <div className="map-topbar-search">
-            <LocationSearch onSelect={focusLocation} onClear={() => setMapFocus(null)} />
-          </div>
+        {!drawerOpen && (
+          <button
+            className="map-fab"
+            type="button"
+            aria-expanded={false}
+            aria-controls="explore-drawer"
+            aria-label="Paneli aç"
+            onClick={() => setDrawerOpen(true)}
+          >
+            <span className="map-fab-bars" aria-hidden="true" />
+          </button>
         )}
 
-        {/* Sağdaki listenin tetikleyicisi. Soldakinin aksine İKON DEĞİL,
-            adını yazan bir düğme: iki hamburger yan yana durunca kullanıcı
-            hangisinin ne açtığını tıklamadan bilemiyordu. */}
-        {showTopPanelToggle && (
+        {showTopPanelToggle && !topPanelOpen && (
           <button
-            className={`top-panel-toggle${topPanelOpen ? ' is-active' : ''}`}
+            className="top-panel-toggle"
             type="button"
-            aria-expanded={topPanelOpen}
+            aria-expanded={false}
             aria-controls="top-properties-panel"
-            onClick={() => setTopPanelOpen((open) => !open)}
+            onClick={() => setTopPanelOpen(true)}
           >
             <span className="top-panel-toggle-mark" aria-hidden="true" />
             En uygun evler
@@ -767,14 +665,11 @@ export function ExplorePage() {
         id="explore-drawer"
         className="explore-drawer"
         aria-hidden={!drawerOpen}
-        // `inert` odak sırasını da kapatır: kapalı panelde Tab ile
-        // görünmeyen düğmelere gitmek erişilebilirlik hatasıdır.
         inert={!drawerOpen}
       >
         <header className="drawer-head">
           <div>
             <h1>Keşfet</h1>
-            <p className="muted">Çankaya · 124 mahalle</p>
           </div>
           <button
             className="btn-icon drawer-close"
@@ -785,6 +680,13 @@ export function ExplorePage() {
             ✕
           </button>
         </header>
+
+        {/* ── TEK VE DOĞRU YERİ: Başlığın altı, sekmelerin üstü ── */}
+        {authenticated && (
+          <div style={{ padding: '0.75rem 0.85rem 0 0.85rem', position: 'relative', zIndex: 2 }}>
+            <LocationSearch onSelect={focusLocation} onClear={() => setMapFocus(null)} />
+          </div>
+        )}
 
         <nav className="drawer-tabs" aria-label="Panel bölümleri">
           {(
@@ -808,6 +710,7 @@ export function ExplorePage() {
         </nav>
 
         <div className="drawer-body">
+
           {tab === 'profil' &&
             (isGuest || !authenticated ? (
               <GuestPanel />
@@ -844,10 +747,6 @@ export function ExplorePage() {
 
                 <section className="drawer-section">
                   <h2>Düzenli gittiğin yerler</h2>
-                  <p className="muted">
-                    Önem sırasına dizdiğinde skorlar bu sıraya göre yeniden hesaplanır —
-                    en önemli yer, diğerlerinin toplamı kadar ağırlık taşır.
-                  </p>
 
                   <AnchorEditor
                     pending={pendingAnchor}
@@ -863,8 +762,7 @@ export function ExplorePage() {
             <section className="drawer-section">
               <h2>Konum analizi</h2>
               <p className="muted">
-                Haritada bir konum seç veya arama yap. Analiz çevresini ve yaklaşık
-                yürüme erişimini birlikte gösterelim.
+                Analiz için haritadan bir konum seç. Çevresini ve yaklaşık yürüme erişimini haritada gösterelim.
               </p>
 
               <label className="field" htmlFor="analysis-radius">
@@ -916,8 +814,8 @@ export function ExplorePage() {
 
               <p className="walking-access-status" aria-live="polite">
                 {selectedLocation
-                  ? walkingMinutes >= 15
-                    ? 'Bu süre için arabayla gitmek daha gerçekçi.'
+                  ? walkingMinutes > 15
+                    ? 'Seçilen süre için yaya erişimi yerine taşıt kullanımı önerilir.'
                     : `${walkingMinutes} dakikalık yürüme alanı gösteriliyor.`
                   : 'Alanı görmek için haritaya tıkla.'}
               </p>
@@ -973,16 +871,8 @@ export function ExplorePage() {
           {tab === 'harita' && (
             <section className="drawer-section">
               <h2>Harita katmanları</h2>
-              <p className="muted">
-                Çankaya ilçe sınırı ve <strong>124 mahalle</strong> poligonu gösteriliyor.
-                Mahalle üzerine gelince adı görünür.
-              </p>
-              <p className="muted">
-                Hizmet noktaları ve konutlar haritada küme olarak çizilir; yakınlaşınca
-                tek tek noktalara ayrışır. Noktaya tıklayınca bilgi penceresi açılır.
-              </p>
 
-              {authenticated && !isGuest && (
+              { isGuest && (
                 <p className="muted">
                   Bütçene uygun <strong>{properties.length} konut</strong> haritada 🏠 ile
                   işaretli. Bir pin&apos;e tıklayınca adres, kira ve skorun gerekçesi açılır.
@@ -1029,16 +919,10 @@ function formatBudgetRange(minMonthlyBudget: number | null, maxMonthlyBudget: nu
     return `${minMonthlyBudget.toLocaleString('tr-TR')} ₺ – ${maxMonthlyBudget.toLocaleString('tr-TR')} ₺`;
   }
   if (minMonthlyBudget != null) return `${minMonthlyBudget.toLocaleString('tr-TR')} ₺ ve üzeri`;
-  if (maxMonthlyBudget != null) return `${maxMonthlyBudget.toLocaleString('tr-TR')} ₺'ye kadar`;
+  if (maxMonthlyBudget != null) return `${maxMonthlyBudget.toLocaleString('tr-TR')} ₺&apos;ye kadar`;
   return 'Girilmedi';
 }
 
-/**
- * Misafirin gördüğü panel.
- *
- * Kilitli özellikleri gizlemek yerine GÖSTERİP kilit sebebini yazıyoruz —
- * "burada ne kaçırıyorum?" sorusunun cevabı kayıt olmanın tek gerekçesi.
- */
 function GuestPanel() {
   const navigate = useNavigate();
   const leaveGuest = useAuthStore((s) => s.leaveGuest);
@@ -1055,8 +939,6 @@ function GuestPanel() {
         Haritayı ve kiralık konutların temel bilgilerini serbestçe inceleyebilirsin.
       </p>
 
-      {/* Metin TEK bir <span> içinde: `li` flex kutusu olduğu için her metin
-          parçası ayrı bir flex öğesi olur ve cümle sütunlara bölünürdü. */}
       <ul className="locked-list">
         <li>
           <span className="lock">🔒</span>

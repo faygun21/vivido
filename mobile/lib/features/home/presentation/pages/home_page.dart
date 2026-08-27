@@ -235,6 +235,20 @@ class _MapOverviewState extends State<_MapOverview> {
     );
   }
 
+  Future<void> _openLocationAnalysisSettings() async {
+    final settings = await showLocationAnalysisSettingsSheet(
+      context,
+      analysisRadiusKm: _analysisRadiusKm,
+      walkingMinutes: _walkingMinutes,
+    );
+    if (!mounted || settings == null) return;
+
+    setState(() {
+      _analysisRadiusKm = settings.analysisRadiusKm;
+      _walkingMinutes = settings.walkingMinutes;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = widget.controller;
@@ -360,18 +374,12 @@ class _MapOverviewState extends State<_MapOverview> {
                   ),
                   Positioned(
                     left: 12,
-                    right: 12,
                     bottom: 12,
-                    child: LocationAnalysisControls(
+                    child: LocationAnalysisLauncher(
                       hasSelectedLocation: _analysisCenter != null,
                       analysisRadiusKm: _analysisRadiusKm,
                       walkingMinutes: _walkingMinutes,
-                      onAnalysisRadiusChanged: (value) {
-                        setState(() => _analysisRadiusKm = value);
-                      },
-                      onWalkingMinutesChanged: (value) {
-                        setState(() => _walkingMinutes = value);
-                      },
+                      onOpen: _openLocationAnalysisSettings,
                       onClear: () {
                         setState(() => _analysisCenter = null);
                       },
