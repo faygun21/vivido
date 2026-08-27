@@ -33,7 +33,34 @@ import { BAND_LABEL, formatRent, splitAddress } from '@/features/explore/propert
  * `useRouteStore.activeRoute`'u okuyup çizgiyi, numaralı durakları ve metrik
  * kartını zaten çizer.
  */
-export function FavoritesAndRoutesPanel() {
+export function FavoritesPanel() {
+  const { data: favorites, isLoading } = useSessionQuery({
+    queryKey: ['favorites'],
+    queryFn: () => api.get<FavoriteResponse[]>('/profile/favorites'),
+  });
+
+  return (
+    <div className="info-card">
+      <h2>Favori Konutlarım</h2>
+      {isLoading ? (
+        <p className="muted">Favoriler yükleniyor…</p>
+      ) : favorites?.length ? (
+        <ul className="favorite-list">
+          {favorites.map((favorite) => (
+            <FavoriteCard key={favorite.propertyId} favorite={favorite} />
+          ))}
+        </ul>
+      ) : (
+        <p className="muted">
+          Henüz favori konut yok. <Link to="/explore">Keşfet</Link> ekranındaki{' '}
+          <strong>En uygun evler</strong> listesinden kalp simgesine basarak ekleyebilirsin.
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function RoutesPanel() {
   const navigate = useNavigate();
   const setActiveRoute = useRouteStore((s) => s.setActiveRoute);
   const activeRoute = useRouteStore((s) => s.activeRoute);
@@ -43,12 +70,6 @@ export function FavoritesAndRoutesPanel() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingRouteId, setDeletingRouteId] = useState<string | null>(null);
   const queryClient = useQueryClient();
-
-  // Favorileri Çekme İsteği
-  const { data: favorites, isLoading: isFavoritesLoading } = useSessionQuery({
-    queryKey: ['favorites'],
-    queryFn: () => api.get<FavoriteResponse[]>('/profile/favorites'),
-  });
 
   // Rotaları Çekme İsteği
   const { data: routes, isLoading: isRoutesLoading } = useSessionQuery({
@@ -91,24 +112,6 @@ export function FavoritesAndRoutesPanel() {
   return (
     <section className="panel-container">
       <div className="info-card">
-        <h2>Favori Konutlarım</h2>
-        {isFavoritesLoading ? (
-          <p className="muted">Favoriler yükleniyor…</p>
-        ) : favorites?.length ? (
-          <ul className="favorite-list">
-            {favorites.map((fav) => (
-              <FavoriteCard key={fav.propertyId} favorite={fav} />
-            ))}
-          </ul>
-        ) : (
-          <p className="muted">
-            Henüz favori konut yok. <Link to="/explore">Keşfet</Link> ekranında bir konuta
-            tıklayıp <strong>Favorilere ekle</strong> ile buraya kaydedebilirsin.
-          </p>
-        )}
-      </div>
-
-      <div className="info-card mt-4">
         <h2>Kayıtlı Rotalarım</h2>
         <p className="muted">
           Bir rotaya tıklayınca haritada çizgi, numaralı duraklar ve metrikler açılır.
@@ -222,37 +225,53 @@ function FavoriteCard({ favorite }: { favorite: FavoriteResponse }) {
 
 function FavoriteCardBody({ property, addedAt }: { property: PropertySummary; addedAt: string }) {
   const favorite = useFavoriteMutation();
+  const navigate = useNavigate();
   const address = splitAddress(property.address);
+
+  function openOnMap() {
+    navigate('/explore', {
+      state: {
+        favoriteFocus: {
+          id: property.id,
+          label: property.address.formatted,
+          lat: property.latitude,
+          lon: property.longitude,
+        },
+      },
+    });
+  }
 
   return (
     <li className="favorite-card">
-      <span className={`favorite-score score-badge--${property.band}`}>
-        <strong>{property.totalScore.toFixed(1)}</strong>
-        <span>{BAND_LABEL[property.band]}</span>
-      </span>
+      <button className="favorite-card-main" type="button" onClick={openOnMap}>
+        <span className={`favorite-score score-badge--${property.band}`}>
+          <strong>{property.totalScore.toFixed(1)}</strong>
+          <span>{BAND_LABEL[property.band]}</span>
+        </span>
 
-      <div className="favorite-body">
-        <p className="favorite-title">
-          {property.roomCount} · {property.areaM2} m² · {formatRent(property.monthlyRent)}/ay
-        </p>
-        <p className="favorite-address">
-          <strong>{address.primary}</strong>
-          {address.secondary && <span className="muted"> · {address.secondary}</span>}
-        </p>
+        <span className="favorite-body">
+          <span className="favorite-title">
+            {property.roomCount} · {property.areaM2} m² · {formatRent(property.monthlyRent)}/ay
+          </span>
+          <span className="favorite-address">
+            <strong>{address.primary}</strong>
+            {address.secondary && <span className="muted"> · {address.secondary}</span>}
+          </span>
 
-        <p className="favorite-reasons">
-          {property.topStrength && (
-            <span className="top-card-reason--good">✓ {property.topStrength}</span>
-          )}
-          {property.topWeakness && (
-            <span className="top-card-reason--bad">✗ {property.topWeakness}</span>
-          )}
-        </p>
+          <span className="favorite-reasons">
+            {property.topStrength && (
+              <span className="top-card-reason--good">✓ {property.topStrength}</span>
+            )}
+            {property.topWeakness && (
+              <span className="top-card-reason--bad">✗ {property.topWeakness}</span>
+            )}
+          </span>
 
-        <p className="muted favorite-meta">
-          {property.externalRef} · {new Date(addedAt).toLocaleDateString('tr-TR')} tarihinde eklendi
-        </p>
-      </div>
+          <span className="muted favorite-meta">
+            {property.externalRef} · {new Date(addedAt).toLocaleDateString('tr-TR')} tarihinde eklendi
+          </span>
+        </span>
+      </button>
 
       <button
         className="btn-chip favorite-remove"
