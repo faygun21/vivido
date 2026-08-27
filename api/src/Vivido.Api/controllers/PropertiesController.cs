@@ -7,6 +7,7 @@ using Vivido.Api.services; // PropertyScoringService namespace'i
 using Vivido.Application.dtos.property; // DTO'ların
 using Vivido.Domain.Entities;
 using Vivido.Infrastructure.Data;
+using Vivido.Infrastructure.Routing;
 
 namespace Vivido.Api.Controllers;
 
@@ -20,17 +21,20 @@ public class PropertiesController : ControllerBase
     private readonly PropertyScoringService _scoringService;
     private readonly PropertyScoreBreakdownService _breakdownService;
     private readonly PropertyAddressService _addressService;
+    private readonly OsrmClient _osrm;
 
     public PropertiesController(
         VividoDbContext context,
         PropertyScoringService scoringService,
         PropertyScoreBreakdownService breakdownService,
-        PropertyAddressService addressService)
+        PropertyAddressService addressService,
+        OsrmClient osrm)
     {
         _context = context;
         _scoringService = scoringService;
         _breakdownService = breakdownService;
         _addressService = addressService;
+        _osrm = osrm;
     }
 
     /// <summary>
@@ -47,12 +51,20 @@ public class PropertiesController : ControllerBase
     /// ve uygunluk skoruna göre yüksekten düşüğe (descending) sıralayıp harita ikonları için döner.
     /// </summary>
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<PropertyMapItemDto>>> GetPropertiesForMap()
+    public async Task<ActionResult<PropertiesMapResponseDto>> GetPropertiesForMap(
+        // Kapalıyken (varsayılan) anchor koridoru uygulanır; kullanıcı
+        // "Tüm evleri göster"i açtıysa true gönderilir.
+        [FromQuery] bool showAll = false,
+        CancellationToken ct = default)
     {
-        var profile = await GetProfileAsync();
+        var profile = await GetProfileAsync(ct);
         if (profile == null) return ApiProblem.ProfileNotFound();
 
-        var properties = await BudgetFilteredQuery(profile).ToListAsync();
+        var budgetProperties = await BudgetFilteredQuery(profile).ToListAsync(ct);
+
+        var (corridor, properties) = showAll
+            ? ((Geometry?)null, budgetProperties)
+            : await BuildAnchorAreaAsync(profile, budgetProperties, ct);
 
         // Tek tek ScorePropertyAsync çağırmak N+1 sorgu demekti (profil,
         // ağırlık ve kategori her konut için ayrı ayrı çekiliyordu) — geniş
@@ -75,7 +87,9 @@ public class PropertiesController : ControllerBase
         // Skorlarına göre yüksekten düşüğe sıralama (R-114)
         var sortedItems = mapItems.OrderByDescending(x => x.TotalScore).ToList();
 
-        return Ok(sortedItems);
+        return Ok(new PropertiesMapResponseDto(
+            sortedItems,
+            corridor is null ? null : ToPolygonGeoJson(corridor)));
     }
 
     /// <summary>
@@ -92,12 +106,9 @@ public class PropertiesController : ControllerBase
     [HttpGet("top")]
     public async Task<ActionResult<TopPropertiesResponseDto>> GetTopProperties(
         [FromQuery] int limit = DefaultTopLimit,
-        // Anchor (özel yer) arama alanı — web'deki mor daireyle AYNI alan.
-        // Üçü de verilmezse anchor filtresi devre dışı (eskisi gibi tüm
-        // bütçeye uygun evler arasından en iyi N seçilir).
-        [FromQuery] double? anchorLat = null,
-        [FromQuery] double? anchorLon = null,
-        [FromQuery] double? anchorRadiusM = null,
+        // Kapalıyken (varsayılan) anchor koridoru uygulanır; kullanıcı
+        // "Tüm evleri göster"i açtıysa true gönderilir.
+        [FromQuery] bool showAll = false,
         CancellationToken ct = default)
     {
         var profile = await GetProfileAsync(ct);
@@ -105,36 +116,33 @@ public class PropertiesController : ControllerBase
 
         limit = Math.Clamp(limit, 1, MaxTopLimit);
 
-        // Bütçeye uygun TÜM evler — 6.000 satır civarı, bellekte Haversine
-        // ile filtrelemek/en yakını aramak trivial (<10ms); ayrı bir SQL
-        // bbox turu gerektirmiyor.
+        // Bütçeye uygun TÜM evler — 6.000 satır civarı, bellekte filtrelemek
+        // trivial (<10ms); ayrı bir SQL bbox turu gerektirmiyor.
         var budgetProperties = await BudgetFilteredQuery(profile).ToListAsync(ct);
 
-        var hasAnchorArea = anchorLat is not null && anchorLon is not null && anchorRadiusM is > 0;
+        var (corridor, properties) = showAll
+            ? ((Geometry?)null, budgetProperties)
+            : await BuildAnchorAreaAsync(profile, budgetProperties, ct);
 
-        var properties = hasAnchorArea
-            ? budgetProperties
-                .Where(p => HaversineDistanceMetres(
-                    anchorLat!.Value, anchorLon!.Value, p.Geom.Y, p.Geom.X) <= anchorRadiusM!.Value)
-                .ToList()
-            : budgetProperties;
+        var corridorDto = corridor is null ? null : ToPolygonGeoJson(corridor);
 
         if (properties.Count == 0)
         {
-            // Anchor alanında hiç ev yoksa boş liste yerine "en yakın uygun
-            // ev"i öneriyoruz — kullanıcı "burada hiçbir şey yok" duvarına
-            // çarpmasın, en azından "şuna bak, alanına çok yakın" diyebilelim.
-            if (hasAnchorArea && budgetProperties.Count > 0)
+            // Koridorda hiç ev yoksa (en genişletilmiş halinde bile) boş
+            // liste yerine "en yakın uygun ev"i öneriyoruz — kullanıcı
+            // "burada hiçbir şey yok" duvarına çarpmasın.
+            if (corridor is not null && budgetProperties.Count > 0)
             {
+                var centre = corridor.Centroid;
                 var nearest = budgetProperties
-                    .OrderBy(p => HaversineDistanceMetres(anchorLat!.Value, anchorLon!.Value, p.Geom.Y, p.Geom.X))
+                    .OrderBy(p => HaversineDistanceMetres(centre.Y, centre.X, p.Geom.Y, p.Geom.X))
                     .First();
 
                 var fallbackSummaries = await BuildSummariesAsync([nearest], profile, ct);
-                return Ok(new TopPropertiesResponseDto([], fallbackSummaries.SingleOrDefault()));
+                return Ok(new TopPropertiesResponseDto([], fallbackSummaries.SingleOrDefault(), corridorDto));
             }
 
-            return Ok(new TopPropertiesResponseDto([], null));
+            return Ok(new TopPropertiesResponseDto([], null, corridorDto));
         }
 
         var scores = await _scoringService.ScorePropertiesAsync(
@@ -150,7 +158,7 @@ public class PropertiesController : ControllerBase
 
         var items = await BuildSummariesAsync(top, profile, ct);
 
-        return Ok(new TopPropertiesResponseDto(items, null));
+        return Ok(new TopPropertiesResponseDto(items, null, corridorDto));
     }
 
     /// <summary>
@@ -371,11 +379,7 @@ public class PropertiesController : ControllerBase
 
     /// <summary>
     /// İki nokta arasındaki büyük daire (jeodezik) mesafesi, metre cinsinden.
-    ///
-    /// ⚠️ Web'deki `anchorSweetSpot.ts`'teki `haversineDistanceMetres` ile
-    /// BİREBİR aynı formül olmalı — aksi halde kullanıcı haritada gördüğü
-    /// mor daireyle "En uygun evler" listesinin sınırları arasında
-    /// tutarsızlık görür.
+    /// Koridor boşken "en yakın uygun ev"i bulmak için kullanılıyor.
     /// </summary>
     private static double HaversineDistanceMetres(double lat1, double lon1, double lat2, double lon2)
     {
@@ -390,6 +394,216 @@ public class PropertiesController : ControllerBase
         var h = sinDLat * sinDLat + Math.Cos(lat1Rad) * Math.Cos(lat2Rad) * sinDLon * sinDLon;
 
         return 2 * earthRadiusMetres * Math.Asin(Math.Sqrt(Math.Min(1, h)));
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  Anchor koridoru — R-anchor-corridor
+    //
+    //  Mentor geri bildirimi: sabit yarıçaplı bir daire yerine, anchor'lar
+    //  arasındaki GERÇEK yolu (OSRM) hesaplayıp o rotanın etrafında bir
+    //  "koridor" (buffer) oluşturmalıyız. Evler bu koridorda aranır; hiç
+    //  bulunamazsa koridor genişletilip tekrar denenir.
+    //
+    //  ⭐ Karma mod (2026-08-27, mentor testinde bulundu): anchor'lar arası
+    //  TEK bir profille (hep araç ya da hep yaya) tek parça rota istemek iki
+    //  sorun çıkardı — (a) araç yol ağı ilçenin bazı bölgelerinde (kırsal
+    //  kesimde) KOPUK; OSRM "NoRoute" dönünce eski kod iki anchor'ı düz bir
+    //  çizgiyle birleştiriyordu (ConvexHull) — haritada gerçek bir yolu
+    //  yokmuş gibi göstermek yerine VARMIŞ gibi gösteren, yanıltıcı bir
+    //  şekildi; (b) yaya profili çoğu zaman bağlıydı ama anlamsız derecede
+    //  uzun (40+ km) "gerçek ama saçma" rotalar üretebiliyordu. Çözüm: her
+    //  ardışık anchor ikilisi (bacak) kendi başına değerlendirilir — normal
+    //  harita uygulamalarının "kısa mesafeyi yürü, uzunu araçla bağla"
+    //  mantığıyla aynı, bkz. <see cref="BuildCorridorLegsAsync"/>.
+    // ══════════════════════════════════════════════════════════════
+
+    /// <summary>1 derece enlemin metre karşılığı — WGS84'te sabit, boylam enleme göre değişir ama Çankaya ölçeğinde bu yaklaşıklık yeterli.</summary>
+    private const double MetresPerDegreeLat = 111_320.0;
+
+    private const int MaxCorridorWidenAttempts = 5;
+    private const double FootInitialCorridorMetres = 400;
+    private const double CarInitialCorridorMetres = 1500;
+
+    /// <summary>
+    /// Bunun ötesi makul bir yürüme mesafesi sayılmaz (~18-20 dk normal
+    /// yürüyüş hızında) — bacak bundan uzunsa araç rotası denenir. Kısaysa
+    /// ve yaya rotası varsa yaya tercih edilir: gerçek bir yürüyüş yolu,
+    /// (araç ağı kopuk diye) uydurulacak bir çizgiden her zaman daha doğru
+    /// bir koridor verir.
+    /// </summary>
+    private const double MaxWalkableLegMetres = 1500;
+
+    private readonly record struct CorridorLeg(Geometry Geometry, double BaseWidthMetres);
+
+    /// <summary>
+    /// Kullanıcının anchor'larından (özel yer) bir "koridor" üretir ve
+    /// verilen bütçeye-uygun evler arasından bu koridora düşenleri döner.
+    ///
+    /// AKIŞ:
+    ///   1. Anchor yoksa: koridor yok, filtre yok — tüm evler döner.
+    ///   2. Anchor'lar ardışık bacaklara bölünüp gerçek rotalara çevrilir
+    ///      (bkz. <see cref="BuildCorridorLegsAsync"/>).
+    ///   3. Her bacak KENDİ BAŞINA, çevresinde en az 1 ev bulana kadar (en
+    ///      fazla <see cref="MaxCorridorWidenAttempts"/> kez) genişletilir —
+    ///      bkz. <see cref="BuildWidenedLegPolygon"/>. Böylece kalabalık bir
+    ///      bacağın erken doyması, ıssız bir bacağın hiç genişlememesine yol
+    ///      açmaz.
+    ///   4. Genişletilmiş bacaklar birleştirilir (union) — tek parça
+    ///      (Polygon) ya da kopuk parçalardan oluşan (MultiPolygon) bir
+    ///      koridor çıkabilir, ikisi de geçerli.
+    ///
+    /// ⚠️ GEÇİCİ: koridor şu an mentor'un gözle kontrol edebilmesi için
+    /// dışarı (frontend'e) döndürülüyor — bkz. çağıranlardaki not.
+    /// </summary>
+    private async Task<(Geometry? Corridor, List<Property> Matched)> BuildAnchorAreaAsync(
+        UserProfile profile, List<Property> budgetProperties, CancellationToken ct)
+    {
+        var anchors = await _context.Anchors
+            .Where(a => a.ProfileId == profile.Id)
+            .OrderBy(a => a.Priority)
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        if (anchors.Count == 0) return (null, budgetProperties);
+
+        var legs = await BuildCorridorLegsAsync(anchors, ct);
+
+        // ⭐ Her bacak KENDİ BAŞINA genişler. Tek bir genel genişletme (tüm
+        // bacakların birleşimine bakıp "birinde ev bulundu mu") kullansaydık,
+        // güçlü bir bacak (çok ev olan bölge) hemen eşiği geçip döngüyü
+        // durdurur, zayıf bir bacak (örn. kopuk anchor'ın kendi dairesi) hiç
+        // genişlemeden dar kalırdı — o anchor'ın etrafında pratikte hiç ev
+        // gösterilmemiş olurdu. Bunun yerine her bacak, kendi çevresinde en
+        // az 1 ev bulana kadar (ya da MaxCorridorWidenAttempts sınırına
+        // kadar — abartmasın diye) ayrı ayrı genişletiliyor, SONRA hepsi
+        // birleştiriliyor.
+        Geometry? corridor = null;
+        foreach (var leg in legs)
+        {
+            corridor = corridor is null
+                ? BuildWidenedLegPolygon(leg, budgetProperties)
+                : corridor.Union(BuildWidenedLegPolygon(leg, budgetProperties));
+        }
+
+        var matched = corridor is null
+            ? budgetProperties
+            : budgetProperties.Where(p => corridor.Intersects(p.Geom)).ToList();
+
+        return (corridor, matched);
+    }
+
+    /// <summary>Bir bacağı, çevresinde en az 1 bütçeye-uygun ev bulana kadar (en fazla <see cref="MaxCorridorWidenAttempts"/> kez) genişletip buffer'lar.</summary>
+    private static Geometry BuildWidenedLegPolygon(CorridorLeg leg, List<Property> budgetProperties)
+    {
+        var widthMetres = leg.BaseWidthMetres;
+        var polygon = leg.Geometry.Buffer(widthMetres / MetresPerDegreeLat);
+
+        for (var attempt = 0; attempt < MaxCorridorWidenAttempts - 1; attempt++)
+        {
+            if (budgetProperties.Any(p => polygon.Intersects(p.Geom))) break;
+
+            widthMetres *= 2;
+            polygon = leg.Geometry.Buffer(widthMetres / MetresPerDegreeLat);
+        }
+
+        return polygon;
+    }
+
+    /// <summary>
+    /// Anchor'lar arasındaki ardışık bacakları (priority sırasına göre)
+    /// gerçek OSRM rotalarına çevirir — her biri kendi buffer genişliğiyle.
+    ///
+    /// Bacak başına sıra: (1) yaya rotası dene — kısaysa (≤
+    /// <see cref="MaxWalkableLegMetres"/>) onu kullan; (2) uzunsa ya da yaya
+    /// rota bulamadıysa araç rotası dene, bulursa onu kullan; (3) ikisi de
+    /// olmadıysa (araç kısa yaya kadar makul değil, araç da yoksa) bacağın
+    /// iki ucu KENDİ BAŞINA, kendi modlarına göre buffer'lanır — aralarına
+    /// uzun/saçma bir "gerçek ama anlamsız" rota ya da sahte bir doğru
+    /// çizmek yerine.
+    ///
+    /// Tek anchor varsa tek "bacak" o noktanın kendisidir.
+    /// </summary>
+    private async Task<List<CorridorLeg>> BuildCorridorLegsAsync(
+        List<Anchor> anchors, CancellationToken ct)
+    {
+        if (anchors.Count == 1)
+        {
+            var only = anchors[0];
+            return [new CorridorLeg(
+                new Point(only.Geom.X, only.Geom.Y) { SRID = 4326 },
+                only.Mode == "car" ? CarInitialCorridorMetres : FootInitialCorridorMetres)];
+        }
+
+        var legs = new List<CorridorLeg>();
+        for (var i = 0; i < anchors.Count - 1; i++)
+        {
+            var from = anchors[i];
+            var to = anchors[i + 1];
+            var coords = new List<OsrmCoordinate>
+            {
+                new(from.Geom.X, from.Geom.Y),
+                new(to.Geom.X, to.Geom.Y),
+            };
+
+            var footRoute = await _osrm.GetRouteAsync(coords, RoutingProfile.Foot, ct);
+            if (footRoute is not null && footRoute.Distance <= MaxWalkableLegMetres)
+            {
+                legs.Add(new CorridorLeg(BuildRouteLineString(footRoute.Geometry), FootInitialCorridorMetres));
+                continue;
+            }
+
+            var carRoute = await _osrm.GetRouteAsync(coords, RoutingProfile.Driving, ct);
+            if (carRoute is not null)
+            {
+                legs.Add(new CorridorLeg(BuildRouteLineString(carRoute.Geometry), CarInitialCorridorMetres));
+                continue;
+            }
+
+            legs.Add(new CorridorLeg(
+                new Point(from.Geom.X, from.Geom.Y) { SRID = 4326 },
+                from.Mode == "car" ? CarInitialCorridorMetres : FootInitialCorridorMetres));
+            legs.Add(new CorridorLeg(
+                new Point(to.Geom.X, to.Geom.Y) { SRID = 4326 },
+                to.Mode == "car" ? CarInitialCorridorMetres : FootInitialCorridorMetres));
+        }
+
+        return legs;
+    }
+
+    /// <summary>OSRM GeoJSON LineString → NTS LineString. RoutesController'daki aynı dönüşümün küçük bir kopyası.</summary>
+    private static LineString BuildRouteLineString(OsrmLineStringGeometry geometry)
+    {
+        var points = geometry.Coordinates
+            .Where(c => c is { Length: >= 2 })
+            .Select(c => new Coordinate(c[0], c[1])) // GeoJSON [lon, lat] → NTS (X=lon, Y=lat)
+            .ToArray();
+        return new LineString(points) { SRID = 4326 };
+    }
+
+    /// <summary>
+    /// Koridor artık kopuk parçalardan oluşabilir (bkz.
+    /// <see cref="BuildCorridorLegsAsync"/> — rota bulunamayan bacaklar ayrı
+    /// birer daire olarak kalır) — bu yüzden her zaman MultiPolygon olarak
+    /// dönüyor, tek parçalı koridorlar da 1 elemanlı bir MultiPolygon'a
+    /// sarılıyor. Frontend'in tek bir GeoJSON tipiyle uğraşması yeterli.
+    /// </summary>
+    private static PolygonGeoJsonDto ToPolygonGeoJson(Geometry geometry)
+    {
+        var polygons = geometry switch
+        {
+            Polygon p => [p],
+            MultiPolygon mp => mp.Geometries.Cast<Polygon>().ToList(),
+            _ => [(Polygon)geometry.ConvexHull()],
+        };
+
+        var coordinates = polygons
+            .Select(p => new List<List<double[]>>
+            {
+                p.ExteriorRing.Coordinates.Select(c => new[] { c.X, c.Y }).ToList(),
+            })
+            .ToList();
+
+        return new PolygonGeoJsonDto("MultiPolygon", coordinates);
     }
 
     private async Task<HashSet<long>> GetFavoriteIdsAsync(

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
@@ -7,6 +7,7 @@ import type {
   Persona,
   Poi,
   PoiCategory,
+  PropertiesMapResponse,
   PropertyDetail,
   PropertyMapItem,
   PropertySummary,
@@ -49,7 +50,6 @@ import {
 } from '@/shared/map/analysisArea';
 import { useUserLocation } from '@/shared/map/useUserLocation';
 import { startFromLiveLocation, type RouteStart } from '@/shared/route/routeStart';
-import { createAnchorAreaPolygon, haversineDistanceMetres } from '@/shared/map/anchorSweetSpot';
 
 /**
  * Ana ekran — Çankaya haritası.
@@ -184,13 +184,30 @@ export function ExplorePage() {
     queryFn: () => api.get<Persona[]>('/personas'),
   });
 
+  // Anchor'lar (özel yerler) varsa varsayılan olarak SADECE onların
+  // koridorundaki evler gösterilir — kullanıcı bilerek "Tüm evleri göster"i
+  // açmadıkça tik KAPALI kalıyor.
+  //
+  // ⚠️ Koridor artık SUNUCUDA hesaplanıyor (OSRM gerçek rota + buffer,
+  // bkz. PropertiesController.BuildAnchorAreaAsync) — istemci sadece
+  // `showAll` bayrağını gönderiyor, merkez/yarıçap hesabıyla hiç
+  // uğraşmıyor. Eski client-side `anchorSweetSpot.ts` (ağırlıklı centroid +
+  // sabit yarıçaplı daire) tamamen kaldırıldı.
+  const [showAllProperties, setShowAllProperties] = useState(false);
+
   // Profile bağlı: bütçe aralığı sunucu tarafında `UserProfile` üzerinden
   // okunuyor, burada ayrıca göndermemiz gerekmiyor. `useSessionQuery` zaten
   // misafirken bu korumalı uca isteği hiç atmıyor (401 zincirini engeller).
-  const { data: properties = [] } = useSessionQuery({
-    queryKey: ['properties', 'map'],
-    queryFn: () => api.get<PropertyMapItem[]>('/properties'),
+  const { data: propertiesResponse } = useSessionQuery({
+    queryKey: ['properties', 'map', showAllProperties],
+    queryFn: () =>
+      api.get<PropertiesMapResponse>(`/properties?showAll=${showAllProperties}`),
   });
+  const properties = propertiesResponse?.items ?? [];
+  // ⚠️ GEÇİCİ: mentor koridorun nasıl hesaplandığını gözle kontrol etmek
+  // istedi — bkz. TopPropertiesResponse'taki aynı not. Onay sonrası bu
+  // satır (ve CankayaMap'e verilmesi) kaldırılacak.
+  const anchorCorridor = propertiesResponse?.corridorPolygon ?? null;
 
   const { data: selectedProperty = null } = useSessionQuery({
     queryKey: ['properties', 'detail', selectedPropertyId],
@@ -200,48 +217,15 @@ export function ExplorePage() {
 
   const persona = personas.find((p) => p.code === profile?.personaCode);
 
-  // Anchor'lardan (özel yerler) hesaplanan ağırlık merkezi + arama alanı.
-  // Anchor yoksa null — gösterilecek/filtrelenecek bir alan yok.
-  const anchorArea = useMemo(() => {
-    const anchors = profile?.anchors ?? [];
-    if (anchors.length === 0) return null;
-    return createAnchorAreaPolygon(
-      anchors.map((a) => ({ lat: a.lat, lon: a.lon, priority: a.priority, mode: a.mode })),
-    );
-  }, [profile?.anchors]);
-
-  // Anchor'lar (özel yerler) varsa varsayılan olarak SADECE onların
-  // çevresindeki alan gösterilir — kullanıcı bilerek "Tüm evleri göster"i
-  // açmadıkça tik KAPALI kalıyor.
-  const [showAllProperties, setShowAllProperties] = useState(false);
-
   // "En uygun evler" listesi. Ayrı bir uç nokta: `/properties` haritanın
   // TAMAMINI döndürüyor (binlerce kayıt) ve adres/gerekçe taşımıyor;
   // bunları 6.000 konut için hesaplatmak gereksiz iş olurdu.
-  //
-  // Anchor alanı aktifse (ve "Tüm evleri göster" kapalıysa) sunucuya da
-  // aynı merkez/yarıçapı gönderiyoruz — yoksa sunucu TÜM ilçedeki en iyi
-  // 20'yi seçip döner, bunların hiçbiri anchor alanının içinde olmayabilir.
-  // Harita pinlerindeki client-side filtreyle (bkz. `propertyPoints`) AYNI
-  // formülü (haversine) kullanıyor — ikisi farklı sınır çizmesin diye.
-  const useAnchorFilter = anchorArea !== null && !showAllProperties;
   const { data: topResponse, isLoading: topLoading } = useSessionQuery({
-    queryKey: [
-      'properties',
-      'top',
-      useAnchorFilter ? anchorArea.center.lat : null,
-      useAnchorFilter ? anchorArea.center.lon : null,
-      useAnchorFilter ? anchorArea.radiusMetres : null,
-    ],
-    queryFn: () => {
-      const params = new URLSearchParams({ limit: String(TOP_PROPERTY_LIMIT) });
-      if (useAnchorFilter) {
-        params.set('anchorLat', String(anchorArea.center.lat));
-        params.set('anchorLon', String(anchorArea.center.lon));
-        params.set('anchorRadiusM', String(anchorArea.radiusMetres));
-      }
-      return api.get<TopPropertiesResponse>(`/properties/top?${params.toString()}`);
-    },
+    queryKey: ['properties', 'top', showAllProperties],
+    queryFn: () =>
+      api.get<TopPropertiesResponse>(
+        `/properties/top?limit=${TOP_PROPERTY_LIMIT}&showAll=${showAllProperties}`,
+      ),
   });
   const topProperties = topResponse?.items ?? [];
   const topNearestFallback = topResponse?.nearestFallback ?? null;
@@ -534,22 +518,14 @@ export function ExplorePage() {
   // CankayaMap'teki `konutlar` GeoJSON source (R-109: yakınlaştırma
   // seviyesine göre gruplanma/ayrılma).
   //
-  // Anchor alanı varsa VE "Tüm evleri göster" kapalıysa, sadece o alana
-  // düşen evler gösteriliyor — client-side filtre, backend'e dokunmadan
-  // (harita zaten bütçeye uygun tüm evlerin konumunu getiriyor).
-  const propertyPoints: PropertyPoint[] = properties
-    .filter((p) => {
-      if (showAllProperties || !anchorArea) return true;
-      return (
-        haversineDistanceMetres(anchorArea.center, { lat: p.latitude, lon: p.longitude })
-        <= anchorArea.radiusMetres
-      );
-    })
-    .map((p) => ({
-      id: p.id,
-      lat: p.latitude,
-      lon: p.longitude,
-    }));
+  // Anchor koridoru artık SUNUCUDA uygulanıyor (`/properties?showAll=`) —
+  // `properties` burada zaten filtrelenmiş geliyor, ayrıca client-side
+  // filtreye gerek yok.
+  const propertyPoints: PropertyPoint[] = properties.map((p) => ({
+    id: p.id,
+    lat: p.latitude,
+    lon: p.longitude,
+  }));
 
   function handlePropertyClick(id: string) {
     // R-120 — "Rota" sekmesindeyken pin tıklaması detay yerine seçimi ekler/çıkarır.
@@ -701,7 +677,7 @@ export function ExplorePage() {
         userLocation={userLocation}
         // R-121 — oluşturulmuş rota: çizgi + numaralı duraklar + otomatik sığdırma.
         route={activeRoute}
-        anchorArea={anchorArea}
+        anchorArea={anchorCorridor}
         // Çekmece haritanın üstünde yüzüyor; örttüğü genişliği haritaya
         // bildiriyoruz ki ilçe sınırı panelin altında kalmasın.
         padLeft={drawerOpen && wideScreen ? DRAWER_WIDTH_PX : 0}
@@ -725,18 +701,17 @@ export function ExplorePage() {
           selectedId={selectedPropertyId}
           onSelect={handleTopSelect}
           onClose={() => setTopPanelOpen(false)}
-          // Liste boşsa NEDENİ ayırt etmek lazım: bütçeye uyan hiç ev yok mu
-          // (properties zaten boş), yoksa bütçeye uyan evler var ama hiçbiri
-          // anchor alanının içinde değil mi? İkincisinde "kira aralığını
-          // genişlet" mesajı yanıltıcı olurdu — asıl sorun anchor alanı.
+          // Liste boşsa NEDENİ ayırt etmek lazım: bütçeye uyan hiç ev yok mu,
+          // yoksa bütçeye uyan evler var ama hiçbiri anchor koridorunun
+          // içinde değil mi? İkincisinde "kira aralığını genişlet" mesajı
+          // yanıltıcı olurdu — asıl sorun koridor.
+          //
+          // Sunucu `nearestFallback`'ı SADECE koridor yüzünden boş kalan
+          // durumda dolduruyor (bkz. PropertiesController) — bu yüzden onun
+          // varlığı tek başına yeterli bir sinyal, ayrıca `properties`
+          // listesine bakmaya gerek yok.
           emptyReason={
-            topProperties.length > 0
-              ? null
-              : properties.length === 0
-                ? 'budget'
-                : useAnchorFilter
-                  ? 'anchor-area'
-                  : 'budget'
+            topProperties.length > 0 ? null : topNearestFallback ? 'anchor-area' : 'budget'
           }
           onShowAllProperties={() => setShowAllProperties(true)}
           nearestFallback={topNearestFallback}
@@ -1027,7 +1002,7 @@ export function ExplorePage() {
                 onToggleCategory={toggleCategory}
                 propertiesVisible={propertiesVisible}
                 onToggleProperties={() => setPropertiesVisible((v) => !v)}
-                hasAnchorArea={anchorArea !== null}
+                hasAnchorArea={anchorCount > 0}
                 showAllProperties={showAllProperties}
                 onToggleShowAllProperties={() => setShowAllProperties((v) => !v)}
               />

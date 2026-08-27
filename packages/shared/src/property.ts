@@ -203,16 +203,33 @@ export interface PropertySummary {
 }
 
 /**
+ * GeoJSON MultiPolygon — anchor koridoru kopuk parçalardan oluşabilir
+ * (OSRM'in gerçek rota bulamadığı bacaklar ayrı birer daire olarak kalır),
+ * bu yüzden sunucu HER ZAMAN MultiPolygon döner: tek parçalı koridorlar da
+ * 1 elemanlı bir MultiPolygon'a sarılı gelir. Her polygon tek dış halka,
+ * delik yok.
+ */
+export interface PolygonGeoJson {
+  type: 'MultiPolygon';
+  coordinates: number[][][][];
+}
+
+/**
  * `GET /properties/top` yanıtı.
  *
- * Anchor (özel yer) alanında hiç ev yoksa `items` boş olabilir — bu
- * durumda `nearestFallback`, alana EN YAKIN bütçeye uygun evi taşır
- * ("burada yok ama en yakını şu" demek için). Anchor filtresi
- * uygulanmadıysa ya da `items` zaten doluysa null.
+ * Anchor (özel yer) koridorunda hiç ev yoksa `items` boş olabilir — bu
+ * durumda `nearestFallback`, koridora EN YAKIN bütçeye uygun evi taşır
+ * ("burada yok ama en yakını şu" demek için). Anchor'lar yoksa ya da
+ * `showAll=true` ile filtre kapatıldıysa `corridorPolygon` null.
+ *
+ * ⚠️ GEÇİCİ: `corridorPolygon` şu an bilerek haritada GÖSTERİLİYOR —
+ * mentor alanın nasıl hesaplandığını gözle kontrol etmek istedi. Onay
+ * sonrası gizlenecek.
  */
 export interface TopPropertiesResponse {
   items: PropertySummary[];
   nearestFallback: PropertySummary | null;
+  corridorPolygon: PolygonGeoJson | null;
 }
 
 /** `GET /properties` — haritadaki pin'ler. Adres ve kırılım taşımaz. */
@@ -224,4 +241,10 @@ export interface PropertyMapItem {
   latitude: number;
   longitude: number;
   totalScore: number;
+}
+
+/** `GET /properties` yanıtı — harita pinleri + (varsa) anchor koridoru. */
+export interface PropertiesMapResponse {
+  items: PropertyMapItem[];
+  corridorPolygon: PolygonGeoJson | null;
 }
