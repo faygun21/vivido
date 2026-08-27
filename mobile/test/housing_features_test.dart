@@ -25,7 +25,11 @@ void main() {
         httpClient: MockClient((request) async {
           requests.add(request);
           return switch (request.url.path) {
-            '/api/v1/properties/top' => _jsonResponse([_propertySummaryJson]),
+            '/api/v1/properties/top' => _jsonResponse({
+              'items': [_propertySummaryJson],
+              'nearestFallback': null,
+              'corridorPolygon': null,
+            }),
             '/api/v1/properties/42' => _jsonResponse(_propertyDetailJson),
             _ => _jsonResponse({'title': 'Bulunamadı'}, statusCode: 404),
           };

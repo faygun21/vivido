@@ -11,7 +11,8 @@ class ApiPropertyGateway implements PropertyGateway {
   Future<List<PropertySummary>> getTopProperties({int limit = 20}) async {
     try {
       final json = await _client.get('/properties/top?limit=$limit');
-      return (json as List<dynamic>)
+      final items = json is Map<String, dynamic> ? json['items'] : json;
+      return (items as List<dynamic>)
           .map((item) => PropertySummary.fromJson(item as Map<String, dynamic>))
           .toList(growable: false);
     } on ApiException catch (error) {

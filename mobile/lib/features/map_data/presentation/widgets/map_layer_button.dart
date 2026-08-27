@@ -100,6 +100,26 @@ class _MapLayerSheet extends StatelessWidget {
                   subtitle: Text('${controller.properties.length} konut'),
                 ),
                 const Divider(),
+                if (controller.authenticated) ...[
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: controller.showAllProperties,
+                    onChanged:
+                        controller.isLoading
+                            ? null
+                            : (_) => controller.toggleShowAllProperties(),
+                    secondary: const Icon(Icons.route_outlined),
+                    title: const Text('Tüm konutları göster'),
+                    subtitle: Text(
+                      controller.showAllProperties
+                          ? 'Anchor koridoru filtresi kapalı'
+                          : controller.anchorCorridor == null
+                          ? 'Kayıtlı önemli konum bulunamadı'
+                          : 'Önemli konumların rota koridorundaki konutlar',
+                    ),
+                  ),
+                  const Divider(),
+                ],
                 for (final category in controller.categories)
                   CheckboxListTile(
                     contentPadding: EdgeInsets.zero,

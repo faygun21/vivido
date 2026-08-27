@@ -27,8 +27,23 @@ class ApiMapDataGateway implements MapDataGateway {
   }
 
   @override
-  Future<List<PropertyMapItem>> getAuthenticatedProperties() =>
-      _getList('/properties', PropertyMapItem.fromJson);
+  Future<AuthenticatedPropertiesMap> getAuthenticatedProperties({
+    bool showAll = false,
+  }) async {
+    try {
+      final response = await _client.get('/properties?showAll=$showAll');
+      if (response is! Map<String, dynamic>) {
+        throw const MapDataFailure('Konut harita verisi beklenen biçimde değil.');
+      }
+      return AuthenticatedPropertiesMap.fromJson(response);
+    } on ApiException catch (error) {
+      throw MapDataFailure(error.detail ?? error.title);
+    } on MapDataFailure {
+      rethrow;
+    } on Object {
+      throw const MapDataFailure('Konut harita verisi okunamadı.');
+    }
+  }
 
   @override
   Future<List<PropertyMapItem>> getPublicProperties(MapViewportBounds bounds) =>

@@ -323,6 +323,10 @@ class _MapOverviewState extends State<_MapOverview> {
                                 _mapDataController.propertiesVisible
                                     ? _mapDataController.properties
                                     : const [],
+                            anchorCorridor:
+                                _mapDataController.propertiesVisible
+                                    ? _mapDataController.anchorCorridor
+                                    : null,
                             route: widget.routes.activeRoute,
                             onBoundsChanged: _mapDataController.updateViewport,
                             onPoiTap: (poi) {
