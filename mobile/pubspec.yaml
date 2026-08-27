@@ -44,3 +44,8 @@ flutter:
   assets:
     - assets/images/vivido_logo.svg
     - assets/images/ev_resmi.png
+    # Çankaya ilçe sınırı. web/public/geo/cankaya.geojson'ın KOPYASI —
+    # webde sınır çiziliyordu, mobilde hiç yoktu ve harita nerede bittiği
+    # belirsiz duruyordu. Uygulama ile paketleniyor: 124 KB, ağa bağlı
+    # olmadan da çiziliyor. Web tarafı güncellenirse bu dosya da güncellenmeli.
+    - assets/geo/cankaya.geojson

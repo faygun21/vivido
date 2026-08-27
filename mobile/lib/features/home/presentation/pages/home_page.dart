@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../core/models/models.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../anchors/presentation/pages/anchor_manager_page.dart';
 import '../../../auth/application/session_controller.dart';
 import '../../../favorites/application/favorites_controller.dart';
@@ -83,13 +84,15 @@ class _HomePageState extends State<HomePage> {
           'Profil',
         ];
         final anchors = widget.controller.profile?.anchors ?? const <Anchor>[];
+        final isMapTab = _selectedIndex == 0;
         return Scaffold(
-          appBar: AppBar(
-            title: Text(
-              _selectedIndex == 0 ? 'Vivido' : titles[_selectedIndex],
-              style: const TextStyle(fontWeight: FontWeight.w800),
-            ),
-          ),
+          // Harita sekmesinde başlık çubuğu YOK: harita ekranın tepesine
+          // kadar uzanıyor ve arama kutusu doğrudan onun üstünde yüzüyor
+          // (webdeki Keşfet ekranıyla aynı fikir). Diğer sekmeler liste
+          // olduğu için başlığa ihtiyaç duyuyor.
+          appBar: isMapTab
+              ? null
+              : AppBar(title: Text(titles[_selectedIndex])),
           body: switch (_selectedIndex) {
             0 => _MapOverview(
               controller: widget.controller,
@@ -254,58 +257,22 @@ class _MapOverviewState extends State<_MapOverview> {
     final controller = widget.controller;
     final profile = controller.profile;
     final anchors = profile?.anchors ?? const <Anchor>[];
-    final persona =
-        controller.personas
-            .where((item) => item.code == profile?.personaCode)
-            .firstOrNull;
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      child: Icon(_personaIcon(profile?.personaCode)),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Merhaba, ${controller.user?.displayName ?? controller.user?.email ?? ''}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            '${persona?.displayNameTr ?? profile?.personaCode ?? 'Persona'} · ${anchors.length}/3 önemli konum',
-                            style: TextStyle(
-                              color:
-                                  Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Expanded(
-              child: Stack(
-                children: [
-                  Positioned.fill(
+    // ⚠️ TAM EKRAN HARİTA — eskiden harita bir Column'un içindeydi ve
+    // üstünde persona kartı (~90 px), altında yardım metni (~40 px), her
+    // yanında 16 px boşluk, tepesinde de AppBar vardı. Telefonun dar
+    // ekranında haritaya kalan alan yarıdan azdı ve uygulama "harita
+    // gösteren bir sayfa" gibi duruyordu. Webdeki Keşfet ekranı gibi artık
+    // harita EKRANIN KENDİSİ; kontroller üstünde yüzüyor.
+    //
+    // Persona kartı kaldırıldı: taşıdığı bilgi (persona adı + anchor sayısı)
+    // Profil sekmesinde zaten var, harita ekranında her açılışta yer kaplamak
+    // için bir gerekçesi yoktu.
+    final topInset = MediaQuery.of(context).padding.top;
+
+    return Stack(
+      children: [
+        Positioned.fill(
                     child: AnimatedBuilder(
                       animation: Listenable.merge([
                         _mapDataController,
@@ -347,62 +314,106 @@ class _MapOverviewState extends State<_MapOverview> {
                           ),
                     ),
                   ),
-                  Positioned(
-                    top: 12,
-                    left: 12,
-                    right: 12,
-                    child: LocationSearchPanel(
-                      controller: _searchController,
-                      onSelected: (result) {
-                        setState(() {
-                          _mapFocus = result;
-                          _analysisCenter = AnalysisCoordinate(
-                            latitude: result.latitude,
-                            longitude: result.longitude,
-                          );
-                        });
-                      },
-                      onCleared: () {
-                        setState(() => _mapFocus = null);
-                      },
-                    ),
-                  ),
-                  Positioned(
-                    top: 76,
-                    right: 12,
-                    child: MapLayerButton(controller: _mapDataController),
-                  ),
-                  Positioned(
-                    left: 12,
-                    bottom: 12,
-                    child: LocationAnalysisLauncher(
-                      hasSelectedLocation: _analysisCenter != null,
-                      analysisRadiusKm: _analysisRadiusKm,
-                      walkingMinutes: _walkingMinutes,
-                      onOpen: _openLocationAnalysisSettings,
-                      onClear: () {
-                        setState(() => _analysisCenter = null);
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              anchors.isEmpty
-                  ? 'Profil ekranından ilk önemli konumunu ekleyebilirsin.'
-                  : 'Numaralar öncelik sırasını gösterir. Konumlarını Profil ekranından yönetebilirsin.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
+        // Arama kutusu durum çubuğunun altına iniyor: AppBar kalktığı için
+        // artık onu aşağı iten bir şey yok.
+        Positioned(
+          top: topInset + 10,
+          left: 12,
+          right: 12,
+          child: LocationSearchPanel(
+            controller: _searchController,
+            onSelected: (result) {
+              setState(() {
+                _mapFocus = result;
+                _analysisCenter = AnalysisCoordinate(
+                  latitude: result.latitude,
+                  longitude: result.longitude,
+                );
+              });
+            },
+            onCleared: () {
+              setState(() => _mapFocus = null);
+            },
+          ),
         ),
-      ),
+        Positioned(
+          top: topInset + 74,
+          right: 12,
+          child: MapLayerButton(controller: _mapDataController),
+        ),
+        Positioned(
+          left: 12,
+          bottom: 12,
+          child: LocationAnalysisLauncher(
+            hasSelectedLocation: _analysisCenter != null,
+            analysisRadiusKm: _analysisRadiusKm,
+            walkingMinutes: _walkingMinutes,
+            onOpen: _openLocationAnalysisSettings,
+            onClear: () {
+              setState(() => _analysisCenter = null);
+            },
+          ),
+        ),
+
+        // Boş durum ipucu — YALNIZCA hiç önemli konum yokken.
+        //
+        // Eski sabit yardım metni her zaman görünüyordu ve kalıcı olarak yer
+        // kaplıyordu. Oysa "numaralar öncelik sırasını gösterir" bilgisi,
+        // haritada zaten numaralı pin gören birine bir şey katmıyor. Asıl
+        // gerekli olan, HİÇ konumu olmayan kullanıcıya nereye gideceğini
+        // söylemek; o yüzden ipucu yalnızca o durumda ve yüzen bir şerit
+        // olarak çıkıyor.
+        if (anchors.isEmpty)
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 74,
+            child: _MapHintBanner(
+              icon: Icons.place_outlined,
+              text:
+                  'Sana uygun evleri sıralayabilmemiz için Profil sekmesinden '
+                  'önemli konumlarını ekle.',
+            ),
+          ),
+      ],
     );
   }
+}
+
+/// Harita üstünde yüzen ince bilgi şeridi.
+class _MapHintBanner extends StatelessWidget {
+  const _MapHintBanner({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      boxShadow: AppShadows.md,
+    ),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: AppColors.accent),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 12.5,
+                height: 1.35,
+                color: AppColors.inkMuted,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _ProfileView extends StatelessWidget {

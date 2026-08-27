@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:maplibre/maplibre.dart';
 
 import '../../../../core/config/app_config.dart';
@@ -20,12 +21,28 @@ typedef PropertyTapCallback = void Function(PropertyMapItem property);
 const _poiSourceId = 'vivido-pois';
 const _propertySourceId = 'vivido-properties';
 const _poiPointLayerId = 'vivido-poi-points';
-const _poiClusterLayerId = 'vivido-poi-clusters';
+// NOT: `_poiClusterLayerId` KALDIRILDI — mor küme katmanı artık çizilmiyor
+// (gerekçe stildeki açıklamada). Sabiti bırakmak, ileride birinin var
+// olmayan bir katmanı sorgulamasına davetiye çıkarırdı.
 const _propertyPointLayerId = 'vivido-property-points';
 const _propertyClusterLayerId = 'vivido-property-clusters';
 const _routeSourceId = 'vivido-active-route';
 const _routeCasingLayerId = 'vivido-route-casing';
 const _routeLineLayerId = 'vivido-route-line';
+const _districtSourceId = 'vivido-district';
+const _districtFillLayerId = 'vivido-district-fill';
+const _districtLineLayerId = 'vivido-district-line';
+
+/// Çankaya sınırı — `pubspec.yaml` altında kayıtlı varlık.
+const _districtAssetPath = 'assets/geo/cankaya.geojson';
+
+/// Sınır poligonu bir kez okunup KODLANMIŞ hâliyle burada tutuluyor.
+///
+/// Harita her kurulduğunda 124 KB'lık dosyayı yeniden okuyup ayrıştırmak
+/// gereksiz; sekmeler arasında gidip gelirken bu widget defalarca yeniden
+/// kuruluyor. `updateGeoJsonSource` zaten String beklediği için `jsonEncode`
+/// sonucunu saklıyoruz — her seferinde yeniden kodlamaya da gerek kalmıyor.
+String? _cachedDistrictGeoJson;
 
 class CankayaMap extends StatefulWidget {
   const CankayaMap({
@@ -108,6 +125,43 @@ class _CankayaMapState extends State<CankayaMap> {
     }
   }
 
+  /// Çankaya sınırını varlıklardan okuyup haritaya yazar.
+  ///
+  /// ⚠️ `cankaya.geojson` sınır poligonunun YANINDA bir de etiket `Point`'i
+  /// taşıyor (2 özellik). Filtrelemezsek `fill` katmanı bir noktayı boyamaya
+  /// çalışır; MapLibre bunu sessizce yok sayar ama `line` katmanı da onu
+  /// çizmeye kalkar. Web tarafında da aynı filtre var.
+  Future<void> _loadDistrictBoundary() async {
+    final style = _styleController;
+    if (style == null) return;
+
+    try {
+      var geojson = _cachedDistrictGeoJson;
+      if (geojson == null) {
+        final raw = await rootBundle.loadString(_districtAssetPath);
+        final parsed = jsonDecode(raw) as Map<String, Object?>;
+        final features = (parsed['features'] as List<Object?>? ?? const [])
+            .whereType<Map<String, Object?>>()
+            .where((feature) {
+              final type =
+                  (feature['geometry'] as Map<String, Object?>?)?['type'];
+              return type == 'Polygon' || type == 'MultiPolygon';
+            })
+            .toList();
+        geojson = jsonEncode({
+          'type': 'FeatureCollection',
+          'features': features,
+        });
+        _cachedDistrictGeoJson = geojson;
+      }
+
+      await style.updateGeoJsonSource(id: _districtSourceId, data: geojson);
+    } on Object {
+      // Sınır çizilemezse harita yine çalışır — yalnızca ilçe hattı eksik
+      // kalır. Kullanıcıyı bununla rahatsız etmenin anlamı yok.
+    }
+  }
+
   void _reportBounds() {
     final controller = _mapController;
     if (controller == null || widget.onBoundsChanged == null) return;
@@ -161,9 +215,12 @@ class _CankayaMapState extends State<CankayaMap> {
       }
     }
 
+    // Yalnızca KONUT kümesi sorgulanıyor: POI küme katmanı stilden
+    // kaldırıldı ve var olmayan bir katman id'si sorgulamak her haritaya
+    // dokunuşta hataya düşürürdü.
     final clusterHits = controller.featuresAtPoint(
       event.screenPoint,
-      layerIds: const [_propertyClusterLayerId, _poiClusterLayerId],
+      layerIds: const [_propertyClusterLayerId],
     );
     if (clusterHits.isNotEmpty) {
       final camera = controller.getCamera();
@@ -377,6 +434,7 @@ class _CankayaMapState extends State<CankayaMap> {
           },
           onStyleLoaded: (style) {
             _styleController = style;
+            unawaited(_loadDistrictBoundary());
             unawaited(_updateMapSources());
             if (widget.route != null) unawaited(_fitRoute());
             _reportBounds();
@@ -601,6 +659,13 @@ String get _mapStyle => jsonEncode({
       'type': 'geojson',
       'data': {'type': 'FeatureCollection', 'features': <Object>[]},
     },
+    // Çankaya sınırı. Boş başlıyor; varlık dosyası okununca
+    // `_loadDistrictBoundary()` dolduruyor (stil senkron kurulmak zorunda,
+    // varlık okuma ise asenkron).
+    _districtSourceId: {
+      'type': 'geojson',
+      'data': {'type': 'FeatureCollection', 'features': <Object>[]},
+    },
   },
   'layers': [
     {
@@ -677,6 +742,27 @@ String get _mapStyle => jsonEncode({
         ],
       },
     },
+    // ── Çankaya sınırı ──────────────────────────────────────────────────
+    // Yolların ÜSTÜNDE (görünsün) ama rota ve pin'lerin ALTINDA (onları
+    // örtmesin). Renk ve kalınlık `web/src/shared/map/CankayaMap.tsx`
+    // `ilce-sinir` katmanıyla aynı; iki üründe sınır aynı görünsün.
+    //
+    // Hafif dolgu, ilçe DIŞINI değil içini vurguluyor: kullanıcı haritayı
+    // kaydırdığında kapsama alanının nerede bittiğini görebilsin. Opaklık
+    // düşük tutuldu, altındaki sokaklar okunur kalıyor.
+    {
+      'id': _districtFillLayerId,
+      'type': 'fill',
+      'source': _districtSourceId,
+      'paint': {'fill-color': '#0b3d35', 'fill-opacity': 0.05},
+    },
+    {
+      'id': _districtLineLayerId,
+      'type': 'line',
+      'source': _districtSourceId,
+      'layout': {'line-cap': 'round', 'line-join': 'round'},
+      'paint': {'line-color': '#0b3d35', 'line-width': 2.4},
+    },
     {
       'id': _routeCasingLayerId,
       'type': 'line',
@@ -729,28 +815,17 @@ String get _mapStyle => jsonEncode({
         'circle-stroke-width': 2,
       },
     },
-    {
-      'id': _poiClusterLayerId,
-      'type': 'circle',
-      'source': _poiSourceId,
-      'filter': ['has', 'point_count'],
-      'maxzoom': 14,
-      'paint': {
-        'circle-color': '#7c3aed',
-        'circle-opacity': 0.76,
-        'circle-stroke-width': 2,
-        'circle-stroke-color': '#ffffff',
-        'circle-radius': [
-          'step',
-          ['get', 'point_count'],
-          16,
-          10,
-          20,
-          50,
-          26,
-        ],
-      },
-    },
+    // ⚠️ POI KÜME DAİRESİ (mor halka) BİLEREK YOK.
+    //
+    // Uzaklaşınca mor küme daireleri çiziliyordu; bunlar hem kalabalık
+    // yapıyor hem de altlarındaki gerçek kategori renklerini örtüp kafa
+    // karıştırıyordu (market kırmızı, park yeşil… hepsi morun altında
+    // kayboluyordu). Web bunu `64cafd8` ile kaldırdı, mobil geride kalmıştı.
+    // Artık uzaklaşınca HİÇBİR ŞEY çizilmiyor; zoom 14+ olunca POI'ler
+    // doğrudan kendi kategori renkleriyle beliriyor (aşağıdaki katman).
+    //
+    // Kaynaktaki `cluster: true` DURUYOR: kümeleme, çizilmese de
+    // `point_count` özelliğini üretiyor ve aşağıdaki filtre ona dayanıyor.
     {
       'id': _poiPointLayerId,
       'type': 'circle',
