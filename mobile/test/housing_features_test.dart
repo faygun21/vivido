@@ -446,7 +446,9 @@ const _scoreRowJson = <String, Object?>{
   'contribution': 36.8,
   'status': 'strong',
   'poiCountInRadius': 4,
-  'densityFactor': 1.05,
+  'densityBonus': 1.5,
+  'poiId': 101,
+  'searchRadiusM': 1200,
 };
 
 const _routeDetailJson = <String, Object?>{

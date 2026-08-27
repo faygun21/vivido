@@ -18,8 +18,10 @@ typedef PoiTapCallback = void Function(PoiMapItem poi);
 typedef PropertyTapCallback = void Function(PropertyMapItem property);
 
 const _poiSourceId = 'vivido-pois';
+const _highlightedPoiSourceId = 'vivido-highlighted-pois';
 const _propertySourceId = 'vivido-properties';
 const _poiPointLayerId = 'vivido-poi-points';
+const _highlightedPoiLayerId = 'vivido-highlighted-poi-points';
 const _poiClusterLayerId = 'vivido-poi-clusters';
 const _propertyPointLayerId = 'vivido-property-points';
 const _propertyClusterLayerId = 'vivido-property-clusters';
@@ -40,6 +42,7 @@ class CankayaMap extends StatefulWidget {
     this.walkingMinutes = defaultWalkingMinutes,
     this.analysisRadiusKm = defaultAnalysisRadiusKm,
     this.pois = const [],
+    this.highlightedPois = const [],
     this.properties = const [],
     this.anchorCorridor,
     this.onBoundsChanged,
@@ -57,6 +60,7 @@ class CankayaMap extends StatefulWidget {
   final int walkingMinutes;
   final double analysisRadiusKm;
   final List<PoiMapItem> pois;
+  final List<PoiMapItem> highlightedPois;
   final List<PropertyMapItem> properties;
   final AnchorCorridor? anchorCorridor;
   final MapBoundsCallback? onBoundsChanged;
@@ -79,6 +83,7 @@ class _CankayaMapState extends State<CankayaMap> {
       _focusOnResult();
     }
     if (!identical(oldWidget.pois, widget.pois) ||
+        !identical(oldWidget.highlightedPois, widget.highlightedPois) ||
         !identical(oldWidget.properties, widget.properties) ||
         !identical(oldWidget.anchorCorridor, widget.anchorCorridor) ||
         !identical(oldWidget.route, widget.route)) {
@@ -98,6 +103,10 @@ class _CankayaMapState extends State<CankayaMap> {
         style.updateGeoJsonSource(
           id: _poiSourceId,
           data: _poiFeatureCollection(widget.pois),
+        ),
+        style.updateGeoJsonSource(
+          id: _highlightedPoiSourceId,
+          data: _poiFeatureCollection(widget.highlightedPois),
         ),
         style.updateGeoJsonSource(
           id: _propertySourceId,
@@ -152,6 +161,21 @@ class _CankayaMapState extends State<CankayaMap> {
       for (final property in widget.properties) {
         if (property.id == propertyId) {
           widget.onPropertyTap?.call(property);
+          return;
+        }
+      }
+    }
+
+    final highlightedPoiHits = controller.featuresAtPoint(
+      event.screenPoint,
+      layerIds: const [_highlightedPoiLayerId],
+    );
+    final highlightedPoiId =
+        highlightedPoiHits.firstOrNull?.properties['id']?.toString();
+    if (highlightedPoiId != null) {
+      for (final poi in widget.highlightedPois) {
+        if (poi.id == highlightedPoiId) {
+          widget.onPoiTap?.call(poi);
           return;
         }
       }
@@ -613,6 +637,10 @@ String get _mapStyle => jsonEncode({
       'clusterMaxZoom': 14,
       'clusterRadius': 42,
     },
+    _highlightedPoiSourceId: {
+      'type': 'geojson',
+      'data': {'type': 'FeatureCollection', 'features': <Object>[]},
+    },
     _propertySourceId: {
       'type': 'geojson',
       'data': {'type': 'FeatureCollection', 'features': <Object>[]},
@@ -810,6 +838,17 @@ String get _mapStyle => jsonEncode({
         'circle-color': _poiColorExpression(),
         'circle-stroke-color': '#ffffff',
         'circle-stroke-width': 1.5,
+      },
+    },
+    {
+      'id': _highlightedPoiLayerId,
+      'type': 'circle',
+      'source': _highlightedPoiSourceId,
+      'paint': {
+        'circle-radius': 7,
+        'circle-color': _poiColorExpression(),
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': 2,
       },
     },
   ],
