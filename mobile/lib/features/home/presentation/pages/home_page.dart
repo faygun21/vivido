@@ -468,10 +468,19 @@ class _MapOverviewState extends State<_MapOverview> {
                                 _mapDataController.propertiesVisible
                                     ? _mapDataController.properties
                                     : const [],
-                            anchorCorridor:
-                                _mapDataController.propertiesVisible
-                                    ? _mapDataController.anchorCorridor
-                                    : null,
+                            // ⚠️ ANCHOR KORİDORU KULLANICIYA GÖSTERİLMİYOR.
+                            //
+                            // Kesik çizgili alan, mentorun koridorun nasıl
+                            // hesaplandığını gözle doğrulaması için geçiciydi;
+                            // doğrulama bitti. Kullanıcı açısından bu çizgi
+                            // bir anlam taşımıyor, sadece haritayı kalabalık
+                            // yapıyordu. Web de aynı sebeple gizledi (cf0f0df).
+                            //
+                            // Katmana DOKUNULMADI, yalnızca veri akışı kesildi
+                            // — tekrar göstermek gerekirse burayı geri açmak
+                            // yeterli. Sunucu `corridorPolygon` döndürmeye
+                            // devam ediyor, DTO'dan çıkarmaya gerek yok.
+                            anchorCorridor: null,
                             route: widget.routes.activeRoute,
                             userLocation: _userLocation.location,
                             onBoundsChanged: _mapDataController.updateViewport,
