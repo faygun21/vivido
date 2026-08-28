@@ -15,10 +15,14 @@ import {
  * Rota oluşturucu + metrik kartı (R-120, R-121) — Explore çekmecesinin
  * "Rota" sekmesi.
  *
- * DÜZEN: konut seçimi HARİTADAN yapılır (pin tıklaması); bu panel yalnızca
- * seçilenleri listeler, başlangıç noktasını ve ulaşım modunu toplar ve
- * `POST /routes` isteğini tetikler. Rota oluşunca metrik kartına geçer:
- * toplam mesafe, tahmini süre ve numaralı ziyaret sırası.
+ * DÜZEN: konut seçimi ev detayındaki/liste kartındaki "Rotaya ekle"
+ * düğmesinden yapılır — pin'e tıklamak HER sekmede detay panelini açar
+ * (2026-08-28: eskiden Rota sekmesindeyken pin tıklamak evi doğrudan
+ * ekliyordu, kullanıcı evin özelliklerine hiç bakmadan "unutarak"
+ * ekleyebiliyordu). Bu panel yalnızca seçilenleri listeler, başlangıç
+ * noktasını ve ulaşım modunu toplar ve `POST /routes` isteğini tetikler.
+ * Rota oluşunca metrik kartına geçer: toplam mesafe, tahmini süre ve
+ * numaralı ziyaret sırası.
  */
 
 /** Rota listesine eklenebilen konut özeti — Explore'daki konut verisinden. */
@@ -62,7 +66,8 @@ export interface RouteBuilderPanelProps {
   onDiscardRoute: () => void;
   /**
    * R-122 — bir durağı rotadan çıkarır; kalanlar yeniden optimize edilir.
-   * EKLEME haritadan yapılıyor (pin tıklaması), o yüzden burada karşılığı yok.
+   * EKLEME ev detayındaki/liste kartındaki "Rotaya ekle" düğmesinden
+   * yapılıyor (`ExplorePage.toggleRouteStop`), o yüzden burada karşılığı yok.
    */
   onRemoveStop: (propertyId: number) => void;
   /** Durak eklenip çıkarıldıktan sonra yeniden hesaplama sürüyor mu? */
@@ -163,7 +168,9 @@ export function RouteBuilderPanel({
             ))}
           </ul>
         ) : (
-          <p className="muted">Henüz konut seçilmedi — haritada konut pinine tıkla.</p>
+          <p className="muted">
+            Henüz konut seçilmedi — bir evin detayını aç, "Rotaya ekle" düğmesine bas.
+          </p>
         )}
       </section>
 
@@ -280,7 +287,7 @@ function RouteMetricsCard({
           <dt>Tahmini süre</dt>
           <dd>{formatRouteDuration(route.totalDurationS)}</dd>
           <dt>Durak</dt>
-          <dd>{route.stopCount} konut</dd>
+          <dd>{route.stopCount} / {MAX_ROUTE_STOPS} konut</dd>
         </dl>
 
         {route.isSaved ? (
@@ -401,8 +408,9 @@ function RouteMetricsCard({
         )}
 
         <p className="muted route-edit-hint">
-          Haritadaki bir konuta tıklayarak rotaya <strong>ekleyebilir</strong> ya da
-          çıkarabilirsin — rota kendiliğinden yeniden hesaplanır.
+          Bir evin detayındaki ya da listedeki "Rotaya ekle" düğmesiyle
+          <strong> ekleyebilir</strong>, buradaki ✕ ile çıkarabilirsin — rota
+          kendiliğinden yeniden hesaplanır.
         </p>
         {error && (
           <p className="route-error" role="alert">

@@ -395,6 +395,7 @@ button {
   border: 3px solid white;
   box-shadow: 0 0 0 8px rgb(37 99 235 / 20%);
 }
+
 .anchor-map { height: 320px; border: 1px solid var(--line); border-radius: 1rem; overflow: hidden; margin-bottom: 0.5rem; }
 .anchor-form { display: grid; gap: 0.75rem; padding: 0.9rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--surface); margin-bottom: 1rem; }
 .anchor-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
@@ -779,6 +780,23 @@ button svg,
 
 .map-banner .btn-chip:hover { background: color-mix(in srgb, #fff 30%, transparent); }
 
+/* Güçlü yön ipucu — uyarı/aksiyon değil bilgi bandı, o yüzden vurgu
+   rengi yerine nötr koyu ton (2026-08-28). */
+.map-banner--info {
+  background: var(--ink);
+  color: var(--surface);
+}
+
+.map-banner--info .btn-chip {
+  border-color: color-mix(in srgb, var(--surface) 45%, transparent);
+  background: color-mix(in srgb, var(--surface) 18%, transparent);
+  color: var(--surface);
+}
+
+.map-banner--info .btn-chip:hover {
+  background: color-mix(in srgb, var(--surface) 30%, transparent);
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    KONUT DETAY PANELİ (W6)
    ───────────────────────────────────────────────────────────────────
@@ -950,6 +968,37 @@ button svg,
 .favorite-btn.is-active:hover { background: #a53818; }
 .favorite-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .favorite-btn span { font-size: 1.05rem; line-height: 1; }
+
+/* Favori düğmesiyle AYNI şekil/boyut — rota mavisi (route-start-icon /
+   rota-cizgi ile aynı ton, #2563eb) favoriden ayırt eder. Hemen altında
+   durur, iki eylem birbirinden ayrı ama görsel dilde tutarlı kalır. */
+.route-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid color-mix(in srgb, #2563eb 40%, transparent);
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, #2563eb 8%, var(--surface));
+  color: #2563eb;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.route-btn:hover { background: color-mix(in srgb, #2563eb 15%, var(--surface)); }
+
+.route-btn.is-active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.route-btn.is-active:hover { background: #1d4ed8; }
+.route-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.route-btn span { font-size: 1.05rem; line-height: 1; }
 
 /* ── Panel bölümleri ── */
 .property-section {
@@ -1389,6 +1438,28 @@ button svg,
 .top-card-fav.is-active { color: var(--accent); }
 .top-card-fav:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* Favori düğmesiyle AYNI tema/boyut, hemen altında — rota mavisi
+   (route-start-icon / rota-cizgi ile aynı ton) favoriden ayırt eder. */
+.top-card-route {
+  position: absolute;
+  top: 5.4rem;
+  right: 1.1rem;
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: 1.3rem;
+  line-height: 1;
+}
+.top-card-route:hover { background: var(--input-bg); color: #2563eb; }
+.top-card-route.is-active { color: #2563eb; }
+.top-card-route:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* ── Panelin tetikleyicisi ── */
 .top-panel-toggle {
   display: inline-flex;
@@ -1534,6 +1605,20 @@ button svg,
 }
 
 .drawer-tab:hover { color: var(--ink); }
+
+/* Rota sekmesindeki "3/6" — kullanıcı kapasiteyi sadece dolunca değil,
+   her an, hangi sekmedeyse orada görsün (2026-08-28). Rota temasının
+   mavisiyle (.route-btn, .top-card-route) aynı renk. */
+.drawer-tab-count {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, #2563eb 15%, transparent);
+  color: #2563eb;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
 
 .drawer-tab.is-active {
   background: var(--surface);
