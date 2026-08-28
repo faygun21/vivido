@@ -2282,3 +2282,17 @@ input::-webkit-inner-spin-button {
 input[type=number] {
   -moz-appearance: textfield;
 }
+
+/* Güncellenecek CSS Sınıfı (Örnek) */
+.guide-mascot-container {
+  /* ... diğer mevcut stilleriniz (background, dimensions, vb.) */
+
+  /* Pozisyon Sabitleme: Maskotu ekranın sol ve alt kenarlarına göre konumlandırın */
+  position: fixed; /* Ekranın genelinde sabit kalmasını sağlamak için */
+  bottom: 20px;   /* Alt kenardan 20px yukarıda */
+  left: 20px;     /* Sol kenardan 20px içeride (Sidebarınızın genişliğine göre ayarlayın) */
+
+  /* Diğer Stillendirme Önerileri: */
+  z-index: 1000;    /* Diğer elementlerin (örneğin harita) üzerinde kalmasını sağlamak için yüksek bir z-index verin */
+  transition: left 0.3s ease-in-out; /* Sidebar açılıp kapandığında maskotun yumuşak bir şekilde kayması için geçiş ekleyin */
+}

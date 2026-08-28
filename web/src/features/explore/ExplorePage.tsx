@@ -1,12 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import {
-  keepPreviousData,
-  useMutation,
-  useQueries,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { GuideMascot } from '@/components/GuideMascot';
 import type {
   CreateRouteRequest,
   LocationSearchResult,
@@ -133,14 +128,8 @@ export function ExplorePage() {
 
   // ─── R-120/121 — rota oluşturucu durumu ───
   const [routeIds, setRouteIds] = useState<number[]>([]);
-  // Başlangıç artık haritadan SEÇİLMİYOR: canlı konum ya da yazılan adres.
-  // Haritaya tıklamak zaten konut seçmek/analiz için kullanılıyordu; üçüncü
-  // bir anlam yüklemek kipleri karıştırıyordu (bkz. shared/route/routeStart.ts).
   const [routeStart, setRouteStart] = useState<RouteStart | null>(null);
 
-  // Canlı konum TEK yerden geliyor: haritadaki mavi nokta ve rota başlangıcı
-  // aynı okumayı paylaşıyor. İki ayrı `getCurrentPosition` çağrısı tarayıcıya
-  // iki kez izin sordurur ve iki farklı koordinat üretirdi.
   const {
     status: locationStatus,
     location: userLocation,
@@ -166,20 +155,8 @@ export function ExplorePage() {
     queryFn: () => api.get<Persona[]>('/personas'),
   });
 
-  // Anchor'lar (özel yerler) varsa varsayılan olarak SADECE onların
-  // koridorundaki evler gösterilir — kullanıcı bilerek "Tüm evleri göster"i
-  // açmadıkça tik KAPALI kalıyor.
-  //
-  // ⚠️ Koridor artık SUNUCUDA hesaplanıyor (OSRM gerçek rota + buffer,
-  // bkz. PropertiesController.BuildAnchorAreaAsync) — istemci sadece
-  // `showAll` bayrağını gönderiyor, merkez/yarıçap hesabıyla hiç
-  // uğraşmıyor. Eski client-side `anchorSweetSpot.ts` (ağırlıklı centroid +
-  // sabit yarıçaplı daire) tamamen kaldırıldı.
   const [showAllProperties, setShowAllProperties] = useState(false);
 
-  // Profile bağlı: bütçe aralığı sunucu tarafında `UserProfile` üzerinden
-  // okunuyor, burada ayrıca göndermemiz gerekmiyor. `useSessionQuery` zaten
-  // misafirken bu korumalı uca isteği hiç atmıyor (401 zincirini engeller).
   const { data: propertiesResponse } = useSessionQuery({
     queryKey: ['properties', 'map', showAllProperties],
     queryFn: () =>
@@ -193,24 +170,6 @@ export function ExplorePage() {
     enabled: selectedPropertyId !== null,
   });
 
-  // Seçili evin güçlü yönü olan POI'leri haritada vurgulamak için — panelin
-  // manuel kategori seçiminden (`selectedCategories`) TAMAMEN ayrı bir sorgu.
-  // Panel durumuna hiç dokunmuyoruz: kullanıcı "kafe" katmanını açmamış olsa
-  // bile, ev "kafeye yakınlık" güçlü yönüyle öne çıktıysa o kafe ayrıca
-  // gösterilir (bkz. CankayaMap'teki `poi-vurgu` katmanı).
-  //
-  // ⚠️ Bbox+kategori TARAMASI YOK: her gerekçe satırı zaten skoru üreten
-  // GERÇEK POI'nin id'sini taşıyor (`poiId` — bkz. `property_poi_access`).
-  // Kuş uçuşu "en yakın" TAHMİNİ (eski yaklaşım) bazen gerçek yürüme
-  // rotasında çok uzak, düz çizgide yakın görünen yanlış bir POI'yi
-  // seçiyordu (örn. aradaki orman/kampüs) — `/pois/by-id` ile doğrudan
-  // doğru POI'yi çekiyoruz.
-  //
-  // ⭐ İSTİSNA — yoğunluk bonusu olan kriterler (`densityBonus !== 0`,
-  // birden fazla POI skora katkı yaptı, örn. dip dibe 2 market): TEK POI
-  // göstermek yanlış olurdu, o yüzden skor motorunun yoğunluk sayarken
-  // kullandığı AYNI yarıçapta (`searchRadiusM`) o kategorideki TÜMÜ
-  // `/pois/near` ile çekiliyor (2026-08-27).
   const strengths = selectedProperty?.score.strengths ?? [];
   const singlePoiIds = Array.from(new Set(
     strengths
@@ -238,11 +197,7 @@ export function ExplorePage() {
       enabled: selectedProperty != null,
     })),
   });
-  // ⚠️ Bazı kategoriler (örn. `park`) veri kalitesi sorunu yüzünden (tek bir
-  // yerin onlarca ayrı POI'ye bölünmüş hâli, bkz. 2026-08-27 notu) yoğunluk
-  // yarıçapında YÜZLERCE nokta dönebiliyor — kategori başına en yakın
-  // MAX_DENSITY_POIS_PER_CATEGORY tanesiyle sınırlıyoruz, yoksa "dip dibe 2
-  // market" için tek POI göstermenin çözdüğü kalabalık sorunu geri gelir.
+
   const densityPois = selectedProperty
     ? densityQueries.flatMap((q) =>
         (q.data ?? [])
@@ -262,9 +217,6 @@ export function ExplorePage() {
 
   const persona = personas.find((p) => p.code === profile?.personaCode);
 
-  // "En uygun evler" listesi. Ayrı bir uç nokta: `/properties` haritanın
-  // TAMAMINI döndürüyor (binlerce kayıt) ve adres/gerekçe taşımıyor;
-  // bunları 6.000 konut için hesaplatmak gereksiz iş olurdu.
   const { data: topResponse, isLoading: topLoading } = useSessionQuery({
     queryKey: ['properties', 'top', showAllProperties],
     queryFn: () =>
@@ -275,11 +227,6 @@ export function ExplorePage() {
   const topProperties = topResponse?.items ?? [];
   const topNearestFallback = topResponse?.nearestFallback ?? null;
 
-  // ─── R-120/121 — rota ÖNİZLEME (hesaplar, KAYDETMEZ) ───
-  //
-  // Akış ikiye ayrıldı: önce `/routes/preview` ile hesaplanıp haritada
-  // gösterilir, kullanıcı beğenirse `/routes` ile kaydedilir. Eskiden tek
-  // adımdı ve her deneme "Kayıtlı Rotalarım"da çöp bırakıyordu.
   const queryClient = useQueryClient();
   const routeMutation = useMutation({
     mutationFn: (body: CreateRouteRequest) =>
@@ -287,9 +234,6 @@ export function ExplorePage() {
     onSuccess: (data) => setActiveRoute(data),
   });
 
-  // ─── R-123 — önizlenen rotayı kaydet ───
-  // Sunucu aynı girdiyle yeniden hesaplar (TSP + OSRM deterministik), bu
-  // yüzden istemcinin geometriyi geri göndermesine gerek yok.
   const saveRouteMutation = useMutation({
     mutationFn: (body: CreateRouteRequest) => api.post<RouteDetail>('/routes', body),
     onSuccess: (data) => {
@@ -298,7 +242,6 @@ export function ExplorePage() {
     },
   });
 
-  // Arayüz title'a değil `problem.code`'a dallanır (kural) — bkz. routeFormat.
   const activeRouteError = routeMutation.error ?? saveRouteMutation.error;
   const routeError =
     activeRouteError instanceof ApiError
@@ -307,14 +250,6 @@ export function ExplorePage() {
         ? 'Rota oluşturulamadı. Lütfen yeniden dene.'
         : null;
 
-  /**
-   * Önizlenen rotayı kaydeder.
-   *
-   * Gövde önizlemedekiyle AYNI olmalı — aksi halde kaydedilen rota
-   * kullanıcının haritada gördüğünden farklı çıkardı. Bu yüzden duraklar
-   * `activeRoute.stops` sırasından değil, ORİJİNAL `routeIds` seçiminden
-   * kuruluyor: sunucu TSP'yi yeniden çalıştırıp aynı sırayı üretiyor.
-   */
   function handleSaveRoute(name: string, scheduledAt: string | null) {
     if (!activeRoute || !routeStart) return;
     saveRouteMutation.mutate({
@@ -326,8 +261,6 @@ export function ExplorePage() {
     });
   }
 
-  // Profil → Explore akışında (R-123) yüklenen rota için Rota sekmesini ve
-  // çekmeceyi bir kez aç. Sonraki sekme geçişlerine karışmaz — id değişmedikçe.
   const lastAutoTabRouteIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!activeRoute) {
@@ -340,22 +273,9 @@ export function ExplorePage() {
     setDrawerOpen(true);
   }, [activeRoute]);
 
-  /**
-   * R-122 — aktif rotanın durak kümesini değiştirir ve YENİDEN OPTİMİZE eder.
-   *
-   * Hem çıkarma hem EKLEME buradan geçiyor: "Rota düzenle" düğmesi kaldırıldı,
-   * çünkü rota açıkken haritadan konut eklemek/çıkarmak zaten aynı işi
-   * yapıyor — ayrı bir "düzenleme kipi" gereksiz bir adımdı.
-   *
-   * Sonuç `/routes/preview`'dan geliyor, yani değiştirilen rota KAYDEDİLMEMİŞ
-   * hâle döner. Doğrusu bu: kullanıcı kaydettiği rotayı değiştirdiyse artık
-   * elinde farklı bir rota var; kart "henüz kaydedilmedi" diyerek bunu
-   * açıkça söylüyor.
-   */
   function reoptimizeRoute(nextPropertyIds: number[]) {
     if (!activeRoute) return;
 
-    // En az 2 durak kalmıyorsa rota geçersiz — oluşturucuya dön.
     if (nextPropertyIds.length < MIN_ROUTE_STOPS) {
       setActiveRoute(null);
       setRouteIds(nextPropertyIds);
@@ -363,8 +283,6 @@ export function ExplorePage() {
       return;
     }
 
-    // Seçim listesi rotayla aynı kalmalı: "Sıfırla" ve yeniden oluşturma
-    // bu diziyi okuyor.
     setRouteIds(nextPropertyIds);
 
     routeMutation.mutate({
@@ -384,11 +302,6 @@ export function ExplorePage() {
 
     const remainingStops = activeRoute.stops.filter((stop) => stop.propertyId !== propertyId);
 
-    // Optimistik: durak/sayaç anında düşer, toplamlar kalan bacaklardan
-    // tahmin edilir. Sunucu yanıtı kesin TSP sırası/geometriyle değiştirir.
-    // (Ekleme tarafında optimistik güncelleme YOK: yeni durağın nereye
-    // gireceğini ve bacak sürelerini ancak sunucu bilir, uydurmak yanlış
-    // sayı göstermek olurdu.)
     if (remainingStops.length >= MIN_ROUTE_STOPS) {
       setActiveRoute({
         ...activeRoute,
@@ -431,13 +344,6 @@ export function ExplorePage() {
   }
 
   // ─── R-108/109/110 — POI & konut katmanları ───
-  //
-  // `selectedCategories` BOŞ başlar ve boş kalır — harita hiçbir kategoriyi
-  // otomatik açmaz. Eskiden ilk yüklemede TÜM kategoriler işaretleniyordu,
-  // bu da haritayı baştan onlarca ikonla dolduruyordu. Artık kullanıcı ya
-  // panelden manuel açar ya da bir ev seçince o evin güçlü yönleri ayrı bir
-  // "vurgu" katmanıyla (bkz. `highlightedPois`) otomatik beliriyor — panel
-  // durumuna hiç dokunmadan.
   const [bounds, setBounds] = useState<MapBounds | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [propertiesVisible, setPropertiesVisible] = useState(true);
@@ -524,12 +430,6 @@ export function ExplorePage() {
     ...(pendingAnchor
       ? [{ id: '__yeni', lat: pendingAnchor.lat, lon: pendingAnchor.lon, label: 'Yeni yer' }]
       : []),
-    // R-120 — rota başlangıcı haritada "A" pini ile işaretlenir.
-    //
-    // ⚠️ Başlangıç CANLI KONUMSA pin BASILMIYOR: aynı koordinatta zaten mavi
-    // konum noktası var, ikisi üst üste binince kullanıcı iki ayrı yer
-    // sanıyordu. Adresten seçilen başlangıç ise konumdan farklı bir nokta,
-    // orada pin gerçekten bilgi taşıyor.
     ...(routeStart && routeStart.source === 'address'
       ? [{
           id: '__rota-baslangic',
@@ -567,13 +467,6 @@ export function ExplorePage() {
       totalScore: property.totalScore,
     }));
 
-  // Konutlar `markers`'a DEĞİL, ayrı bir cluster kaynağına gider — bkz.
-  // CankayaMap'teki `konutlar` GeoJSON source (R-109: yakınlaştırma
-  // seviyesine göre gruplanma/ayrılma).
-  //
-  // Anchor koridoru artık SUNUCUDA uygulanıyor (`/properties?showAll=`) —
-  // `properties` burada zaten filtrelenmiş geliyor, ayrıca client-side
-  // filtreye gerek yok.
   const propertyPoints: PropertyPoint[] = properties.map((p) => ({
     id: p.id,
     lat: p.latitude,
@@ -588,6 +481,28 @@ export function ExplorePage() {
   // ekleme SADECE detay panelindeki/liste kartındaki açık "Rotaya ekle"
   // düğmesinden oluyor — kullanıcı önce evi görür, sonra karar verir.
   function handlePropertyClick(id: string) {
+    if (tab === 'rota') {
+      const propertyId = Number(id);
+
+      if (activeRoute) {
+        const currentIds = activeRoute.stops.map((stop) => stop.propertyId);
+        if (currentIds.includes(propertyId)) {
+          handleRemoveRouteStop(propertyId);
+        } else if (currentIds.length < MAX_ROUTE_STOPS) {
+          reoptimizeRoute([...currentIds, propertyId]);
+        }
+        return;
+      }
+
+      setRouteIds((current) => {
+        if (current.includes(propertyId)) {
+          return current.filter((value) => value !== propertyId);
+        }
+        if (current.length >= MAX_ROUTE_STOPS) return current;
+        return [...current, propertyId];
+      });
+      return;
+    }
     setSelectedPropertyId(id);
   }
 
@@ -618,13 +533,6 @@ export function ExplorePage() {
     if (!wideScreen) setDrawerOpen(false);
   }
 
-  /**
-   * "Konumumu kullan" — canlı konumu rota başlangıcı yapar.
-   *
-   * Konum henüz elde değilse yeniden ister; izin reddedilmişse tarayıcı
-   * penceresi bir daha çıkmaz, o yüzden panel `locationMessage` ile ayarı
-   * nasıl açacağını anlatıyor ve altında adres alternatifi duruyor.
-   */
   function useLiveLocationAsStart() {
     if (userLocation) {
       setRouteStart(startFromLiveLocation(userLocation));
@@ -633,13 +541,9 @@ export function ExplorePage() {
     requestUserLocation();
   }
 
-  // Konum "Konumumu kullan"a basıldıktan SONRA gelirse başlangıç kendiliğinden
-  // dolsun — kullanıcı düğmeye ikinci kez basmak zorunda kalmasın. Yalnızca
-  // başlangıç boşken devreye giriyor ki seçilmiş bir adresi ezmesin.
   useEffect(() => {
     if (!userLocation || routeStart !== null || locationStatus !== 'ready') return;
     setRouteStart(startFromLiveLocation(userLocation));
-    // `routeStart` bilerek bağımlılıkta: null'dan çıktığı an efekt susmalı.
   }, [userLocation, routeStart, locationStatus]);
 
   function focusLocation(location: LocationSearchResult) {
@@ -702,13 +606,8 @@ export function ExplorePage() {
         highlightedPois={highlightedPois}
         selectedPropertyId={selectedPropertyId}
         onBoundsChange={handleBoundsChange}
-        // Canlı konum haritada da rota başlangıcında da AYNI okuma —
-        // bileşen kendi başına `getCurrentPosition` çağırmıyor.
         userLocation={userLocation}
-        // R-121 — oluşturulmuş rota: çizgi + numaralı duraklar + otomatik sığdırma.
         route={activeRoute}
-        // Çekmece haritanın üstünde yüzüyor; örttüğü genişliği haritaya
-        // bildiriyoruz ki ilçe sınırı panelin altında kalmasın.
         padLeft={drawerOpen && wideScreen ? DRAWER_WIDTH_PX : 0}
       />
 
@@ -732,15 +631,6 @@ export function ExplorePage() {
           selectedId={selectedPropertyId}
           onSelect={handleTopSelect}
           onClose={() => setTopPanelOpen(false)}
-          // Liste boşsa NEDENİ ayırt etmek lazım: bütçeye uyan hiç ev yok mu,
-          // yoksa bütçeye uyan evler var ama hiçbiri anchor koridorunun
-          // içinde değil mi? İkincisinde "kira aralığını genişlet" mesajı
-          // yanıltıcı olurdu — asıl sorun koridor.
-          //
-          // Sunucu `nearestFallback`'ı SADECE koridor yüzünden boş kalan
-          // durumda dolduruyor (bkz. PropertiesController) — bu yüzden onun
-          // varlığı tek başına yeterli bir sinyal, ayrıca `properties`
-          // listesine bakmaya gerek yok.
           emptyReason={
             topProperties.length > 0 ? null : topNearestFallback ? 'anchor-area' : 'budget'
           }
@@ -753,7 +643,6 @@ export function ExplorePage() {
         />
       )}
 
-      {/* Harita üstü kontroller: Sadece hamburger ve "En uygun evler" düğmesi kaldı */}
       <div className="map-topbar">
         {!drawerOpen && (
           <button
@@ -823,7 +712,6 @@ export function ExplorePage() {
           </button>
         </header>
 
-        {/* ── TEK VE DOĞRU YERİ: Başlığın altı, sekmelerin üstü ── */}
         {authenticated && (
           <div style={{ padding: '0.75rem 0.85rem 0 0.85rem', position: 'relative', zIndex: 2 }}>
             <LocationSearch onSelect={focusLocation} onClear={() => setMapFocus(null)} />
@@ -859,7 +747,6 @@ export function ExplorePage() {
         </nav>
 
         <div className="drawer-body">
-
           {tab === 'profil' &&
             (isGuest || !authenticated ? (
               <GuestPanel />
@@ -999,10 +886,6 @@ export function ExplorePage() {
                 isCreating={routeMutation.isPending}
                 error={routeError}
                 route={activeRoute}
-                // "Sıfırla" ASLA veri silmez: yalnızca ekranı ve
-                // oluşturucuyu temizler. Kayıtlı rota Profil'de durur;
-                // silmek için oradaki çöp kutusu kullanılır. Yanlışlıkla
-                // basılması bu sayede zararsız.
                 onDiscardRoute={() => {
                   setActiveRoute(null);
                   setRouteIds([]);
@@ -1021,7 +904,7 @@ export function ExplorePage() {
             <section className="drawer-section">
               <h2>Harita katmanları</h2>
 
-              { isGuest && (
+              {isGuest && (
                 <p className="muted">
                   Bütçene uygun <strong>{properties.length} konut</strong> haritada 🏠 ile
                   işaretli. Bir pin&apos;e tıklayınca adres, kira ve skorun gerekçesi açılır.
@@ -1059,6 +942,11 @@ export function ExplorePage() {
           )}
         </div>
       </aside>
+
+      <GuideMascot 
+        isOpen={drawerOpen} 
+        onTabChange={setTab} 
+      />
     </section>
   );
 }

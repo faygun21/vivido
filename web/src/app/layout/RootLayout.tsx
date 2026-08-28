@@ -123,8 +123,7 @@ export function RootLayout() {
         üstleniyor; bu satır uygulama genelindeki atıf olarak kalır.
       */}
       <footer className="app-footer">
-        Harita verisi © OpenStreetMap katkıcıları · Konut verisi{' '}
-        <strong>sentetiktir</strong>
+        Harita verisi © OpenStreetMap katkıcıları · Konut verisi sentetiktir
       </footer>
     </div>
   );
