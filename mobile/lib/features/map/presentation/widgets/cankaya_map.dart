@@ -22,13 +22,18 @@ typedef PoiTapCallback = void Function(PoiMapItem poi);
 typedef PropertyTapCallback = void Function(PropertyMapItem property);
 
 const _poiSourceId = 'vivido-pois';
+const _highlightedPoiSourceId = 'vivido-highlighted-pois';
 const _propertySourceId = 'vivido-properties';
 const _poiPointLayerId = 'vivido-poi-points';
-// NOT: `_poiClusterLayerId` KALDIRILDI — mor küme katmanı artık çizilmiyor
+const _highlightedPoiLayerId = 'vivido-highlighted-poi-points';
+// NOT: `_poiClusterLayerId` BİLEREK YOK — mor küme katmanı artık çizilmiyor
 // (gerekçe stildeki açıklamada). Sabiti bırakmak, ileride birinin var
 // olmayan bir katmanı sorgulamasına davetiye çıkarırdı.
 const _propertyPointLayerId = 'vivido-property-points';
 const _propertyClusterLayerId = 'vivido-property-clusters';
+const _anchorCorridorSourceId = 'vivido-anchor-corridor';
+const _anchorCorridorFillLayerId = 'vivido-anchor-corridor-fill';
+const _anchorCorridorLineLayerId = 'vivido-anchor-corridor-line';
 const _routeSourceId = 'vivido-active-route';
 const _routeCasingLayerId = 'vivido-route-casing';
 const _routeLineLayerId = 'vivido-route-line';
@@ -75,7 +80,9 @@ class CankayaMap extends StatefulWidget {
     this.walkingMinutes = defaultWalkingMinutes,
     this.analysisRadiusKm = defaultAnalysisRadiusKm,
     this.pois = const [],
+    this.highlightedPois = const [],
     this.properties = const [],
+    this.anchorCorridor,
     this.onBoundsChanged,
     this.onPoiTap,
     this.onPropertyTap,
@@ -92,7 +99,9 @@ class CankayaMap extends StatefulWidget {
   final int walkingMinutes;
   final double analysisRadiusKm;
   final List<PoiMapItem> pois;
+  final List<PoiMapItem> highlightedPois;
   final List<PropertyMapItem> properties;
+  final AnchorCorridor? anchorCorridor;
   final MapBoundsCallback? onBoundsChanged;
   final PoiTapCallback? onPoiTap;
   final PropertyTapCallback? onPropertyTap;
@@ -117,7 +126,9 @@ class _CankayaMapState extends State<CankayaMap> {
       _focusOnResult();
     }
     if (!identical(oldWidget.pois, widget.pois) ||
+        !identical(oldWidget.highlightedPois, widget.highlightedPois) ||
         !identical(oldWidget.properties, widget.properties) ||
+        !identical(oldWidget.anchorCorridor, widget.anchorCorridor) ||
         !identical(oldWidget.route, widget.route)) {
       unawaited(_updateMapSources());
     }
@@ -137,8 +148,16 @@ class _CankayaMapState extends State<CankayaMap> {
           data: _poiFeatureCollection(widget.pois),
         ),
         style.updateGeoJsonSource(
+          id: _highlightedPoiSourceId,
+          data: _poiFeatureCollection(widget.highlightedPois),
+        ),
+        style.updateGeoJsonSource(
           id: _propertySourceId,
           data: _propertyFeatureCollection(widget.properties),
+        ),
+        style.updateGeoJsonSource(
+          id: _anchorCorridorSourceId,
+          data: _anchorCorridorFeatureCollection(widget.anchorCorridor),
         ),
         style.updateGeoJsonSource(
           id: _routeSourceId,
@@ -296,6 +315,21 @@ class _CankayaMapState extends State<CankayaMap> {
       for (final property in widget.properties) {
         if (property.id == propertyId) {
           widget.onPropertyTap?.call(property);
+          return;
+        }
+      }
+    }
+
+    final highlightedPoiHits = controller.featuresAtPoint(
+      event.screenPoint,
+      layerIds: const [_highlightedPoiLayerId],
+    );
+    final highlightedPoiId =
+        highlightedPoiHits.firstOrNull?.properties['id']?.toString();
+    if (highlightedPoiId != null) {
+      for (final poi in widget.highlightedPois) {
+        if (poi.id == highlightedPoiId) {
+          widget.onPoiTap?.call(poi);
           return;
         }
       }
@@ -766,6 +800,19 @@ String _routeFeatureCollection(RouteDetail? route) => jsonEncode({
   ],
 });
 
+String _anchorCorridorFeatureCollection(AnchorCorridor? corridor) =>
+    jsonEncode({
+      'type': 'FeatureCollection',
+      'features': [
+        if (corridor != null)
+          {
+            'type': 'Feature',
+            'properties': {'kind': 'anchor-corridor'},
+            'geometry': corridor.toGeoJson(),
+          },
+      ],
+    });
+
 List<Object> _poiColorExpression() {
   final expression = <Object>[
     'match',
@@ -812,12 +859,20 @@ String get _mapStyle => jsonEncode({
       'clusterMaxZoom': 13,
       'clusterRadius': 42,
     },
+    _highlightedPoiSourceId: {
+      'type': 'geojson',
+      'data': {'type': 'FeatureCollection', 'features': <Object>[]},
+    },
     _propertySourceId: {
       'type': 'geojson',
       'data': {'type': 'FeatureCollection', 'features': <Object>[]},
       'cluster': true,
       'clusterMaxZoom': 14,
       'clusterRadius': 45,
+    },
+    _anchorCorridorSourceId: {
+      'type': 'geojson',
+      'data': {'type': 'FeatureCollection', 'features': <Object>[]},
     },
     _routeSourceId: {
       'type': 'geojson',
@@ -926,6 +981,24 @@ String get _mapStyle => jsonEncode({
       'source': _districtSourceId,
       'layout': {'line-cap': 'round', 'line-join': 'round'},
       'paint': {'line-color': '#0b3d35', 'line-width': 2.4},
+    },
+    {
+      'id': _anchorCorridorFillLayerId,
+      'type': 'fill',
+      'source': _anchorCorridorSourceId,
+      'paint': {'fill-color': '#0f766e', 'fill-opacity': 0.13},
+    },
+    {
+      'id': _anchorCorridorLineLayerId,
+      'type': 'line',
+      'source': _anchorCorridorSourceId,
+      'layout': {'line-cap': 'round', 'line-join': 'round'},
+      'paint': {
+        'line-color': '#0f766e',
+        'line-width': 2,
+        'line-opacity': 0.85,
+        'line-dasharray': [2, 2],
+      },
     },
     {
       'id': _routeCasingLayerId,
@@ -1078,12 +1151,26 @@ String get _mapStyle => jsonEncode({
       // orada başlıyor.
       'minzoom': 14.5,
       // Ekrandaki boy = 72 × icon-size (bkz. konut ikonundaki hesap).
-      // POI dairesi zoom 15.5'te 10 yarıçapında (çap 20 px); ikon ~11 px
+      // POI dairesi 14.5'te 10 yarıçapında (çap 20 px); ikon ~11 px
       // olsun: 11/72 ≈ 0.15.
       'layout': {
         'icon-image': ['get', 'iconId'],
         'icon-size': 0.15,
         'icon-allow-overlap': true,
+      },
+    },
+    // Seçili konutun "güçlü yön" POI'leri — ayrı kaynak, ayrı katman.
+    // En SONDA duruyor ki normal POI noktalarının üstünde kalsın:
+    // vurgulanan POI, vurgulanmayanın altında kaybolmamalı.
+    {
+      'id': _highlightedPoiLayerId,
+      'type': 'circle',
+      'source': _highlightedPoiSourceId,
+      'paint': {
+        'circle-radius': 7,
+        'circle-color': _poiColorExpression(),
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': 2,
       },
     },
   ],

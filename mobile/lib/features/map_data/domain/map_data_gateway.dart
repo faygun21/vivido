@@ -8,7 +8,9 @@ abstract interface class MapDataGateway {
     required Set<String> categories,
   });
 
-  Future<List<PropertyMapItem>> getAuthenticatedProperties();
+  Future<AuthenticatedPropertiesMap> getAuthenticatedProperties({
+    bool showAll = false,
+  });
 
   Future<List<PropertyMapItem>> getPublicProperties(MapViewportBounds bounds);
 }

@@ -15,19 +15,27 @@ class ApiPropertyGateway implements PropertyGateway {
     try {
       // Anchor koridorunu SUNUCU hesaplıyor (profildeki özel yerlerden).
       // İstemcinin merkez/yarıçap göndermesi gerekmiyor; tek bayrak yeter.
-      final json =
-          await _client.get('/properties/top?limit=$limit&showAll=$showAll')
-              as Map<String, dynamic>;
+      final raw = await _client.get(
+        '/properties/top?limit=$limit&showAll=$showAll',
+      );
 
-      final items = (json['items'] as List<dynamic>? ?? const [])
+      // ⚠️ ESKİ ŞEKLE DE DAYANIKLI. Uç bir zamanlar düz dizi dönüyordu;
+      // eski bir sunucuya bağlanılırsa tip hatasıyla patlamak yerine
+      // listeyi okuyup devam ediyoruz. (Bu savunma merge sırasında
+      // arkadaşımızın çözümünden alındı.)
+      final json = raw is Map<String, dynamic> ? raw : null;
+      final rawItems = json == null ? raw : json['items'];
+
+      final items = (rawItems as List<dynamic>? ?? const [])
           .map((item) => PropertySummary.fromJson(item as Map<String, dynamic>))
           .toList(growable: false);
 
-      final fallbackJson = json['nearestFallback'] as Map<String, dynamic>?;
+      // Dizi dönen eski sunucuda "en yakın ev" bilgisi zaten yok.
+      final fallbackJson = json?['nearestFallback'] as Map<String, dynamic>?;
 
-      // `corridorPolygon` BİLEREK okunmuyor: web de onu haritada
-      // göstermeyi bıraktı (cf0f0df). Alan DTO'da duruyor ama arayüz
-      // tüketmiyor.
+      // `corridorPolygon` BURADA okunmuyor: koridoru haritada
+      // `AuthenticatedPropertiesMap` üzerinden çiziyoruz (bkz.
+      // map_data gateway), liste ekranının ona ihtiyacı yok.
       return TopProperties(
         items: items,
         nearestFallback: fallbackJson == null

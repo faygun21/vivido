@@ -21,6 +21,8 @@ class MapDataController extends ChangeNotifier {
   Set<String> selectedCategories = const {};
   List<PoiMapItem> pois = const [];
   List<PropertyMapItem> properties = const [];
+  AnchorCorridor? anchorCorridor;
+  bool showAllProperties = false;
   bool propertiesVisible = true;
   bool isLoading = false;
   bool isViewportLoading = false;
@@ -38,19 +40,22 @@ class MapDataController extends ChangeNotifier {
 
     final propertyFuture =
         authenticated
-            ? _gateway.getAuthenticatedProperties()
-            : Future.value(const <PropertyMapItem>[]);
+            ? _gateway.getAuthenticatedProperties(showAll: showAllProperties)
+            : Future.value(const AuthenticatedPropertiesMap(items: []));
     final errors = <String>[];
 
     try {
       categories = await _gateway.getPoiCategories();
-      selectedCategories = categories.map((item) => item.code).toSet();
+      final availableCodes = categories.map((item) => item.code).toSet();
+      selectedCategories = selectedCategories.intersection(availableCodes);
     } on MapDataFailure catch (error) {
       errors.add(error.message);
     }
 
     try {
-      properties = await propertyFuture;
+      final propertyData = await propertyFuture;
+      properties = propertyData.items;
+      anchorCorridor = propertyData.corridor;
     } on MapDataFailure catch (error) {
       errors.add(error.message);
     }
@@ -90,6 +95,12 @@ class MapDataController extends ChangeNotifier {
     if (propertiesVisible && !authenticated && properties.isEmpty) {
       _scheduleViewportRefresh(immediate: true);
     }
+  }
+
+  Future<void> toggleShowAllProperties() async {
+    if (!authenticated || isLoading) return;
+    showAllProperties = !showAllProperties;
+    await initialize();
   }
 
   Future<void> retry() async {

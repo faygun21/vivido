@@ -147,8 +147,10 @@ class PropertyScoreRow {
     required this.weight,
     required this.contribution,
     required this.status,
-    required this.densityFactor,
+    required this.densityBonus,
+    required this.searchRadiusM,
     this.poiCountInRadius,
+    this.poiId,
   });
 
   final String categoryCode;
@@ -161,7 +163,9 @@ class PropertyScoreRow {
   final double contribution;
   final String status;
   final int? poiCountInRadius;
-  final double densityFactor;
+  final double densityBonus;
+  final String? poiId;
+  final int searchRadiusM;
 
   factory PropertyScoreRow.fromJson(Map<String, dynamic> json) =>
       PropertyScoreRow(
@@ -175,7 +179,9 @@ class PropertyScoreRow {
         contribution: (json['contribution'] as num? ?? 0).toDouble(),
         status: json['status'] as String? ?? 'weak',
         poiCountInRadius: (json['poiCountInRadius'] as num?)?.toInt(),
-        densityFactor: (json['densityFactor'] as num? ?? 1).toDouble(),
+        densityBonus: (json['densityBonus'] as num? ?? 0).toDouble(),
+        poiId: json['poiId']?.toString(),
+        searchRadiusM: (json['searchRadiusM'] as num? ?? 0).toInt(),
       );
 }
 

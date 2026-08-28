@@ -104,3 +104,68 @@ class PropertyMapItem {
         isSynthetic: json['isSynthetic'] as bool? ?? false,
       );
 }
+
+/// Backend'in anchor'lar arasındaki gerçek OSRM rotalarını genişleterek
+/// ürettiği GeoJSON MultiPolygon koridoru.
+class AnchorCorridor {
+  const AnchorCorridor({required this.coordinates});
+
+  /// GeoJSON sırası korunur: polygon -> ring -> point -> [longitude, latitude].
+  final List<List<List<List<double>>>> coordinates;
+
+  factory AnchorCorridor.fromJson(Map<String, dynamic> json) {
+    if (json['type'] != 'MultiPolygon') {
+      throw const FormatException('Anchor koridoru MultiPolygon olmalıdır.');
+    }
+    final polygons = json['coordinates'] as List<dynamic>?;
+    if (polygons == null) {
+      throw const FormatException('Anchor koridoru koordinatları eksik.');
+    }
+    return AnchorCorridor(
+      coordinates: [
+        for (final polygon in polygons)
+          [
+            for (final ring in polygon as List<dynamic>)
+              [
+                for (final point in ring as List<dynamic>)
+                  [
+                    ((point as List<dynamic>)[0] as num).toDouble(),
+                    (point[1] as num).toDouble(),
+                  ],
+              ],
+          ],
+      ],
+    );
+  }
+
+  Map<String, Object> toGeoJson() => {
+    'type': 'MultiPolygon',
+    'coordinates': coordinates,
+  };
+}
+
+class AuthenticatedPropertiesMap {
+  const AuthenticatedPropertiesMap({
+    required this.items,
+    this.corridor,
+  });
+
+  final List<PropertyMapItem> items;
+  final AnchorCorridor? corridor;
+
+  factory AuthenticatedPropertiesMap.fromJson(Map<String, dynamic> json) {
+    final rawItems = json['items'] as List<dynamic>?;
+    if (rawItems == null) {
+      throw const FormatException('Konut harita listesi eksik.');
+    }
+    final rawCorridor = json['corridorPolygon'];
+    return AuthenticatedPropertiesMap(
+      items: rawItems
+          .map((item) => PropertyMapItem.fromJson(item as Map<String, dynamic>))
+          .toList(growable: false),
+      corridor: rawCorridor is Map<String, dynamic>
+          ? AnchorCorridor.fromJson(rawCorridor)
+          : null,
+    );
+  }
+}

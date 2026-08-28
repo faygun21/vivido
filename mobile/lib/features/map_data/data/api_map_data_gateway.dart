@@ -26,21 +26,24 @@ class ApiMapDataGateway implements MapDataGateway {
     );
   }
 
-  /// ⚠️ BU UÇ NESNE DÖNER, DİZİ DEĞİL — `{ items, corridorPolygon }`.
-  ///
-  /// Anchor koridoru eklenince şekil değişti; mobil hâlâ dizi beklediği için
-  /// `_getList` "beklenen biçimde değil" hatası atıyor, hata da yutulup
-  /// haritada **0 konut** olarak görünüyordu. Ekrandaki tek belirti katman
-  /// panelindeki "0 konut" yazısıydı.
-  ///
-  /// `corridorPolygon` BİLEREK okunmuyor: web de onu haritada göstermeyi
-  /// bıraktı (cf0f0df).
-  ///
-  /// Dikkat: aşağıdaki `/properties/map` (misafir ucu) HÂLÂ düz dizi
-  /// döndürüyor — ikisi aynı şey sanılıp birleştirilmemeli.
   @override
-  Future<List<PropertyMapItem>> getAuthenticatedProperties() =>
-      _getItemsOf('/properties', PropertyMapItem.fromJson);
+  Future<AuthenticatedPropertiesMap> getAuthenticatedProperties({
+    bool showAll = false,
+  }) async {
+    try {
+      final response = await _client.get('/properties?showAll=$showAll');
+      if (response is! Map<String, dynamic>) {
+        throw const MapDataFailure('Konut harita verisi beklenen biçimde değil.');
+      }
+      return AuthenticatedPropertiesMap.fromJson(response);
+    } on ApiException catch (error) {
+      throw MapDataFailure(error.detail ?? error.title);
+    } on MapDataFailure {
+      rethrow;
+    } on Object {
+      throw const MapDataFailure('Konut harita verisi okunamadı.');
+    }
+  }
 
   @override
   Future<List<PropertyMapItem>> getPublicProperties(MapViewportBounds bounds) =>
@@ -48,32 +51,6 @@ class ApiMapDataGateway implements MapDataGateway {
         _path('/properties/map', _boundsQuery(bounds)),
         PropertyMapItem.fromJson,
       );
-
-  /// `{ items: [...] }` sarmalayan uçlar için.
-  Future<List<T>> _getItemsOf<T>(
-    String path,
-    T Function(Map<String, dynamic>) fromJson,
-  ) async {
-    try {
-      final response = await _client.get(path);
-      if (response is! Map<String, dynamic>) {
-        throw const MapDataFailure('Harita verisi beklenen biçimde değil.');
-      }
-      final items = response['items'];
-      if (items is! List<dynamic>) {
-        throw const MapDataFailure('Harita verisi "items" alanı taşımıyor.');
-      }
-      return items
-          .map((item) => fromJson(item as Map<String, dynamic>))
-          .toList(growable: false);
-    } on ApiException catch (error) {
-      throw MapDataFailure(error.detail ?? error.title);
-    } on MapDataFailure {
-      rethrow;
-    } on Object {
-      throw const MapDataFailure('Harita verisi okunamadı.');
-    }
-  }
 
   Future<List<T>> _getList<T>(
     String path,

@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../favorites/application/favorites_controller.dart';
 import '../../../routes/application/routes_controller.dart';
 import '../../../routes/domain/route_models.dart';
+import '../../../property_strengths/domain/strength_poi_gateway.dart';
 import '../../application/property_catalog_controller.dart';
 import '../../domain/property_gateway.dart';
 import '../../domain/property_models.dart';
@@ -16,6 +17,7 @@ class PropertyListPage extends StatefulWidget {
     required this.gateway,
     required this.favorites,
     required this.routes,
+    required this.strengthPoiGateway,
     super.key,
   });
 
@@ -23,6 +25,7 @@ class PropertyListPage extends StatefulWidget {
   final PropertyGateway gateway;
   final FavoritesController favorites;
   final RoutesController routes;
+  final StrengthPoiGateway strengthPoiGateway;
 
   @override
   State<PropertyListPage> createState() => _PropertyListPageState();
@@ -44,6 +47,7 @@ class _PropertyListPageState extends State<PropertyListPage> {
               gateway: widget.gateway,
               favorites: widget.favorites,
               routes: widget.routes,
+              strengthPoiGateway: widget.strengthPoiGateway,
               onFavoriteChanged: widget.controller.updateFavorite,
             ),
       ),

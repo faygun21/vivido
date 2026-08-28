@@ -31,6 +31,8 @@ import '../../../properties/presentation/property_format.dart';
 import '../../../routes/domain/route_models.dart';
 import '../../../properties/presentation/pages/property_detail_page.dart';
 import '../../../properties/presentation/pages/property_list_page.dart';
+import '../../../property_strengths/data/api_strength_poi_gateway.dart';
+import '../../../property_strengths/domain/strength_poi_gateway.dart';
 import '../../../routes/application/routes_controller.dart';
 import '../../../routes/data/api_routes_gateway.dart';
 import '../../../routes/presentation/pages/routes_page.dart';
@@ -53,6 +55,7 @@ class _HomePageState extends State<HomePage> {
   late final PropertyCatalogController _propertyCatalog;
   late final FavoritesController _favorites;
   late final RoutesController _routes;
+  late final StrengthPoiGateway _strengthPoiGateway;
 
   /// Konum ve adres araması BURADA yaşıyor, harita ekranında değil: hem
   /// harita hem Rotalar sekmesi kullanıyor. Ayrı örnekler olsaydı kullanıcıdan
@@ -75,6 +78,7 @@ class _HomePageState extends State<HomePage> {
     _searchController = LocationSearchController(
       ApiLocationSearchGateway(widget.controller.client),
     );
+    _strengthPoiGateway = ApiStrengthPoiGateway(widget.controller.client);
   }
 
   @override
@@ -118,18 +122,21 @@ class _HomePageState extends State<HomePage> {
               routes: _routes,
               userLocation: _userLocation,
               searchController: _searchController,
+              strengthPoiGateway: _strengthPoiGateway,
             ),
             1 => PropertyListPage(
               controller: _propertyCatalog,
               gateway: _propertyGateway,
               favorites: _favorites,
               routes: _routes,
+              strengthPoiGateway: _strengthPoiGateway,
             ),
             2 => FavoritesPage(
               controller: _favorites,
               propertyGateway: _propertyGateway,
               propertyCatalog: _propertyCatalog,
               routes: _routes,
+              strengthPoiGateway: _strengthPoiGateway,
             ),
             3 => RoutesPage(
               controller: _routes,
@@ -205,6 +212,7 @@ class _MapOverview extends StatefulWidget {
     required this.routes,
     required this.userLocation,
     required this.searchController,
+    required this.strengthPoiGateway,
   });
 
   final SessionController controller;
@@ -212,6 +220,7 @@ class _MapOverview extends StatefulWidget {
   final PropertyCatalogController propertyCatalog;
   final FavoritesController favorites;
   final RoutesController routes;
+  final StrengthPoiGateway strengthPoiGateway;
 
   /// Rotalar sekmesiyle PAYLAŞILAN örnekler — bkz. `_HomePageState`.
   final UserLocationController userLocation;
@@ -371,6 +380,7 @@ class _MapOverviewState extends State<_MapOverview> {
               gateway: widget.propertyGateway,
               favorites: widget.favorites,
               routes: widget.routes,
+              strengthPoiGateway: widget.strengthPoiGateway,
               onFavoriteChanged: widget.propertyCatalog.updateFavorite,
             ),
       ),
@@ -458,6 +468,10 @@ class _MapOverviewState extends State<_MapOverview> {
                                 _mapDataController.propertiesVisible
                                     ? _mapDataController.properties
                                     : const [],
+                            anchorCorridor:
+                                _mapDataController.propertiesVisible
+                                    ? _mapDataController.anchorCorridor
+                                    : null,
                             route: widget.routes.activeRoute,
                             userLocation: _userLocation.location,
                             onBoundsChanged: _mapDataController.updateViewport,
