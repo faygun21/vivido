@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/network/network_status_controller.dart';
 import '../../../properties/application/property_catalog_controller.dart';
 import '../../../properties/domain/property_gateway.dart';
 import '../../../properties/presentation/pages/property_detail_page.dart';
@@ -16,6 +17,7 @@ class FavoritesPage extends StatefulWidget {
     required this.propertyCatalog,
     required this.routes,
     required this.strengthPoiGateway,
+    required this.networkStatus,
     super.key,
   });
 
@@ -24,6 +26,7 @@ class FavoritesPage extends StatefulWidget {
   final PropertyCatalogController propertyCatalog;
   final RoutesController routes;
   final StrengthPoiGateway strengthPoiGateway;
+  final NetworkStatusController networkStatus;
 
   @override
   State<FavoritesPage> createState() => _FavoritesPageState();
@@ -37,6 +40,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
   }
 
   Future<void> _openDetail(String propertyId) async {
+    if (!_requireOnline('Konut detayı')) return;
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder:
@@ -56,6 +60,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
   }
 
   void _toggleRoute(int index) {
+    if (!_requireOnline('Rota işlemleri')) return;
     final property = widget.controller.items[index].property;
     final id = property?.numericId;
     if (property == null || id == null) return;
@@ -78,6 +83,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
   }
 
   Future<void> _removeFavorite(String propertyId) async {
+    if (!_requireOnline('Favori güncelleme')) return;
     final changed = await widget.controller.setFavorite(propertyId, false);
     if (!mounted) return;
     if (changed) {
@@ -91,6 +97,22 @@ class _FavoritesPageState extends State<FavoritesPage> {
         ),
       ),
     );
+  }
+
+  bool _requireOnline(String operation) {
+    if (!widget.networkStatus.isOffline &&
+        !widget.controller.showingCachedData) {
+      return true;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '$operation internet bağlantısı gerektirir. '
+          'Bağlantın geldiğinde tekrar deneyebilirsin.',
+        ),
+      ),
+    );
+    return false;
   }
 
   @override
@@ -137,14 +159,32 @@ class _FavoritesPageState extends State<FavoritesPage> {
                 'ekleyebilirsin.',
               ),
               const SizedBox(height: 14),
+              if (controller.showingCachedData) ...[
+                Card(
+                  color: Theme.of(context).colorScheme.secondaryContainer,
+                  child: const ListTile(
+                    leading: Icon(Icons.offline_pin_outlined),
+                    title: Text('Çevrimdışı favoriler'),
+                    subtitle: Text(
+                      'Cihazda daha önce saklanan temel bilgiler gösteriliyor. '
+                      'Detay, güncelleme ve rota işlemleri internet gerektirir.',
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
               if (controller.items.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(top: 90),
+                Padding(
+                  padding: const EdgeInsets.only(top: 90),
                   child: Column(
                     children: [
-                      Icon(Icons.favorite_border, size: 52),
-                      SizedBox(height: 12),
-                      Text('Henüz favori konutun yok.'),
+                      const Icon(Icons.favorite_border, size: 52),
+                      const SizedBox(height: 12),
+                      Text(
+                        controller.showingCachedData
+                            ? 'Cihazda saklanmış favori bulunamadı.'
+                            : 'Henüz favori konutun yok.',
+                      ),
                     ],
                   ),
                 ),

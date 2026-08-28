@@ -3,11 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../core/models/models.dart';
+import '../../../../core/network/network_status_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../anchors/presentation/pages/anchor_manager_page.dart';
 import '../../../auth/application/session_controller.dart';
 import '../../../favorites/application/favorites_controller.dart';
 import '../../../favorites/data/api_favorites_gateway.dart';
+import '../../../favorites/data/cached_favorites_gateway.dart';
+import '../../../favorites/data/secure_favorite_cache.dart';
 import '../../../favorites/presentation/pages/favorites_page.dart';
 import '../../../location/application/user_location_controller.dart';
 import '../../../location_search/application/location_search_controller.dart';
@@ -56,6 +59,7 @@ class _HomePageState extends State<HomePage> {
   late final FavoritesController _favorites;
   late final RoutesController _routes;
   late final StrengthPoiGateway _strengthPoiGateway;
+  late final NetworkStatusController _networkStatus;
 
   /// Konum ve adres araması BURADA yaşıyor, harita ekranında değil: hem
   /// harita hem Rotalar sekmesi kullanıyor. Ayrı örnekler olsaydı kullanıcıdan
@@ -71,7 +75,14 @@ class _HomePageState extends State<HomePage> {
     _propertyGateway = ApiPropertyGateway(widget.controller.client);
     _propertyCatalog = PropertyCatalogController(_propertyGateway);
     _favorites = FavoritesController(
-      ApiFavoritesGateway(widget.controller.client),
+      CachedFavoritesGateway(
+        remote: ApiFavoritesGateway(widget.controller.client),
+        cache: SecureFavoriteCache(),
+        userId:
+            widget.controller.user?.id ??
+            widget.controller.user?.email ??
+            'unknown-user',
+      ),
     );
     _routes = RoutesController(ApiRoutesGateway(widget.controller.client));
     _userLocation = UserLocationController();
@@ -79,6 +90,9 @@ class _HomePageState extends State<HomePage> {
       ApiLocationSearchGateway(widget.controller.client),
     );
     _strengthPoiGateway = ApiStrengthPoiGateway(widget.controller.client);
+    _networkStatus = NetworkStatusController(PlatformConnectivityMonitor());
+    _networkStatus.addListener(_handleNetworkStatusChanged);
+    unawaited(_networkStatus.initialize());
   }
 
   @override
@@ -86,6 +100,9 @@ class _HomePageState extends State<HomePage> {
     _propertyCatalog.dispose();
     _favorites.dispose();
     _routes.dispose();
+    _networkStatus
+      ..removeListener(_handleNetworkStatusChanged)
+      ..dispose();
     _userLocation.dispose();
     _searchController.dispose();
     super.dispose();
@@ -94,7 +111,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: widget.controller,
+      animation: Listenable.merge([widget.controller, _networkStatus]),
       builder: (context, _) {
         const titles = [
           'Harita',
@@ -113,52 +130,56 @@ class _HomePageState extends State<HomePage> {
           appBar: isMapTab
               ? null
               : AppBar(title: Text(titles[_selectedIndex])),
-          body: switch (_selectedIndex) {
-            0 => _MapOverview(
-              controller: widget.controller,
-              propertyGateway: _propertyGateway,
-              propertyCatalog: _propertyCatalog,
-              favorites: _favorites,
-              routes: _routes,
-              userLocation: _userLocation,
-              searchController: _searchController,
-              strengthPoiGateway: _strengthPoiGateway,
-            ),
-            1 => PropertyListPage(
-              controller: _propertyCatalog,
-              gateway: _propertyGateway,
-              favorites: _favorites,
-              routes: _routes,
-              strengthPoiGateway: _strengthPoiGateway,
-            ),
-            2 => FavoritesPage(
-              controller: _favorites,
-              propertyGateway: _propertyGateway,
-              propertyCatalog: _propertyCatalog,
-              routes: _routes,
-              strengthPoiGateway: _strengthPoiGateway,
-            ),
-            3 => RoutesPage(
-              controller: _routes,
-              anchors: anchors,
-              onShowOnMainMap: () => setState(() => _selectedIndex = 0),
-              userLocation: _userLocation,
-              searchController: _searchController,
-            ),
-            _ => _ProfileView(
-              controller: widget.controller,
-              onProfileChanged: _refreshPersonalizedHousing,
-              onManageAnchors: () async {
-                await Navigator.of(context).push<void>(
-                  MaterialPageRoute(
-                    builder:
-                        (_) => AnchorManagerPage(controller: widget.controller),
-                  ),
-                );
-                if (mounted) _refreshPersonalizedHousing();
-              },
-            ),
-          },
+          body: _OfflineAwareBody(
+            offline: _networkStatus.isOffline,
+            child: switch (_selectedIndex) {
+              0 => _MapOverview(
+                controller: widget.controller,
+                propertyGateway: _propertyGateway,
+                propertyCatalog: _propertyCatalog,
+                favorites: _favorites,
+                routes: _routes,
+                userLocation: _userLocation,
+                searchController: _searchController,
+                strengthPoiGateway: _strengthPoiGateway,
+              ),
+              1 => PropertyListPage(
+                controller: _propertyCatalog,
+                gateway: _propertyGateway,
+                favorites: _favorites,
+                routes: _routes,
+                strengthPoiGateway: _strengthPoiGateway,
+              ),
+              2 => FavoritesPage(
+                controller: _favorites,
+                propertyGateway: _propertyGateway,
+                propertyCatalog: _propertyCatalog,
+                routes: _routes,
+                strengthPoiGateway: _strengthPoiGateway,
+                networkStatus: _networkStatus,
+              ),
+              3 => RoutesPage(
+                controller: _routes,
+                anchors: anchors,
+                onShowOnMainMap: () => setState(() => _selectedIndex = 0),
+                userLocation: _userLocation,
+                searchController: _searchController,
+              ),
+              _ => _ProfileView(
+                controller: widget.controller,
+                onProfileChanged: _refreshPersonalizedHousing,
+                onManageAnchors: () async {
+                  await Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder:
+                          (_) => AnchorManagerPage(controller: widget.controller),
+                    ),
+                  );
+                  if (mounted) _refreshPersonalizedHousing();
+                },
+              ),
+            },
+          ),
           bottomNavigationBar: NavigationBar(
             selectedIndex: _selectedIndex,
             onDestinationSelected: (index) {
@@ -201,6 +222,54 @@ class _HomePageState extends State<HomePage> {
     unawaited(_propertyCatalog.load(force: true));
     unawaited(_favorites.load(force: true));
   }
+
+  void _handleNetworkStatusChanged() {
+    if (_networkStatus.initialized &&
+        !_networkStatus.isOffline &&
+        widget.controller.profile == null) {
+      unawaited(widget.controller.reloadAfterConnectivity());
+    }
+  }
+}
+
+class _OfflineBanner extends StatelessWidget {
+  const _OfflineBanner();
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Theme.of(context).colorScheme.errorContainer,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          const Icon(Icons.cloud_off_outlined, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Çevrimdışısın. Güncel veri, harita, rota ve navigasyon '
+              'internet bağlantısı gerektirir.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _OfflineAwareBody extends StatelessWidget {
+  const _OfflineAwareBody({required this.offline, required this.child});
+
+  final bool offline;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      if (offline) const _OfflineBanner(),
+      Expanded(child: child),
+    ],
+  );
 }
 
 class _MapOverview extends StatefulWidget {
@@ -288,11 +357,11 @@ class _MapOverviewState extends State<_MapOverview> {
       SnackBar(
         content: Text(message),
         action: _userLocation.needsAppSettings
-            ? SnackBarAction(
-                label: 'Ayarlar',
-                onPressed: _userLocation.openSettings,
-              )
-            : null,
+                ? SnackBarAction(
+                  label: 'Ayarlar',
+                  onPressed: _userLocation.openSettings,
+                )
+                : null,
       ),
     );
   }
@@ -317,8 +386,8 @@ class _MapOverviewState extends State<_MapOverview> {
 
     final current = route.propertyIds;
     final next = current.contains(id)
-        ? (current.where((value) => value != id).toList())
-        : [...current, id];
+            ? (current.where((value) => value != id).toList())
+            : [...current, id];
 
     final ok = await widget.routes.reoptimize(next);
     if (!mounted || ok) return;
@@ -353,8 +422,8 @@ class _MapOverviewState extends State<_MapOverview> {
     final name = await showDialog<String>(
       context: context,
       builder: (context) => _MapSaveRouteDialog(
-        initialName: widget.routes.activeRoute?.name ?? 'Ziyaret rotası',
-      ),
+            initialName: widget.routes.activeRoute?.name ?? 'Ziyaret rotası',
+          ),
     );
     if (name == null || !mounted) return;
 
@@ -455,62 +524,62 @@ class _MapOverviewState extends State<_MapOverview> {
         // Dış AnimatedBuilder zaten dinliyor; burada ikinci bir tanesi
         // gereksizdi.
         Positioned.fill(
-                    child: Builder(
-                      builder:
-                          (context) => CankayaMap(
-                            anchors: anchors,
-                            focus: _mapFocus,
-                            analysisCenter: _analysisCenter,
-                            analysisRadiusKm: _analysisRadiusKm,
-                            walkingMinutes: _walkingMinutes,
-                            pois: _mapDataController.pois,
-                            properties:
-                                _mapDataController.propertiesVisible
-                                    ? _mapDataController.properties
-                                    : const [],
-                            // ⚠️ ANCHOR KORİDORU KULLANICIYA GÖSTERİLMİYOR.
-                            //
-                            // Kesik çizgili alan, mentorun koridorun nasıl
-                            // hesaplandığını gözle doğrulaması için geçiciydi;
-                            // doğrulama bitti. Kullanıcı açısından bu çizgi
-                            // bir anlam taşımıyor, sadece haritayı kalabalık
-                            // yapıyordu. Web de aynı sebeple gizledi (cf0f0df).
-                            //
-                            // Katmana DOKUNULMADI, yalnızca veri akışı kesildi
-                            // — tekrar göstermek gerekirse burayı geri açmak
-                            // yeterli. Sunucu `corridorPolygon` döndürmeye
-                            // devam ediyor, DTO'dan çıkarmaya gerek yok.
-                            anchorCorridor: null,
-                            route: widget.routes.activeRoute,
-                            userLocation: _userLocation.location,
-                            onBoundsChanged: _mapDataController.updateViewport,
-                            onPoiTap: (poi) {
-                              showPoiDetailsSheet(
-                                context,
-                                poi: poi,
-                                category: _mapDataController.categoryFor(
-                                  poi.categoryCode,
-                                ),
-                              );
-                            },
-                            onPropertyTap: _handlePropertyTap,
-                            onMapTap: (latitude, longitude) {
-                              // Analiz alanı YALNIZCA seçim kipindeyken
-                              // kurulur. Kip dışındaki dokunuşlar haritayı
-                              // olduğu gibi bırakır.
-                              if (!_pickingAnalysisPoint) return;
-                              setState(() {
-                                _mapFocus = null;
-                                _analysisCenter = AnalysisCoordinate(
-                                  latitude: latitude,
-                                  longitude: longitude,
-                                );
-                                _pickingAnalysisPoint = false;
-                              });
-                            },
-                          ),
-                    ),
-                  ),
+          child: Builder(
+            builder:
+                (context) => CankayaMap(
+                  anchors: anchors,
+                  focus: _mapFocus,
+                  analysisCenter: _analysisCenter,
+                  analysisRadiusKm: _analysisRadiusKm,
+                  walkingMinutes: _walkingMinutes,
+                  pois: _mapDataController.pois,
+                  properties:
+                      _mapDataController.propertiesVisible
+                          ? _mapDataController.properties
+                          : const [],
+                  // ⚠️ ANCHOR KORİDORU KULLANICIYA GÖSTERİLMİYOR.
+                  //
+                  // Kesik çizgili alan, mentorun koridorun nasıl
+                  // hesaplandığını gözle doğrulaması için geçiciydi;
+                  // doğrulama bitti. Kullanıcı açısından bu çizgi
+                  // bir anlam taşımıyor, sadece haritayı kalabalık
+                  // yapıyordu. Web de aynı sebeple gizledi (cf0f0df).
+                  //
+                  // Katmana DOKUNULMADI, yalnızca veri akışı kesildi
+                  // — tekrar göstermek gerekirse burayı geri açmak
+                  // yeterli. Sunucu `corridorPolygon` döndürmeye
+                  // devam ediyor, DTO'dan çıkarmaya gerek yok.
+                  anchorCorridor: null,
+                  route: widget.routes.activeRoute,
+                  userLocation: _userLocation.location,
+                  onBoundsChanged: _mapDataController.updateViewport,
+                  onPoiTap: (poi) {
+                    showPoiDetailsSheet(
+                      context,
+                      poi: poi,
+                      category: _mapDataController.categoryFor(
+                        poi.categoryCode,
+                      ),
+                    );
+                  },
+                  onPropertyTap: _handlePropertyTap,
+                  onMapTap: (latitude, longitude) {
+                    // Analiz alanı YALNIZCA seçim kipindeyken
+                    // kurulur. Kip dışındaki dokunuşlar haritayı
+                    // olduğu gibi bırakır.
+                    if (!_pickingAnalysisPoint) return;
+                    setState(() {
+                      _mapFocus = null;
+                      _analysisCenter = AnalysisCoordinate(
+                        latitude: latitude,
+                        longitude: longitude,
+                      );
+                      _pickingAnalysisPoint = false;
+                    });
+                  },
+                ),
+          ),
+        ),
         // Arama kutusu durum çubuğunun altına iniyor: AppBar kalktığı için
         // artık onu aşağı iten bir şey yok.
         Positioned(
@@ -539,8 +608,8 @@ class _MapOverviewState extends State<_MapOverview> {
               const SizedBox(height: 10),
               _MapCircleButton(
                 icon: _userLocation.status == UserLocationStatus.ready
-                    ? Icons.my_location
-                    : Icons.location_searching,
+                        ? Icons.my_location
+                        : Icons.location_searching,
                 busy: _userLocation.status == UserLocationStatus.locating,
                 tooltip: 'Konumuma git',
                 onPressed: _goToMyLocation,
@@ -723,11 +792,11 @@ class _MapCircleButton extends StatelessWidget {
         width: 48,
         height: 48,
         child: busy
-            ? const Padding(
-                padding: EdgeInsets.all(14),
-                child: CircularProgressIndicator(strokeWidth: 2.4),
-              )
-            : Icon(icon, size: 22, color: AppColors.ink),
+                ? const Padding(
+                  padding: EdgeInsets.all(14),
+                  child: CircularProgressIndicator(strokeWidth: 2.4),
+                )
+                : Icon(icon, size: 22, color: AppColors.ink),
       ),
     ),
   );

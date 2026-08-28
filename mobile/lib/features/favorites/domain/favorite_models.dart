@@ -21,4 +21,10 @@ class FavoriteEntry {
             ? PropertySummary.fromJson(json['property'] as Map<String, dynamic>)
             : null,
   );
+
+  Map<String, Object?> toJson() => {
+    'propertyId': propertyId,
+    'createdAt': createdAt.toUtc().toIso8601String(),
+    'property': property?.toJson(),
+  };
 }
