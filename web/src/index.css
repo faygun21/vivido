@@ -1292,6 +1292,107 @@ button svg,
 .top-panel-head h2 { margin: 0; font-size: 1.1rem; letter-spacing: -0.02em; }
 .top-panel-head p { margin: 0.1rem 0 0; font-size: 0.8rem; }
 
+/* Kira/m²/oda filtreleri + sıralama (2026-08-28) — tıklanınca açılan bir
+   yüzey. `.top-filters-bar` her zaman `.top-panel-body`'nin DIŞINDA duruyor
+   (liste kaydırılırken tetikleyici sabit kalsın); yüzeyin kendisi bunun
+   altına AÇILAN bir katman, listeye yer açmak için reflow yaratmıyor. */
+.top-filters-bar {
+  position: relative;
+  padding: 0.5rem 1.15rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 35%, transparent);
+}
+
+.top-filters-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.top-filters-toggle:hover { background: var(--input-bg); }
+
+.top-filters-toggle.is-open {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--accent);
+}
+
+.top-filters-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+/* Yüzey — tetikleyicinin hemen altına açılıyor, listenin ÜSTÜNE biniyor
+   (reflow yok), kapatana/dışarı tıklayana kadar açık kalıyor. */
+.top-filters-surface {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% - 0.1rem);
+  left: 1.15rem;
+  right: 1.15rem;
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  border-radius: 0.9rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  max-height: min(24rem, 70vh);
+  overflow-y: auto;
+}
+
+.top-filters-section { display: grid; gap: 0.35rem; }
+
+.top-filters-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ink-muted);
+}
+
+.top-filters-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.top-filters-chips .btn-chip { padding: 0.3rem 0.65rem; font-size: 0.78rem; }
+
+.top-filters-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 0.4rem;
+  border-top: 1px solid color-mix(in srgb, var(--line) 35%, transparent);
+}
+
+.top-filters-clear {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.top-filters-clear:disabled { color: var(--ink-muted); cursor: not-allowed; text-decoration: none; }
+
 .top-panel-body {
   flex: 1;
   min-height: 0;
