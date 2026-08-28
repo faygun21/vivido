@@ -107,6 +107,8 @@ interface CankayaMapProps {
    * kendisine dokunmaya gerek yok, sadece veri akmayı bırakacak).
    */
   anchorArea?: PolygonGeoJson | null;
+  /** Seçili evin id'si — `konut-noktalar` katmanında o tek feature'ı vurgular (bkz. aşağıdaki efekt). */
+  selectedPropertyId?: string | null;
 }
 
 const GEO_DISTRICT = '/geo/cankaya.geojson';
@@ -303,8 +305,8 @@ function loadCustomMapImages(map: MapLibreMap) {
     img.src = url;
   };
 
-  // 1. Konutlar için ev ikonu
-  addSvgIcon('ev-ikon', '/home_kahve.svg');
+  // 1. Konutlar için ev ikonu (beyaz — turuncu daire üstünde net ayrışıyor)
+  addSvgIcon('ev-ikon', '/home_white.svg');
 
   // 2. Diğer POI ikonları
   const uniquePaths = [
@@ -516,7 +518,10 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
       paint: {
         'circle-color': '#ea580c',
         'circle-radius': 14,
-        'circle-stroke-width': 2,
+        // İkon kaldırılmadı — sadece küçültüldü (0.6 → 0.45) ve bu
+        // çerçeve inceltildi (2 → 1.25): "ev çok büyük, dış çerçeve çok
+        // kalın geldi" (2026-08-28).
+        'circle-stroke-width': 1.25,
         'circle-stroke-color': '#fff',
       },
     },
@@ -528,7 +533,7 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
       filter: ['!', ['has', 'point_count']],
       layout: {
         'icon-image': 'ev-ikon',
-        'icon-size': 0.6,
+        'icon-size': 0.45,
         'icon-allow-overlap': true,
       },
     },
@@ -734,6 +739,7 @@ export function CankayaMap({
   userLocation = null,
   route = null,
   anchorArea = null,
+  selectedPropertyId = null,
 }: CankayaMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -930,6 +936,31 @@ export function CankayaMap({
       .setPopup(new Popup({ offset: 16 }).setText('Mevcut konumun'))
       .addTo(map);
   }, [userLocation, status]);
+
+  /**
+   * Seçili evi vurgulamak için AYRI bir marker/animasyon denendi (damla
+   * halkası, sonra "plop", sonra pin düşüşü) — üçü de kendi noktanın ÜSTÜNE
+   * oturup onu kapatıyordu (2026-08-28 geri bildirimi). Bunun yerine
+   * `konut-noktalar(-arkaplan)` katmanının KENDİ boyama özelliklerini
+   * seçili kayıt için değiştiriyoruz: aynı daire, aynı ikon — sadece o TEK
+   * feature büyüyüp çerçevesi kalınlaşıyor. Üst üste binen ikinci bir öğe
+   * yok.
+   */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== 'hazir' || !map.getLayer('konut-noktalar-arkaplan')) return;
+
+    const isSelected = ['==', ['get', 'id'], selectedPropertyId ?? ''];
+    map.setPaintProperty('konut-noktalar-arkaplan', 'circle-stroke-width', [
+      'case', isSelected, 2.5, 1.25,
+    ] as unknown as number);
+    map.setPaintProperty('konut-noktalar-arkaplan', 'circle-radius', [
+      'case', isSelected, 17, 14,
+    ] as unknown as number);
+    map.setLayoutProperty('konut-noktalar', 'icon-size', [
+      'case', isSelected, 0.55, 0.45,
+    ] as unknown as number);
+  }, [selectedPropertyId, status]);
 
   useEffect(() => {
     const map = mapRef.current;
