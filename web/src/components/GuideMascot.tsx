@@ -70,12 +70,63 @@ export function GuideMascot({ isOpen, steps = DEFAULT_TOUR_STEPS, onTabChange, o
   const currentStep = steps[currentStepIndex];
   const isLastStep = currentStepIndex === steps.length - 1;
 
-  useEffect(() => {
-    if (!isOpen) {
-      setIsBubbleVisible(false);
-    }
-  }, [isOpen]);
+useEffect(() => {
+    if (!isTourActive || !isOpen || !isBubbleVisible) return;
 
+    const step = steps[currentStepIndex];
+    
+    if (step.targetTab && onTabChange) {
+      onTabChange(step.targetTab);
+    }
+
+    const currentSelector = step.selector;
+    if (!currentSelector) return;
+
+    const timer = setTimeout(() => {
+      const targetElement = document.querySelector(currentSelector) as HTMLElement | null;
+      
+      if (targetElement) {
+        const originalOutline = targetElement.style.outline;
+        const originalOutlineOffset = targetElement.style.outlineOffset;
+        const originalBorderRadius = targetElement.style.borderRadius;
+        const originalTransition = targetElement.style.transition;
+        const originalBoxShadow = targetElement.style.boxShadow;
+        const originalZIndex = targetElement.style.zIndex;
+
+        targetElement.style.transition = 'all 0.3s ease';
+        targetElement.style.outline = '3px solid #e06d3b';
+        targetElement.style.outlineOffset = '4px';
+        targetElement.style.borderRadius = '8px';
+        targetElement.style.boxShadow = '0 0 15px rgba(224, 109, 59, 0.4)';
+        targetElement.style.zIndex = '100';
+
+        targetElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+        targetElement.dataset.cleanup = 'true';
+        targetElement.addEventListener(
+          'cleanup-highlight',
+          () => {
+            targetElement.style.outline = originalOutline;
+            targetElement.style.outlineOffset = originalOutlineOffset;
+            targetElement.style.borderRadius = originalBorderRadius;
+            targetElement.style.transition = originalTransition;
+            targetElement.style.boxShadow = originalBoxShadow;
+            targetElement.style.zIndex = originalZIndex;
+          },
+          { once: true }
+        );
+      }
+    }, 100);
+
+    return () => {
+      clearTimeout(timer);
+      const prevElement = document.querySelector(currentSelector) as HTMLElement | null;
+      if (prevElement && prevElement.dataset.cleanup) {
+        prevElement.dispatchEvent(new Event('cleanup-highlight'));
+        delete prevElement.dataset.cleanup;
+      }
+    };
+  }, [currentStepIndex, isTourActive, isOpen, isBubbleVisible, steps, onTabChange]);
   useEffect(() => {
     if (!isTourActive || !isOpen || !isBubbleVisible) return;
 
