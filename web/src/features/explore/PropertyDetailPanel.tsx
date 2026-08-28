@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import type { PropertyDetail, PropertyScoreRow } from '@vivido/shared';
 import { BAND_LABEL, formatMinutes, formatRent, splitAddress } from './propertyFormat';
 import { useFavoriteMutation } from './useFavorite';
+import { useWideScreen } from '@/shared/useWideScreen';
+
+/** Mobilde daraltılmış halde görünen üst şerit yüksekliği (px) — tutamaç + başlık. */
+const PEEK_HEIGHT_PX = 96;
 
 /**
  * Konut detay paneli — bir pin'e tıklanınca haritanın üstünde açılır (W6).
@@ -58,6 +62,60 @@ export function PropertyDetailPanel({
   const favorite = useFavoriteMutation();
   const routeDisabled = routeAtCapacity && !isInRoute;
 
+  /**
+   * Mobilde panel alttan açılan bir sayfaya dönüyor (bkz. `@media
+   * max-width: 899px`) ve haritanın ~%80'ini kaplıyor — seçili evin
+   * güçlü yön POI'lerini haritada görmek isteyen kullanıcının hiçbir
+   * şansı yoktu. Artık aşağı sürüklenip daraltılabiliyor (2026-08-28:
+   * "aşağı sürükleyip haritadaki ev etrafı poileri görmek amacıyla").
+   * Masaüstünde panel yan panel olduğu için bu tamamen devre dışı.
+   */
+  const wide = useWideScreen();
+  const [collapsed, setCollapsed] = useState(false);
+  const panelRef = useRef<HTMLElement | null>(null);
+  const dragRef = useRef<{ startY: number; panelHeight: number; wasCollapsed: boolean } | null>(null);
+
+  function handleGripPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (wide || !panelRef.current) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = {
+      startY: event.clientY,
+      panelHeight: panelRef.current.getBoundingClientRect().height,
+      wasCollapsed: collapsed,
+    };
+    panelRef.current.style.transition = 'none';
+  }
+
+  function handleGripPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag || !panelRef.current) return;
+    const maxHide = Math.max(drag.panelHeight - PEEK_HEIGHT_PX, 0);
+    const base = drag.wasCollapsed ? maxHide : 0;
+    const offset = Math.min(Math.max(base + (event.clientY - drag.startY), 0), maxHide);
+    panelRef.current.style.transform = `translateY(${offset}px)`;
+  }
+
+  function handleGripPointerUp(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    if (!drag || !panelRef.current) return;
+
+    panelRef.current.style.transition = '';
+    panelRef.current.style.transform = '';
+
+    const deltaY = event.clientY - drag.startY;
+    if (Math.abs(deltaY) < 6) {
+      // Sürükleme değil, tek dokunuş — durumu tersine çevir.
+      setCollapsed((current) => !current);
+      return;
+    }
+
+    const maxHide = Math.max(drag.panelHeight - PEEK_HEIGHT_PX, 0);
+    const base = drag.wasCollapsed ? maxHide : 0;
+    const finalOffset = Math.min(Math.max(base + deltaY, 0), maxHide);
+    setCollapsed(finalOffset > maxHide / 2);
+  }
+
   const { score } = property;
   const address = splitAddress(property.address);
   // Bilerek yuvarlanmıyor: skorlar artık (Yol A + zayıf halka cezası +
@@ -75,7 +133,34 @@ export function PropertyDetailPanel({
   }
 
   return (
-    <aside className="property-panel" role="dialog" aria-label="Konut detayları">
+    <aside
+      ref={panelRef}
+      className={`property-panel${collapsed ? ' is-collapsed' : ''}`}
+      role="dialog"
+      aria-label="Konut detayları"
+    >
+      {/* Sadece mobilde görünür (bkz. CSS) — aşağı sürükleyip haritayı,
+          yukarı sürükleyip detayları görmek için. Tek dokunuş da aynı işi
+          (aç/kapa) yapıyor, sürüklemeyi keşfetmeyen kullanıcı için. */}
+      <div
+        className="property-panel-grip"
+        onPointerDown={handleGripPointerDown}
+        onPointerMove={handleGripPointerMove}
+        onPointerUp={handleGripPointerUp}
+        onPointerCancel={handleGripPointerUp}
+        role="button"
+        tabIndex={wide ? -1 : 0}
+        aria-expanded={!collapsed}
+        aria-label={collapsed ? 'Detayları genişlet' : 'Haritayı görmek için daralt'}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          setCollapsed((current) => !current);
+        }}
+      >
+        <span aria-hidden="true" />
+      </div>
+
       {onBack && (
         <button className="property-panel-back" type="button" onClick={onBack}>
           <span aria-hidden="true">←</span> En uygun evler listesine dön

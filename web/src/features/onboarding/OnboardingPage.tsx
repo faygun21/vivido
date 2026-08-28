@@ -236,7 +236,7 @@ export function OnboardingPage() {
           <h2 style={{ fontSize: '1.4rem', fontFamily: '"Playfair Display", serif', color: '#3d3832', fontWeight: 600, marginBottom: '20px' }}>
             1. Profil Bilgileri
           </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', maxWidth: '500px' }}>
+          <div className="wizard-two-col">
             <div>
               <label htmlFor="firstName" style={{ display: 'block', marginBottom: '8px', fontWeight: 500, fontSize: '14px', color: '#57534e' }}>Ad</label>
               <input
@@ -271,7 +271,7 @@ export function OnboardingPage() {
           {personasLoading ? (
             <p style={{ color: '#7a736a' }}>Profiller yükleniyor...</p>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
+            <div className="wizard-persona-grid" style={{ gap: '20px' }}>
               {personas.map((persona) => {
                 const isSelected = selectedPersona === persona.code;
                 const uiData = PERSONA_UI_DATA[persona.code] || PERSONA_UI_DATA['student'];
@@ -345,7 +345,10 @@ export function OnboardingPage() {
           <h2 style={{ fontSize: '1.4rem', fontFamily: '"Playfair Display", serif', color: '#3d3832', fontWeight: 600, marginBottom: '20px' }}>
             {selectedPersona ? '4.' : '3.'} Aylık kira bütçen nedir?
           </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', maxWidth: '500px' }}>
+          {/* Tek çocuklu bir `1fr 1fr` grid, `BudgetInput`'u yarım genişlikte
+              sıkıştırıyordu (2. sütun hep boş kalıyordu) — kaldırıldı;
+              `BudgetInput` zaten kendi iki alanını içeride yönetiyor. */}
+          <div style={{ maxWidth: '500px' }}>
             <BudgetInput
               minValue={minMonthlyBudget}
               maxValue={maxMonthlyBudget}

@@ -36,13 +36,6 @@ export default function BudgetSelection() {
     if (savedProfile?.maxMonthlyBudget != null) setMaxBudget(savedProfile.maxMonthlyBudget);
   }, [savedProfile]);
 
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = 'auto';
-    };
-  }, []);
-
   const mutation = useMutation({
     mutationFn: async () => {
       if (!savedProfile) throw new Error('Profil henüz yüklenmedi.');
@@ -81,23 +74,8 @@ export default function BudgetSelection() {
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100vw',
-      height: '100vh',
-      backgroundColor: '#FDFBF7',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'space-between',
-      padding: '24px 32px',
-      fontFamily: 'sans-serif',
-      boxSizing: 'border-box',
-      overflow: 'hidden',
-      zIndex: 9999
-    }}>
-      
+    <div className="wizard-shell">
+
       {/* ÜST KISIM: 4 Adımlı Stepper */}
       <div style={{ maxWidth: '520px', margin: '0 auto', width: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>

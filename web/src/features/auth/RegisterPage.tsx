@@ -111,7 +111,7 @@ if (
           <form className="login-form" onSubmit={handleSubmit} noValidate>
             {error && <p className="form-error" role="alert">{error}</p>}
 
-            <div style={{ display: 'flex', gap: '1rem', width: '100%' }}>
+            <div className="login-name-row">
               <div className="login-input-group">
                 <input
                   type="text"

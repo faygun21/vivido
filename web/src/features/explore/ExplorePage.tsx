@@ -52,12 +52,12 @@ import {
 } from '@/shared/map/analysisArea';
 import { useUserLocation } from '@/shared/map/useUserLocation';
 import { startFromLiveLocation, type RouteStart } from '@/shared/route/routeStart';
+import { matchesWide, useWideScreen } from '@/shared/useWideScreen';
 
 type DrawerTab = 'profil' | 'analiz' | 'harita' | 'rota';
 
 const DRAWER_WIDTH_PX = 21.5 * 16 + 29;
 const TOP_PROPERTY_LIMIT = 20;
-const WIDE_SCREEN = '(min-width: 900px)';
 const DEFAULT_ANALYSIS_LOCATION: WalkingLocation = { lat: 39.87, lon: 32.85 };
 
 /**
@@ -71,23 +71,6 @@ const MAX_DENSITY_POIS_PER_CATEGORY = 8;
 
 /** Güçlü yön ipucu bandını bir daha göstermemek için — kalıcı, oturumlar arası. */
 const POI_HINT_STORAGE_KEY = 'vivido:poiHintSeen';
-
-function matchesWide(): boolean {
-  return typeof window !== 'undefined' && window.matchMedia(WIDE_SCREEN).matches;
-}
-
-function useWideScreen(): boolean {
-  const [wide, setWide] = useState(matchesWide);
-
-  useEffect(() => {
-    const query = window.matchMedia(WIDE_SCREEN);
-    const onChange = (event: MediaQueryListEvent) => setWide(event.matches);
-    query.addEventListener('change', onChange);
-    return () => query.removeEventListener('change', onChange);
-  }, []);
-
-  return wide;
-}
 
 export function ExplorePage() {
   const location = useLocation();

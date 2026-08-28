@@ -14,8 +14,15 @@ const kindLabels = {
   place: 'Konum',
 } as const;
 
-/** Yazmayı bırakınca kaç ms sonra otomatik arama tetiklenecek. */
-const SEARCH_DEBOUNCE_MS = 2000;
+/**
+ * Yazmayı bırakınca kaç ms sonra otomatik arama tetiklenecek.
+ *
+ * İlk sürümde 2000ms'ydi — canlı testte "hâlâ göstermiyor" diye
+ * bildirildi (2026-08-28): aslında çalışıyordu ama 2 saniyelik sessiz
+ * bekleme kullanıcıya bozuk gibi hissettiriyordu. Normal bir
+ * otomatik-tamamlama gecikmesine indirildi.
+ */
+const SEARCH_DEBOUNCE_MS = 400;
 
 export function LocationSearch({ onSelect, onClear }: LocationSearchProps) {
   const [query, setQuery] = useState('');

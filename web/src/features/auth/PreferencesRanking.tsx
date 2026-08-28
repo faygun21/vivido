@@ -2,6 +2,20 @@ import { useEffect, useMemo, useState } from 'react';
 import { Check, ArrowRight, GripVertical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 import { ApiError, api } from '@/shared/api/client';
 import { useSessionQuery } from '@/shared/api/sessionQuery';
 import type { Persona, UserProfile } from '@vivido/shared';
@@ -29,7 +43,6 @@ const CATEGORY_META: Record<string, { title: string; icon: string }> = {
 
 export default function PreferencesRanking() {
   const [preferences, setPreferences] = useState<PreferenceItem[]>([]);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -88,13 +101,6 @@ export default function PreferencesRanking() {
     );
   }, [selectedPersonaData, savedProfile]);
 
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = 'auto';
-    };
-  }, []);
-
   const mutation = useMutation({
     mutationFn: async () => {
       if (!savedProfile) throw new Error('Profil henüz yüklenmedi.');
@@ -127,45 +133,28 @@ export default function PreferencesRanking() {
     mutation.mutate();
   };
 
-  const handleDragStart = (index: number) => {
-    setDraggedIndex(index);
-  };
+  // `PointerSensor` mouse/dokunma/kalem hepsini tek olay modeliyle
+  // kapsıyor — eski native HTML5 `draggable` (onDragStart/onDragOver)
+  // dokunmatik ekranlarda HİÇ çalışmıyordu, sıralama telefonda tamamen
+  // kullanılamazdı (2026-08-28). `OnboardingPage.tsx`'teki aynı desen.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+  );
 
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggedIndex === null || draggedIndex === index) return;
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
 
-    const newPreferences = [...preferences];
-    const draggedItem = newPreferences[draggedIndex];
-
-    newPreferences.splice(draggedIndex, 1);
-    newPreferences.splice(index, 0, draggedItem);
-
-    setDraggedIndex(index);
-    setPreferences(newPreferences);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedIndex(null);
-  };
+    setPreferences((current) => {
+      const oldIndex = current.findIndex((item) => item.categoryCode === active.id);
+      const newIndex = current.findIndex((item) => item.categoryCode === over.id);
+      if (oldIndex < 0 || newIndex < 0) return current;
+      return arrayMove(current, oldIndex, newIndex);
+    });
+  }
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100vw',
-      height: '100vh',
-      backgroundColor: '#FDFBF7',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'space-between',
-      padding: '20px 32px',
-      fontFamily: 'sans-serif',
-      boxSizing: 'border-box',
-      overflow: 'hidden',
-      zIndex: 9999
-    }}>
+    <div className="wizard-shell">
 
       {/* 4 Adımlı Stepper*/}
       <div style={{ maxWidth: '520px', margin: '0 auto', width: '100%' }}>
@@ -218,48 +207,18 @@ export default function PreferencesRanking() {
         </div>
 
         {/* Liste Alanı */}
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '8px',
-          width: '100%',
-        }}>
-          {preferences.map((item, index) => (
-            <div
-              key={item.categoryCode}
-              draggable
-              onDragStart={() => handleDragStart(index)}
-              onDragOver={(e) => handleDragOver(e, index)}
-              onDragEnd={handleDragEnd}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '11px 16px',
-                backgroundColor: draggedIndex === index ? '#EFECE6' : '#F7F4EE',
-                border: draggedIndex === index ? '1px dashed #C26927' : '1px solid rgba(214, 211, 209, 0.8)',
-                borderRadius: '12px',
-                cursor: 'grab',
-                opacity: draggedIndex === index ? 0.6 : 1,
-                transition: 'background-color 0.2s ease, border 0.2s ease',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-                userSelect: 'none',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', pointerEvents: 'none' }}>
-                <GripVertical size={18} color="#a8a29e" />
-
-                <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: '#EFECE6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <img src={item.icon} alt={item.title} style={{ width: '16px', height: '16px', objectFit: 'contain' }} />
-                </div>
-
-                <span style={{ fontSize: '14px', fontWeight: 500, color: '#1c1917' }}>
-                  {item.title}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext
+            items={preferences.map((item) => item.categoryCode)}
+            strategy={verticalListSortingStrategy}
+          >
+            <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+              {preferences.map((item) => (
+                <SortablePreferenceItem key={item.categoryCode} item={item} />
+              ))}
+            </ol>
+          </SortableContext>
+        </DndContext>
 
       </div>
 
@@ -286,5 +245,48 @@ export default function PreferencesRanking() {
       </div>
 
     </div>
+  );
+}
+
+function SortablePreferenceItem({ item }: { item: PreferenceItem }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.categoryCode,
+  });
+
+  return (
+    <li
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '11px 16px',
+        backgroundColor: isDragging ? '#EFECE6' : '#F7F4EE',
+        border: isDragging ? '1px dashed #C26927' : '1px solid rgba(214, 211, 209, 0.8)',
+        borderRadius: '12px',
+        cursor: isDragging ? 'grabbing' : 'grab',
+        opacity: isDragging ? 0.85 : 1,
+        transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+        transition: transition || 'background-color 0.2s ease, border 0.2s ease',
+        boxShadow: isDragging ? '0 6px 14px rgba(0,0,0,0.08)' : '0 1px 3px rgba(0,0,0,0.02)',
+        userSelect: 'none',
+        touchAction: 'none',
+        zIndex: isDragging ? 10 : 1,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', pointerEvents: 'none' }}>
+        <GripVertical size={18} color="#a8a29e" />
+
+        <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: '#EFECE6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <img src={item.icon} alt={item.title} style={{ width: '16px', height: '16px', objectFit: 'contain' }} />
+        </div>
+
+        <span style={{ fontSize: '14px', fontWeight: 500, color: '#1c1917' }}>
+          {item.title}
+        </span>
+      </div>
+    </li>
   );
 }
