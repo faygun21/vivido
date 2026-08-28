@@ -67,19 +67,25 @@ export function createRadiusPolygon(
   };
 }
 
-/** İki nokta arası kuş uçuşu mesafe (metre) — Haversine formülü. */
-export function haversineDistanceMetres(a: WalkingLocation, b: WalkingLocation): number {
-  const dLat = toRadians(b.lat - a.lat);
-  const dLon = toRadians(b.lon - a.lon);
-  const lat1 = toRadians(a.lat);
-  const lat2 = toRadians(b.lat);
+/** İki koordinat arasındaki kuş uçuşu mesafeyi metre cinsinden hesaplar. */
+export function haversineDistanceMetres(
+  coord1: WalkingLocation,
+  coord2: WalkingLocation,
+): number {
+  const lat1 = toRadians(coord1.lat);
+  const lat2 = toRadians(coord2.lat);
+  const deltaLat = toRadians(coord2.lat - coord1.lat);
+  const deltaLon = toRadians(coord2.lon - coord1.lon);
 
-  const h = Math.sin(dLat / 2) ** 2
-    + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  const a =
+    Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) *
+    Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
 
-  return 2 * EARTH_RADIUS_METRES * Math.asin(Math.sqrt(h));
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return EARTH_RADIUS_METRES * c;
 }
-
 function toRadians(value: number): number {
   return value * Math.PI / 180;
 }

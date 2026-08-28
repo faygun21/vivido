@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { GuideMascot } from '@/components/GuideMascot';
 import type {
   CreateRouteRequest,
   LocationSearchResult,
@@ -630,7 +631,7 @@ export function ExplorePage() {
   const showTopPanelToggle = authenticated && !isGuest;
   const rightSlotOpen = topPanelOpen || selectedProperty !== null;
 
-  return (
+ return (
     <section
       className={
         'explore' +
@@ -945,48 +946,19 @@ export function ExplorePage() {
               />
             ))}
 
-          {tab === 'harita' && (
+{tab === 'harita' && (
             <section className="drawer-section">
               <h2>Harita katmanları</h2>
-
-              { isGuest && (
-                <p className="muted">
-                  Bütçene uygun <strong>{properties.length} konut</strong> haritada 🏠 ile
-                  işaretli. Bir pin&apos;e tıklayınca adres, kira ve skorun gerekçesi açılır.
-                  Sağ üstteki <strong>En uygun evler</strong> düğmesi en yüksek skorluları
-                  sıralar.
-                </p>
-              )}
-
-              <PoiLayerPanel
-                categories={poiCategories}
-                selectedCategories={selectedCategories}
-                onToggleCategory={toggleCategory}
-                propertiesVisible={propertiesVisible}
-                onToggleProperties={() => setPropertiesVisible((v) => !v)}
-                hasAnchorArea={anchorCount > 0}
-                showAllProperties={showAllProperties}
-                onToggleShowAllProperties={() => setShowAllProperties((v) => !v)}
-              />
-
-              <ul className="legend">
-                <li>
-                  <span className="map-pin" style={{ position: 'static', width: '1.2rem', height: '1.2rem' }} />
-                  Düzenli gittiğin yer
-                </li>
-                <li>
-                  <span
-                    className="map-pin map-pin--property"
-                    style={{ position: 'static', width: '1.2rem', height: '1.2rem', fontSize: '0.7rem' }}
-                  />
-                  Bütçene uygun konut
-                </li>
-              </ul>
+              {/* ... harita katmanları ... */}
               <p className="data-badge">Konut verisi sentetiktir</p>
             </section>
           )}
         </div>
-      </aside>
+      </aside> 
+      <GuideMascot 
+        isOpen={drawerOpen} 
+        onTabChange={setTab} 
+      />
     </section>
   );
 }
