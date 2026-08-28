@@ -32,6 +32,8 @@ class PropertyListPage extends StatefulWidget {
 }
 
 class _PropertyListPageState extends State<PropertyListPage> {
+  bool _filtersOpen = false;
+
   @override
   void initState() {
     super.initState();
@@ -54,8 +56,7 @@ class _PropertyListPageState extends State<PropertyListPage> {
     );
   }
 
-  void _toggleRoute(int index) {
-    final item = widget.controller.items[index];
+  void _toggleRoute(PropertySummary item) {
     final id = item.numericId;
     if (id == null) return;
     final alreadySelected = widget.routes.containsProperty(id);
@@ -77,8 +78,7 @@ class _PropertyListPageState extends State<PropertyListPage> {
     }
   }
 
-  Future<void> _toggleFavorite(int index) async {
-    final item = widget.controller.items[index];
+  Future<void> _toggleFavorite(PropertySummary item) async {
     final desired = !item.isFavorite;
     final changed = await widget.favorites.setFavorite(item.id, desired);
     if (!mounted) return;
@@ -130,14 +130,22 @@ class _PropertyListPageState extends State<PropertyListPage> {
                 Text(
                   controller.showAll
                       ? 'Çankaya genelinde en yüksek skorlu '
-                            '${controller.items.length} konut.'
+                          '${controller.items.length} konut.'
                       : 'Önemli konumlarının çevresinde, profilin ve bütçene '
-                            'göre en yüksek skorlu ${controller.items.length} konut.',
+                          'göre en yüksek skorlu ${controller.items.length} konut.',
                   style: const TextStyle(
                     fontSize: 13,
                     color: AppColors.inkMuted,
                     height: 1.4,
                   ),
+                ),
+                const SizedBox(height: 10),
+
+                _FilterAndSortSection(
+                  open: _filtersOpen,
+                  controller: controller,
+                  onToggle: () => setState(() => _filtersOpen = !_filtersOpen),
+                  onClose: () => setState(() => _filtersOpen = false),
                 ),
                 const SizedBox(height: 10),
 
@@ -163,21 +171,24 @@ class _PropertyListPageState extends State<PropertyListPage> {
                     onShowAll: () => controller.setShowAll(true),
                     onOpenFallback: (id) => _openDetail(id),
                   ),
-                for (var index = 0; index < controller.items.length; index++)
+                if (controller.items.isNotEmpty &&
+                    controller.visibleItems.isEmpty)
+                  _FilteredEmptyState(onClear: controller.clearFilters),
+                for (final ranked in controller.visibleItems)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: PropertySummaryCard(
-                      rank: index + 1,
-                      property: controller.items[index],
+                      rank: ranked.rank,
+                      property: ranked.property,
                       favoriteBusy: widget.favorites.busyPropertyIds.contains(
-                        controller.items[index].id,
+                        ranked.property.id,
                       ),
                       inRoute: widget.routes.containsProperty(
-                        controller.items[index].numericId ?? -1,
+                        ranked.property.numericId ?? -1,
                       ),
-                      onTap: () => _openDetail(controller.items[index].id),
-                      onFavorite: () => _toggleFavorite(index),
-                      onRoute: () => _toggleRoute(index),
+                      onTap: () => _openDetail(ranked.property.id),
+                      onFavorite: () => _toggleFavorite(ranked.property),
+                      onRoute: () => _toggleRoute(ranked.property),
                     ),
                   ),
               ],
@@ -187,6 +198,161 @@ class _PropertyListPageState extends State<PropertyListPage> {
       ),
     );
   }
+}
+
+class _FilterAndSortSection extends StatelessWidget {
+  const _FilterAndSortSection({
+    required this.open,
+    required this.controller,
+    required this.onToggle,
+    required this.onClose,
+  });
+
+  final bool open;
+  final PropertyCatalogController controller;
+  final VoidCallback onToggle;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final activeCount =
+        (controller.hasActiveFilter ? 1 : 0) +
+        (controller.sortOption != PropertySortOption.score ? 1 : 0);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.inputBg,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Column(
+        children: [
+          ListTile(
+            dense: true,
+            leading: const Icon(Icons.tune),
+            title: const Text(
+              'Filtrele ve sırala',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            subtitle:
+                controller.hasCustomView
+                    ? Text(
+                      '${controller.visibleItems.length} / '
+                      '${controller.items.length} konut gösteriliyor',
+                    )
+                    : null,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (activeCount > 0) Badge(label: Text('$activeCount')),
+                Icon(open ? Icons.expand_less : Icons.expand_more),
+              ],
+            ),
+            onTap: onToggle,
+          ),
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 180),
+            crossFadeState:
+                open ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            firstChild: const SizedBox(width: double.infinity),
+            secondChild: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Sırala',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final option in PropertySortOption.values)
+                        ChoiceChip(
+                          label: Text(_sortLabel(option)),
+                          selected: controller.sortOption == option,
+                          onSelected: (_) => controller.setSortOption(option),
+                        ),
+                    ],
+                  ),
+                  if (controller.roomCountOptions.length > 1) ...[
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Oda sayısı',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (final roomCount in controller.roomCountOptions)
+                          FilterChip(
+                            label: Text(roomCount),
+                            selected: controller.selectedRoomCounts.contains(
+                              roomCount,
+                            ),
+                            onSelected:
+                                (_) => controller.toggleRoomCount(roomCount),
+                          ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed:
+                            controller.hasActiveFilter
+                                ? controller.clearFilters
+                                : null,
+                        child: const Text('Filtreleri temizle'),
+                      ),
+                      TextButton(
+                        onPressed: onClose,
+                        child: const Text('Kapat'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _sortLabel(PropertySortOption option) => switch (option) {
+    PropertySortOption.score => 'Öneri (skor)',
+    PropertySortOption.rentDescending => 'Kira: Azalan',
+    PropertySortOption.rentAscending => 'Kira: Artan',
+    PropertySortOption.areaDescending => 'm²: Azalan',
+    PropertySortOption.areaAscending => 'm²: Artan',
+  };
+}
+
+class _FilteredEmptyState extends StatelessWidget {
+  const _FilteredEmptyState({required this.onClear});
+
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 48),
+    child: Column(
+      children: [
+        const Icon(Icons.filter_alt_off_outlined, size: 38),
+        const SizedBox(height: 10),
+        const Text('Bu filtrelerle eşleşen konut yok.'),
+        TextButton(onPressed: onClear, child: const Text('Filtreleri temizle')),
+      ],
+    ),
+  );
 }
 
 /// "Tüm evleri göster" anahtarı.

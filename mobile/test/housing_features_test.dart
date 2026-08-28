@@ -109,6 +109,53 @@ void main() {
       expect(controller.showAll, isTrue);
     });
 
+    test('oda filtresi ve sıralama özgün uygunluk sırasını korur', () async {
+      final client = ApiClient(
+        baseUrl: 'http://localhost/api/v1',
+        tokenStore: MemoryTokenStore(),
+        httpClient: MockClient(
+          (_) async => _jsonResponse({
+            'items': [
+              {..._propertySummaryJson, 'id': '1', 'roomCount': '3+1'},
+              {
+                ..._propertySummaryJson,
+                'id': '2',
+                'roomCount': '1+1',
+                'monthlyRent': 15000,
+                'areaM2': 55,
+              },
+              {
+                ..._propertySummaryJson,
+                'id': '3',
+                'roomCount': '1+1',
+                'monthlyRent': 22000,
+                'areaM2': 70,
+              },
+            ],
+            'nearestFallback': null,
+            'corridorPolygon': null,
+          }),
+        ),
+      );
+      addTearDown(client.close);
+      final controller = PropertyCatalogController(ApiPropertyGateway(client));
+
+      await controller.load();
+      controller.toggleRoomCount('1+1');
+      controller.setSortOption(PropertySortOption.rentDescending);
+
+      expect(controller.roomCountOptions, ['1+1', '3+1']);
+      expect(controller.visibleItems.map((item) => item.property.id), [
+        '3',
+        '2',
+      ]);
+      expect(controller.visibleItems.map((item) => item.rank), [3, 2]);
+      expect(controller.hasCustomView, isTrue);
+
+      controller.clearFilters();
+      expect(controller.visibleItems, hasLength(3));
+    });
+
     test('favori GET POST DELETE isteklerini doğru gönderir', () async {
       final requests = <http.Request>[];
       final client = ApiClient(
