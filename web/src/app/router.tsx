@@ -1,33 +1,43 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { RootLayout } from '@/app/layout/RootLayout';
 import { ProtectedRoute } from '@/app/ProtectedRoute';
+import { AdminRoute } from '@/app/AdminRoute';
+
 import { LoginPage } from '@/features/auth/LoginPage';
 import { RegisterPage } from '@/features/auth/RegisterPage';
 import { VerifyEmailPage } from '@/features/auth/VerifyEmailPage';
 import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage';
+
 import { OnboardingPage } from '@/features/onboarding/OnboardingPage';
-import LifestyleSelection from "@/features/auth/LifestyleSelection";
-import PreferencesRanking from "@/features/auth/PreferencesRanking";
-import BudgetSelection from "@/features/auth/BudgetSelection";
+
+import LifestyleSelection from '@/features/auth/LifestyleSelection';
+import PreferencesRanking from '@/features/auth/PreferencesRanking';
+import BudgetSelection from '@/features/auth/BudgetSelection';
+
 import { ExplorePage } from '@/features/explore/ExplorePage';
 import { ProfilePage } from '@/features/profile/ProfilePage';
 import { FavoritesPage } from '@/features/favorites/FavoritesPage';
+import { AdminPage } from '@/features/admin/AdminPage';
+
 import { NotFoundPage } from '@/features/NotFoundPage';
 
 export const router = createBrowserRouter([
-  // BANNER OLMAYAN TAM EKRAN SAYFALAR 
+  // BANNER OLMAYAN TAM EKRAN SAYFALAR
   { path: 'auth/login', element: <LoginPage /> },
   { path: 'auth/register', element: <RegisterPage /> },
   { path: 'auth/verify-email', element: <VerifyEmailPage /> },
   { path: 'auth/forgot-password', element: <ForgotPasswordPage /> },
 
-  // BANNER OLAN İÇ SAYFALAR 
+  // BANNER OLAN İÇ SAYFALAR
   {
     path: '/',
     element: <RootLayout />,
     children: [
-      { index: true, element: <Navigate to="/auth/login" replace /> },
-      
+      {
+        index: true,
+        element: <Navigate to="/auth/login" replace />,
+      },
+
       {
         path: 'lifestyle',
         element: (
@@ -36,6 +46,7 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
+
       {
         path: 'preferences',
         element: (
@@ -44,6 +55,7 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
+
       {
         path: 'budget',
         element: (
@@ -52,6 +64,7 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
+
       {
         path: 'onboarding',
         element: (
@@ -60,6 +73,7 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
+
       {
         path: 'explore',
         element: (
@@ -68,6 +82,7 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
+
       {
         path: 'favorites',
         element: (
@@ -76,6 +91,7 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
+
       {
         path: 'profile',
         element: (
@@ -84,7 +100,20 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
-      { path: '*', element: <NotFoundPage /> },
+
+      {
+        path: 'admin',
+        element: (
+          <AdminRoute>
+            <AdminPage />
+          </AdminRoute>
+        ),
+      },
+
+      {
+        path: '*',
+        element: <NotFoundPage />,
+      },
     ],
   },
 ]);

@@ -92,6 +92,7 @@ export const authHandlers = [
       password: body.password,
       displayName: body.displayName ?? null,
       emailVerified: false,
+      isAdmin: false,
     });
 
     return pending(email);

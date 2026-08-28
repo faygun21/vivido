@@ -38,7 +38,13 @@ function PinListesi() {
 
 function oturum(userId: string, email: string): AuthResponse {
   return {
-    user: { id: userId, email, displayName: null, emailVerified: true },
+    user: {
+  id: userId,
+  email,
+  displayName: null,
+  emailVerified: true,
+  isAdmin: false,
+},
     tokens: { accessToken: `access-${userId}`, refreshToken: `refresh-${userId}`, expiresIn: 900 },
   };
 }
