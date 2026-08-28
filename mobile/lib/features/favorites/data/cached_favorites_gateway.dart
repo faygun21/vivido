@@ -18,7 +18,11 @@ class CachedFavoritesGateway implements FavoritesGateway {
   Future<FavoritesLoadResult> getFavorites() async {
     try {
       final result = await _remote.getFavorites();
-      await _cache.write(_userId, result.items);
+      try {
+        await _cache.write(_userId, result.items);
+      } on Object {
+        // Güncel sunucu verisi, önbellek yazma hatası yüzünden kaybedilmez.
+      }
       return result;
     } on Object {
       final cached = await _cache.read(_userId);

@@ -18,6 +18,13 @@ import 'package:vivido_mobile/features/favorites/domain/favorite_cache.dart';
 import 'package:vivido_mobile/features/favorites/domain/favorite_models.dart';
 import 'package:vivido_mobile/features/favorites/domain/favorites_gateway.dart';
 import 'package:vivido_mobile/features/properties/domain/property_models.dart';
+import 'package:vivido_mobile/features/properties/data/cached_property_gateway.dart';
+import 'package:vivido_mobile/features/properties/domain/property_gateway.dart';
+import 'package:vivido_mobile/features/properties/domain/property_list_cache.dart';
+import 'package:vivido_mobile/features/routes/data/cached_routes_gateway.dart';
+import 'package:vivido_mobile/features/routes/domain/route_list_cache.dart';
+import 'package:vivido_mobile/features/routes/domain/route_models.dart';
+import 'package:vivido_mobile/features/routes/domain/routes_gateway.dart';
 
 void main() {
   group('R-78 çevrimdışı favoriler', () {
@@ -206,6 +213,65 @@ void main() {
         isNull,
       );
     });
+
+    test('sunucu yokken cihazdaki konut listesini gösterir', () async {
+      final cache =
+          _MemoryPropertyListCache()
+            ..value = TopProperties(items: [_favorite.property!]);
+      final gateway = CachedPropertyGateway(
+        remote: _FakePropertyGateway(failReads: true),
+        cache: cache,
+        userId: 'user-1',
+      );
+
+      final result = await gateway.getTopProperties();
+
+      expect(result.items.single.id, '42');
+    });
+
+    test('sunucu yokken cihazdaki kayıtlı rota özetlerini gösterir', () async {
+      final cache = _MemoryRouteListCache()..values['user-1'] = [_route];
+      final gateway = CachedRoutesGateway(
+        remote: _FakeRoutesGateway(failReads: true),
+        cache: cache,
+        userId: 'user-1',
+      );
+
+      final routes = await gateway.getRoutes();
+
+      expect(routes.single.name, 'Ev turu');
+      expect(routes.single.stopCount, 2);
+    });
+
+    test('sunucu yokken önbellekteki kayıtlı rota detayını açar', () async {
+      final cache =
+          _MemoryRouteListCache()
+            ..details['user-1:route-1'] = _routeDetail;
+      final gateway = CachedRoutesGateway(
+        remote: _FakeRoutesGateway(failReads: true),
+        cache: cache,
+        userId: 'user-1',
+      );
+
+      final route = await gateway.getRoute('route-1');
+
+      expect(route.name, 'Ev turu');
+      expect(route.stops.single.propertyId, 42);
+      expect(route.geometry, isNotEmpty);
+    });
+
+    test('rota listesi yüklenince detayları çevrimdışı kullanım için saklar', () async {
+      final cache = _MemoryRouteListCache();
+      final gateway = CachedRoutesGateway(
+        remote: _FakeRoutesGateway(),
+        cache: cache,
+        userId: 'user-1',
+      );
+
+      await gateway.getRoutes();
+
+      expect(cache.details['user-1:route-1']?.name, 'Ev turu');
+    });
   });
 }
 
@@ -237,6 +303,50 @@ final _favorite = FavoriteEntry(
     isFavorite: true,
   ),
 );
+
+final _route = RouteSummary(
+  id: 'route-1',
+  name: 'Ev turu',
+  mode: RouteTravelMode.car,
+  totalDistanceM: 4200,
+  totalDurationS: 900,
+  createdAt: DateTime.utc(2026, 8, 28),
+  stopCount: 2,
+);
+
+final _routeDetail = RouteDetail.fromJson({
+  'id': 'route-1',
+  'name': 'Ev turu',
+  'start': {'lat': 39.9, 'lon': 32.8, 'label': 'Başlangıç'},
+  'mode': 'car',
+  'totalDistanceM': 4200,
+  'totalDurationS': 900,
+  'stopCount': 1,
+  'geometry': {
+    'type': 'LineString',
+    'coordinates': [
+      [32.8, 39.9],
+      [32.81, 39.91],
+    ],
+  },
+  'stops': [
+    {
+      'seq': 1,
+      'propertyId': 42,
+      'property': {
+        'monthlyRent': 18000,
+        'areaM2': 90,
+        'roomCount': '2+1',
+        'neighborhood': 'Ayrancı',
+        'lat': 39.91,
+        'lon': 32.81,
+      },
+    },
+  ],
+  'legs': const [],
+  'createdAt': '2026-08-28T00:00:00Z',
+  'isSaved': true,
+});
 
 class _MemoryFavoriteCache implements FavoriteCache {
   final Map<String, List<FavoriteEntry>> values = {};
@@ -282,6 +392,106 @@ class _FakeConnectivityMonitor implements ConnectivityMonitor {
 
   @override
   Stream<List<ConnectivityResult>> get changes => controller.stream;
+}
+
+class _MemoryPropertyListCache implements PropertyListCache {
+  TopProperties value = const TopProperties.empty();
+
+  @override
+  Future<TopProperties> read(String userId, {required bool showAll}) async =>
+      value;
+
+  @override
+  Future<void> write(
+    String userId,
+    TopProperties properties, {
+    required bool showAll,
+  }) async {
+    value = properties;
+  }
+}
+
+class _FakePropertyGateway implements PropertyGateway {
+  _FakePropertyGateway({this.failReads = false});
+
+  final bool failReads;
+
+  @override
+  Future<PropertyDetail> getPropertyDetail(String id) =>
+      throw UnimplementedError();
+
+  @override
+  Future<TopProperties> getTopProperties({
+    int limit = 20,
+    bool showAll = false,
+  }) async {
+    if (failReads) throw const PropertyDataFailure('Bağlantı yok.');
+    return TopProperties(items: [_favorite.property!]);
+  }
+}
+
+class _MemoryRouteListCache implements RouteListCache {
+  final Map<String, List<RouteSummary>> values = {};
+  final Map<String, RouteDetail> details = {};
+
+  @override
+  Future<List<RouteSummary>> read(String userId) async =>
+      values[userId] ?? const [];
+
+  @override
+  Future<void> write(String userId, List<RouteSummary> routes) async {
+    values[userId] = routes;
+  }
+
+  @override
+  Future<RouteDetail?> readDetail(String userId, String routeId) async =>
+      details['$userId:$routeId'];
+
+  @override
+  Future<void> writeDetail(String userId, RouteDetail route) async {
+    details['$userId:${route.id}'] = route;
+  }
+
+  @override
+  Future<void> deleteDetail(String userId, String routeId) async {
+    details.remove('$userId:$routeId');
+  }
+}
+
+class _FakeRoutesGateway implements RoutesGateway {
+  _FakeRoutesGateway({this.failReads = false});
+
+  final bool failReads;
+
+  @override
+  Future<List<RouteSummary>> getRoutes() async {
+    if (failReads) throw const RoutesFailure('Bağlantı yok.');
+    return [_route];
+  }
+
+  @override
+  Future<RouteDetail> getRoute(String id) async {
+    if (failReads) throw const RoutesFailure('Bağlantı yok.');
+    return _routeDetail;
+  }
+
+  @override
+  Future<RouteDetail> createRoute({
+    required String name,
+    required RouteStart start,
+    required List<int> propertyIds,
+    required RouteTravelMode mode,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<void> deleteRoute(String id) => throw UnimplementedError();
+
+  @override
+  Future<RouteDetail> previewRoute({
+    required RouteStart start,
+    required List<int> propertyIds,
+    required RouteTravelMode mode,
+  }) => throw UnimplementedError();
 }
 
 class _MemoryOfflineCredentialStore implements OfflineCredentialStore {

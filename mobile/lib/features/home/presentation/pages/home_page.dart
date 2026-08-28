@@ -29,6 +29,8 @@ import '../../../preferences/domain/life_criteria.dart';
 import '../../../preferences/presentation/widgets/life_criteria_order_list.dart';
 import '../../../properties/application/property_catalog_controller.dart';
 import '../../../properties/data/api_property_gateway.dart';
+import '../../../properties/data/cached_property_gateway.dart';
+import '../../../properties/data/secure_property_list_cache.dart';
 import '../../../properties/domain/property_gateway.dart';
 import '../../../properties/presentation/property_format.dart';
 import '../../../routes/domain/route_models.dart';
@@ -38,6 +40,8 @@ import '../../../property_strengths/data/api_strength_poi_gateway.dart';
 import '../../../property_strengths/domain/strength_poi_gateway.dart';
 import '../../../routes/application/routes_controller.dart';
 import '../../../routes/data/api_routes_gateway.dart';
+import '../../../routes/data/cached_routes_gateway.dart';
+import '../../../routes/data/secure_route_list_cache.dart';
 import '../../../routes/presentation/pages/routes_page.dart';
 import '../../../../shared/widgets/budget_range_fields.dart';
 
@@ -60,6 +64,7 @@ class _HomePageState extends State<HomePage> {
   late final RoutesController _routes;
   late final StrengthPoiGateway _strengthPoiGateway;
   late final NetworkStatusController _networkStatus;
+  bool _wasOffline = false;
 
   /// Konum ve adres araması BURADA yaşıyor, harita ekranında değil: hem
   /// harita hem Rotalar sekmesi kullanıyor. Ayrı örnekler olsaydı kullanıcıdan
@@ -72,19 +77,30 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
-    _propertyGateway = ApiPropertyGateway(widget.controller.client);
+    final userId =
+        widget.controller.user?.id ??
+        widget.controller.user?.email ??
+        'unknown-user';
+    _propertyGateway = CachedPropertyGateway(
+      remote: ApiPropertyGateway(widget.controller.client),
+      cache: SecurePropertyListCache(),
+      userId: userId,
+    );
     _propertyCatalog = PropertyCatalogController(_propertyGateway);
     _favorites = FavoritesController(
       CachedFavoritesGateway(
         remote: ApiFavoritesGateway(widget.controller.client),
         cache: SecureFavoriteCache(),
-        userId:
-            widget.controller.user?.id ??
-            widget.controller.user?.email ??
-            'unknown-user',
+        userId: userId,
       ),
     );
-    _routes = RoutesController(ApiRoutesGateway(widget.controller.client));
+    _routes = RoutesController(
+      CachedRoutesGateway(
+        remote: ApiRoutesGateway(widget.controller.client),
+        cache: SecureRouteListCache(),
+        userId: userId,
+      ),
+    );
     _userLocation = UserLocationController();
     _searchController = LocationSearchController(
       ApiLocationSearchGateway(widget.controller.client),
@@ -93,6 +109,7 @@ class _HomePageState extends State<HomePage> {
     _networkStatus = NetworkStatusController(PlatformConnectivityMonitor());
     _networkStatus.addListener(_handleNetworkStatusChanged);
     unawaited(_networkStatus.initialize());
+    _preloadOfflineData();
   }
 
   @override
@@ -127,9 +144,7 @@ class _HomePageState extends State<HomePage> {
           // kadar uzanıyor ve arama kutusu doğrudan onun üstünde yüzüyor
           // (webdeki Keşfet ekranıyla aynı fikir). Diğer sekmeler liste
           // olduğu için başlığa ihtiyaç duyuyor.
-          appBar: isMapTab
-              ? null
-              : AppBar(title: Text(titles[_selectedIndex])),
+          appBar: isMapTab ? null : AppBar(title: Text(titles[_selectedIndex])),
           body: _OfflineAwareBody(
             offline: _networkStatus.isOffline,
             child: switch (_selectedIndex) {
@@ -172,7 +187,8 @@ class _HomePageState extends State<HomePage> {
                   await Navigator.of(context).push<void>(
                     MaterialPageRoute(
                       builder:
-                          (_) => AnchorManagerPage(controller: widget.controller),
+                          (_) =>
+                              AnchorManagerPage(controller: widget.controller),
                     ),
                   );
                   if (mounted) _refreshPersonalizedHousing();
@@ -223,7 +239,16 @@ class _HomePageState extends State<HomePage> {
     unawaited(_favorites.load(force: true));
   }
 
+  void _preloadOfflineData({bool force = false}) {
+    unawaited(_propertyCatalog.load(force: force));
+    unawaited(_favorites.load(force: force));
+    unawaited(_routes.loadRoutes(force: force));
+  }
+
   void _handleNetworkStatusChanged() {
+    final reconnected = _wasOffline && !_networkStatus.isOffline;
+    _wasOffline = _networkStatus.isOffline;
+    if (reconnected) _preloadOfflineData(force: true);
     if (_networkStatus.initialized &&
         !_networkStatus.isOffline &&
         widget.controller.profile == null) {
@@ -265,10 +290,7 @@ class _OfflineAwareBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(
-    children: [
-      if (offline) const _OfflineBanner(),
-      Expanded(child: child),
-    ],
+    children: [if (offline) const _OfflineBanner(), Expanded(child: child)],
   );
 }
 
@@ -356,7 +378,8 @@ class _MapOverviewState extends State<_MapOverview> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        action: _userLocation.needsAppSettings
+        action:
+            _userLocation.needsAppSettings
                 ? SnackBarAction(
                   label: 'Ayarlar',
                   onPressed: _userLocation.openSettings,
@@ -385,7 +408,8 @@ class _MapOverviewState extends State<_MapOverview> {
     }
 
     final current = route.propertyIds;
-    final next = current.contains(id)
+    final next =
+        current.contains(id)
             ? (current.where((value) => value != id).toList())
             : [...current, id];
 
@@ -405,9 +429,8 @@ class _MapOverviewState extends State<_MapOverview> {
     final route = widget.routes.activeRoute;
     if (route == null) return;
 
-    final next = route.propertyIds
-        .where((value) => value != propertyId)
-        .toList();
+    final next =
+        route.propertyIds.where((value) => value != propertyId).toList();
     final ok = await widget.routes.reoptimize(next);
     if (!mounted || ok) return;
 
@@ -421,7 +444,8 @@ class _MapOverviewState extends State<_MapOverview> {
   Future<void> _saveRouteFromMap() async {
     final name = await showDialog<String>(
       context: context,
-      builder: (context) => _MapSaveRouteDialog(
+      builder:
+          (context) => _MapSaveRouteDialog(
             initialName: widget.routes.activeRoute?.name ?? 'Ziyaret rotası',
           ),
     );
@@ -607,7 +631,8 @@ class _MapOverviewState extends State<_MapOverview> {
               MapLayerButton(controller: _mapDataController),
               const SizedBox(height: 10),
               _MapCircleButton(
-                icon: _userLocation.status == UserLocationStatus.ready
+                icon:
+                    _userLocation.status == UserLocationStatus.ready
                         ? Icons.my_location
                         : Icons.location_searching,
                 busy: _userLocation.status == UserLocationStatus.locating,
@@ -641,8 +666,7 @@ class _MapOverviewState extends State<_MapOverview> {
             left: 12,
             right: 68,
             child: _PickPointBanner(
-              onCancel: () =>
-                  setState(() => _pickingAnalysisPoint = false),
+              onCancel: () => setState(() => _pickingAnalysisPoint = false),
             ),
           ),
 
@@ -791,7 +815,8 @@ class _MapCircleButton extends StatelessWidget {
       child: SizedBox(
         width: 48,
         height: 48,
-        child: busy
+        child:
+            busy
                 ? const Padding(
                   padding: EdgeInsets.all(14),
                   child: CircularProgressIndicator(strokeWidth: 2.4),
@@ -872,8 +897,7 @@ class _RouteStopsRail extends StatelessWidget {
                 // Son iki durakta çıkarma kapalı: rota en az 2 durak
                 // istiyor, düğmeyi aktif bırakmak kullanıcıyı hata
                 // mesajına yürütmek olurdu.
-                final canRemove =
-                    !busy && route.stops.length > minRouteStops;
+                final canRemove = !busy && route.stops.length > minRouteStops;
                 return Padding(
                   padding: const EdgeInsets.fromLTRB(10, 2, 4, 2),
                   child: Row(
@@ -905,9 +929,8 @@ class _RouteStopsRail extends StatelessWidget {
                         ),
                       ),
                       IconButton(
-                        onPressed: canRemove
-                            ? () => onRemove(stop.propertyId)
-                            : null,
+                        onPressed:
+                            canRemove ? () => onRemove(stop.propertyId) : null,
                         icon: const Icon(Icons.remove_circle_outline, size: 17),
                         visualDensity: VisualDensity.compact,
                         padding: EdgeInsets.zero,
@@ -1004,9 +1027,8 @@ class _MapHintBanner extends StatelessWidget {
         boxShadow: AppShadows.md,
         // Hata şeridi ince bir çerçeveyle ayrışıyor: aynı yerde çıkan
         // bilgi şeridiyle karıştırılmasın.
-        border: isError
-            ? Border.all(color: AppColors.bandPoor, width: 1.2)
-            : null,
+        border:
+            isError ? Border.all(color: AppColors.bandPoor, width: 1.2) : null,
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),

@@ -38,10 +38,6 @@ class MapDataController extends ChangeNotifier {
     errorMessage = null;
     _notify();
 
-    final propertyFuture =
-        authenticated
-            ? _gateway.getAuthenticatedProperties(showAll: showAllProperties)
-            : Future.value(const AuthenticatedPropertiesMap(items: []));
     final errors = <String>[];
 
     try {
@@ -53,7 +49,16 @@ class MapDataController extends ChangeNotifier {
     }
 
     try {
-      final propertyData = await propertyFuture;
+      // Bu istek kategori isteğinden önce başlatılıp daha sonra beklendiğinde,
+      // çevrimdışı cihazda erken tamamlanan hata Dart tarafından geçici olarak
+      // "Unhandled Exception" sayılıyordu. İstek kendi try bloğunda başlatılıp
+      // hemen beklenerek hata her zaman denetleyici içinde tutulur.
+      final propertyData =
+          authenticated
+              ? await _gateway.getAuthenticatedProperties(
+                showAll: showAllProperties,
+              )
+              : const AuthenticatedPropertiesMap(items: []);
       properties = propertyData.items;
       anchorCorridor = propertyData.corridor;
     } on MapDataFailure catch (error) {
