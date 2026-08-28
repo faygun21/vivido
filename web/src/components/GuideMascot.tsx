@@ -11,40 +11,40 @@ export interface TourStep {
 
 const DEFAULT_TOUR_STEPS: TourStep[] = [
   {
-    title: 'Hoş Geldin!',
+    title: 'Hoş Geldin! ',
     text: 'Sana haritada en uygun kiralık evleri ve çevreyi nasıl keşfedeceğini göstereyim. Hazırsan başlayalım!',
   },
   {
-    title: 'Arama Çubuğu',
+    title: '1. Arama Çubuğu ',
     text: 'Buradan aradığın mahalleyi, caddeyi veya konumu aratarak haritayı direkt oraya odaklayabilirsin.',
     selector: '.drawer-head + div', 
   },
   {
-    title: 'Profil Sekmesi ',
+    title: '2. Profil Sekmesi ',
     text: 'Bu sekmede "Profili düzenle" diyerek seçimlerini değiştirebilir, "+ Yer ekle" butonuna tıklayarak düzenli gittiğin yerleri ekleyebilirsin.',
     targetTab: 'profil',
     selector: '.drawer-tabs button:nth-child(1)', 
   },
   {
-    title: 'Konum Analizi ',
+    title: '3. Konum Analizi ',
     text: 'Buradan analiz yapabilirsin. Seçtiğin bir konum etrafındaki analiz mesafesi ve yürüme süresini ayarlayarak çevreyi keşfedebilirsin.',
     targetTab: 'analiz',
     selector: '.drawer-tabs button:nth-child(2)', 
   },
   {
-    title: 'Akıllı Rota ',
+    title: '4. Akıllı Rota ',
     text: 'Bu sekmeden rota oluşturabilirsin. Haritadan seçtiğin evleri en mantıklı sırayla gezmek için rotanı buradan planlayacaksın.',
     targetTab: 'rota',
     selector: '.drawer-tabs button:nth-child(3)', 
   },
   {
-    title: 'Harita Katmanları ',
+    title: '5. Harita Katmanları ',
     text: 'Burada harita içinde görmek istediğin yerlerin (market, park vb.) görünürlüğüyle oynayabilir ve katmanları yönetebilirsin.',
     targetTab: 'harita',
     selector: '.drawer-tabs button:nth-child(4)', 
   },
   {
-    title: 'En Uygun Evler ',
+    title: '6. En Uygun Evler ',
     text: 'Son olarak köşedeki bu butona tıklayarak sana en uygun evlerin listesini, puanlarını ve detaylarını görebilirsin.',
     targetTab: 'profil', 
     selector: '.top-panel-toggle', 
@@ -70,7 +70,15 @@ export function GuideMascot({ isOpen, steps = DEFAULT_TOUR_STEPS, onTabChange, o
   const currentStep = steps[currentStepIndex];
   const isLastStep = currentStepIndex === steps.length - 1;
 
-useEffect(() => {
+  // Sidebar kapandığında baloncuğu kapat
+  useEffect(() => {
+    if (!isOpen) {
+      setIsBubbleVisible(false);
+    }
+  }, [isOpen]);
+
+  // Tur adımı ve vurgulama efekti
+  useEffect(() => {
     if (!isTourActive || !isOpen || !isBubbleVisible) return;
 
     const step = steps[currentStepIndex];
@@ -79,13 +87,13 @@ useEffect(() => {
       onTabChange(step.targetTab);
     }
 
-    const currentSelector = step.selector;
-    if (!currentSelector) return;
+    if (!step.selector) return;
+
+    // TypeScript için as string dayatması (Hatanın çözüldüğü yer)
+    const targetSelector = step.selector as string;
 
     const timer = setTimeout(() => {
-      const currentSelector = step.selector;
-    if (!currentSelector) return;
-    const targetElement = document.querySelector<HTMLElement>(currentSelector);
+      const targetElement = document.querySelector(targetSelector) as HTMLElement | null;
       
       if (targetElement) {
         const originalOutline = targetElement.style.outline;
@@ -122,59 +130,7 @@ useEffect(() => {
 
     return () => {
       clearTimeout(timer);
-      const prevElement = document.querySelector(currentSelector) as HTMLElement | null;
-      if (prevElement && prevElement.dataset.cleanup) {
-        prevElement.dispatchEvent(new Event('cleanup-highlight'));
-        delete prevElement.dataset.cleanup;
-      }
-    };
-  }, [currentStepIndex, isTourActive, isOpen, isBubbleVisible, steps, onTabChange]);
-  useEffect(() => {
-    if (!isTourActive || !isOpen || !isBubbleVisible) return;
-
-    const step = steps[currentStepIndex];
-    
-    if (step.targetTab && onTabChange) {
-      onTabChange(step.targetTab);
-    }
-
-    if (!step.selector) return;
-
-    const timer = setTimeout(() => {
-      const targetElement = document.querySelector(step.selector) as HTMLElement;
-      
-      if (targetElement) {
-        const originalOutline = targetElement.style.outline;
-        const originalOutlineOffset = targetElement.style.outlineOffset;
-        const originalBorderRadius = targetElement.style.borderRadius;
-        const originalTransition = targetElement.style.transition;
-        const originalBoxShadow = targetElement.style.boxShadow;
-        const originalZIndex = targetElement.style.zIndex;
-
-        targetElement.style.transition = 'all 0.3s ease';
-        targetElement.style.outline = '3px solid #e06d3b';
-        targetElement.style.outlineOffset = '4px';
-        targetElement.style.borderRadius = '8px';
-        targetElement.style.boxShadow = '0 0 15px rgba(224, 109, 59, 0.4)';
-        targetElement.style.zIndex = '100';
-
-        targetElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-        targetElement.dataset.cleanup = "true";
-        targetElement.addEventListener('cleanup-highlight', () => {
-          targetElement.style.outline = originalOutline;
-          targetElement.style.outlineOffset = originalOutlineOffset;
-          targetElement.style.borderRadius = originalBorderRadius;
-          targetElement.style.transition = originalTransition;
-          targetElement.style.boxShadow = originalBoxShadow;
-          targetElement.style.zIndex = originalZIndex;
-        }, { once: true });
-      }
-    }, 100);
-
-    return () => {
-      clearTimeout(timer);
-      const prevElement = document.querySelector(step.selector) as HTMLElement;
+      const prevElement = document.querySelector(targetSelector) as HTMLElement | null;
       if (prevElement && prevElement.dataset.cleanup) {
         prevElement.dispatchEvent(new Event('cleanup-highlight'));
         delete prevElement.dataset.cleanup;
