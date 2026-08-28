@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import type {
   CreateRouteRequest,
   LocationSearchResult,
@@ -68,6 +74,9 @@ const DEFAULT_ANALYSIS_LOCATION: WalkingLocation = { lat: 39.87, lon: 32.85 };
  */
 const MAX_DENSITY_POIS_PER_CATEGORY = 8;
 
+/** Güçlü yön ipucu bandını bir daha göstermemek için — kalıcı, oturumlar arası. */
+const POI_HINT_STORAGE_KEY = 'vivido:poiHintSeen';
+
 function matchesWide(): boolean {
   return typeof window !== 'undefined' && window.matchMedia(WIDE_SCREEN).matches;
 }
@@ -102,6 +111,16 @@ export function ExplorePage() {
   const [pendingAnchor, setPendingAnchor] = useState<MapPoint | null>(null);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
   const [topPanelOpen, setTopPanelOpen] = useState(false);
+  // Haritadaki "güçlü yön" ikonlarının ne olduğunu bir kez açıklıyoruz —
+  // ilk evi seçtiğinde bandı görür, kapattığında/bir daha görmez (2026-08-28).
+  const [poiHintDismissed, setPoiHintDismissed] = useState(
+    () => localStorage.getItem(POI_HINT_STORAGE_KEY) === '1',
+  );
+
+  function dismissPoiHint() {
+    localStorage.setItem(POI_HINT_STORAGE_KEY, '1');
+    setPoiHintDismissed(true);
+  }
 
   useEffect(() => {
     const focus = (location.state as { favoriteFocus?: MapFocus } | null)?.favoriteFocus;
@@ -383,6 +402,34 @@ export function ExplorePage() {
     reoptimizeRoute(remainingStops.map((stop) => stop.propertyId));
   }
 
+  /**
+   * Rota durağını ekler/çıkarır (toggle) — R-120/122/124.
+   *
+   * Harita pinine "Rota" sekmesindeyken tıklamakla AYNI mantık, ama artık
+   * "En uygun evler" panelindeki ve ev detayındaki "Rotaya ekle"
+   * düğmelerinden de çağrılıyor — favori düğmesiyle aynı tema, herhangi bir
+   * sekmedeyken/haritanın neresinde olursan ol çalışır.
+   */
+  function toggleRouteStop(propertyId: number) {
+    if (activeRoute) {
+      const currentIds = activeRoute.stops.map((stop) => stop.propertyId);
+      if (currentIds.includes(propertyId)) {
+        handleRemoveRouteStop(propertyId);
+      } else if (currentIds.length < MAX_ROUTE_STOPS) {
+        reoptimizeRoute([...currentIds, propertyId]);
+      }
+      return;
+    }
+
+    setRouteIds((current) => {
+      if (current.includes(propertyId)) {
+        return current.filter((value) => value !== propertyId);
+      }
+      if (current.length >= MAX_ROUTE_STOPS) return current;
+      return [...current, propertyId];
+    });
+  }
+
   // ─── R-108/109/110 — POI & konut katmanları ───
   //
   // `selectedCategories` BOŞ başlar ve boş kalır — harita hiçbir kategoriyi
@@ -428,6 +475,12 @@ export function ExplorePage() {
       ),
     enabled: bounds != null && selectedCategories.length > 0,
     staleTime: 30_000,
+    // ⚠️ `placeholderData` OLMADAN: harita her hareket ettiğinde `boundsKey`
+    // değişip yeni sorgu başlıyor, TanStack Query yeni veri gelene kadar
+    // `pois`'i `undefined`'a (→ `[]`'e) düşürüyordu — ikonlar bir anlığına
+    // kayboluyor, veri gelince geri geliyordu ("titreme", 2026-08-28).
+    // Eski liste yeni veri gelene kadar EKRANDA KALIYOR artık.
+    placeholderData: keepPreviousData,
   });
 
   const poiCategoryNames = Object.fromEntries(
@@ -527,33 +580,14 @@ export function ExplorePage() {
     lon: p.longitude,
   }));
 
+  // Pin tıklaması her sekmede AYNI şeyi yapar: detay panelini açar.
+  //
+  // Eskiden "Rota" sekmesindeyken tıklamak konutu doğrudan rotaya
+  // ekliyordu/çıkarıyordu — kullanıcı evin özelliklerine hiç bakmadan,
+  // "unutarak" bir sürü ev ekleyebiliyordu (2026-08-28). Artık rotaya
+  // ekleme SADECE detay panelindeki/liste kartındaki açık "Rotaya ekle"
+  // düğmesinden oluyor — kullanıcı önce evi görür, sonra karar verir.
   function handlePropertyClick(id: string) {
-    if (tab === 'rota') {
-      const propertyId = Number(id);
-
-      // Rota ZATEN oluşturulmuşsa aynı tıklama durak ekler/çıkarır ve rota
-      // yeniden optimize edilir. Eskiden bunun için önce "Rota düzenle"ye
-      // basmak gerekiyordu; o düğme kalktı çünkü fazladan bir kipten başka
-      // bir şey yapmıyordu.
-      if (activeRoute) {
-        const currentIds = activeRoute.stops.map((stop) => stop.propertyId);
-        if (currentIds.includes(propertyId)) {
-          handleRemoveRouteStop(propertyId);
-        } else if (currentIds.length < MAX_ROUTE_STOPS) {
-          reoptimizeRoute([...currentIds, propertyId]);
-        }
-        return;
-      }
-
-      setRouteIds((current) => {
-        if (current.includes(propertyId)) {
-          return current.filter((value) => value !== propertyId);
-        }
-        if (current.length >= MAX_ROUTE_STOPS) return current;
-        return [...current, propertyId];
-      });
-      return;
-    }
     setSelectedPropertyId(id);
   }
 
@@ -630,6 +664,20 @@ export function ExplorePage() {
   const showTopPanelToggle = authenticated && !isGuest;
   const rightSlotOpen = topPanelOpen || selectedProperty !== null;
 
+  // "Rotaya ekle" düğmesi favori düğmesiyle aynı temada ("En uygun evler"
+  // panelinde ve ev detayında), ama rota tamamen istemci-taraflı bir
+  // seçim (henüz kaydedilmiş bir sunucu kaydı değil) — bu yüzden
+  // `isFavorite` gibi API'den gelmiyor, burada türetiliyor. Rota
+  // ZATEN hesaplanmışsa (`activeRoute`) oradaki duraklar, değilse
+  // henüz-kaydedilmemiş seçim (`routeIds`) esas alınır.
+  const routePropertyIds = new Set(
+    activeRoute ? activeRoute.stops.map((stop) => stop.propertyId) : routeIds,
+  );
+  const routeAtCapacity = routePropertyIds.size >= MAX_ROUTE_STOPS;
+  // Rota oluşturma zaten misafire kapalı (bkz. "rota" sekmesindeki
+  // GuestPanel) — düğmeyi de aynı koşulla gösteriyoruz.
+  const showRouteButton = authenticated && !isGuest;
+
   return (
     <section
       className={
@@ -652,6 +700,7 @@ export function ExplorePage() {
         pois={pois}
         poiCategoryNames={poiCategoryNames}
         highlightedPois={highlightedPois}
+        selectedPropertyId={selectedPropertyId}
         onBoundsChange={handleBoundsChange}
         // Canlı konum haritada da rota başlangıcında da AYNI okuma —
         // bileşen kendi başına `getCurrentPosition` çağırmıyor.
@@ -668,6 +717,10 @@ export function ExplorePage() {
           property={selectedProperty}
           onClose={() => setSelectedPropertyId(null)}
           onBack={topPanelOpen ? () => setSelectedPropertyId(null) : undefined}
+          showRouteButton={showRouteButton}
+          isInRoute={routePropertyIds.has(Number(selectedProperty.id))}
+          routeAtCapacity={routeAtCapacity}
+          onToggleRoute={() => toggleRouteStop(Number(selectedProperty.id))}
         />
       )}
 
@@ -694,6 +747,9 @@ export function ExplorePage() {
           onShowAllProperties={() => setShowAllProperties(true)}
           nearestFallback={topNearestFallback}
           onSelectFallback={handleTopSelect}
+          routePropertyIds={routePropertyIds}
+          routeAtCapacity={routeAtCapacity}
+          onToggleRoute={toggleRouteStop}
         />
       )}
 
@@ -734,6 +790,15 @@ export function ExplorePage() {
           <span>Haritada bir noktaya tıkla</span>
           <button className="btn-chip" type="button" onClick={() => setPicking(false)}>
             Vazgeç
+          </button>
+        </div>
+      )}
+
+      {highlightedPois.length > 0 && !poiHintDismissed && (
+        <div className="map-banner map-banner--info" role="status">
+          <span>Haritadaki işaretler bu evin güçlü yönleri</span>
+          <button className="btn-chip" type="button" onClick={dismissPoiHint}>
+            Anladım
           </button>
         </div>
       )}
@@ -782,6 +847,13 @@ export function ExplorePage() {
               onClick={() => selectTab(value)}
             >
               {title}
+              {/* Rota kapasitesi HER sekmede görünsün — kullanıcı doluluğu
+                  yalnızca ekleyemeyince (title tooltip'iyle) öğrenmesin. */}
+              {value === 'rota' && routePropertyIds.size > 0 && (
+                <span className="drawer-tab-count">
+                  {routePropertyIds.size}/{MAX_ROUTE_STOPS}
+                </span>
+              )}
             </button>
           ))}
         </nav>
