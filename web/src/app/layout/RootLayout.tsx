@@ -55,35 +55,64 @@ export function RootLayout() {
             <>
               <NavLink
                 to="/explore"
-                className={({ isActive }) => `nav-btn${isActive ? ' is-active' : ''}`}
+                className={({ isActive }) =>
+                  `nav-btn${isActive ? ' is-active' : ''}`
+                }
               >
                 Keşfet
               </NavLink>
+
               <NavLink
                 to="/favorites"
-                className={({ isActive }) => `nav-btn${isActive ? ' is-active' : ''}`}
+                className={({ isActive }) =>
+                  `nav-btn${isActive ? ' is-active' : ''}`
+                }
               >
                 Favorilerim
               </NavLink>
+
               <NavLink
                 to="/profile"
-                className={({ isActive }) => `nav-btn${isActive ? ' is-active' : ''}`}
+                className={({ isActive }) =>
+                  `nav-btn${isActive ? ' is-active' : ''}`
+                }
               >
                 Profil
               </NavLink>
+
+              {user?.isAdmin && (
+                <NavLink
+                  to="/admin"
+                  className={({ isActive }) =>
+                    `nav-btn${isActive ? ' is-active' : ''}`
+                  }
+                >
+                  Admin Paneli
+                </NavLink>
+              )}
+
               <span className="user-email" title={user?.email}>
                 {user?.email}
               </span>
-              <button type="button" className="nav-btn nav-btn--quiet" onClick={handleLogout}>
+
+              <button
+                type="button"
+                className="nav-btn nav-btn--quiet"
+                onClick={handleLogout}
+              >
                 Çıkış
               </button>
             </>
           ) : status === 'anonymous' ? (
             isGuest ? (
               <>
-                <span className="guest-chip" title="Skorlar ve kişiselleştirme kayıt gerektirir">
+                <span
+                  className="guest-chip"
+                  title="Skorlar ve kişiselleştirme kayıt gerektirir"
+                >
                   Misafir
                 </span>
+
                 <button
                   type="button"
                   className="nav-btn"
@@ -91,6 +120,7 @@ export function RootLayout() {
                 >
                   Giriş yap
                 </button>
+
                 <button
                   type="button"
                   className="nav-btn nav-btn--primary"
@@ -104,6 +134,7 @@ export function RootLayout() {
                 <Link to="/auth/login" className="nav-btn">
                   Giriş yap
                 </Link>
+
                 <Link to="/auth/register" className="nav-btn nav-btn--primary">
                   Kayıt ol
                 </Link>

@@ -23,7 +23,13 @@ public record ResetPasswordRequest(string Email, string Code, string NewPassword
 public record TokenPair(string AccessToken, string RefreshToken, int ExpiresIn);
 
 //kullanıcı id'si string (uuid) formatında dönmeli, C# Guid tipini otomatik çevirir
-public record AuthUser(Guid Id, string Email, string? DisplayName, bool EmailVerified);
+public record AuthUser(
+    Guid Id,
+    string Email,
+    string? DisplayName,
+    bool EmailVerified,
+    bool IsAdmin
+);
 
 //register ve login işlemleri aynı gövdeyi dönmelidir
 public record AuthResponse(AuthUser User, TokenPair Tokens);

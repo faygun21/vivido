@@ -34,6 +34,7 @@ export interface AuthUser {
   displayName: string | null;
   /** E-posta doğrulandı mı? Doğrulanmamış hesapla giriş yapılamaz (K-09). */
   emailVerified: boolean;
+  isAdmin: boolean;
 }
 
 /** Kayıt sonrası e-postaya gelen 6 haneli kod. */

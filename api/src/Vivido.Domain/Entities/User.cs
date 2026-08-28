@@ -11,6 +11,10 @@ public class User
 
     public string? DisplayName { get; set; }
 
+    public bool IsAdmin { get; set; } = false;
+
+     public bool IsActive { get; set; } = true;
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>

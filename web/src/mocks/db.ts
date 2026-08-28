@@ -17,6 +17,7 @@ interface MockUser {
   displayName: string | null;
   /** K-09: false iken giriş 403 EMAIL_NOT_VERIFIED alır. */
   emailVerified: boolean;
+  isAdmin: boolean;
 }
 
 export const mockDb = {
@@ -41,9 +42,9 @@ export function toAuthUser(user: MockUser): AuthUser {
     email: user.email,
     displayName: user.displayName,
     emailVerified: user.emailVerified,
+    isAdmin: user.isAdmin,
   };
 }
-
 /** `Authorization: Bearer <token>` başlığından kullanıcıyı çözer.
  *
  *  Sahte access token biçimi: `mock-access.<userId>`
