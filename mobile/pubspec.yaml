@@ -15,6 +15,7 @@ dependencies:
   flutter_secure_storage: 10.3.1
   maplibre: 0.3.5
   flutter_svg: ^2.0.10
+  geolocator: ^14.0.3
 
 dev_dependencies:
   flutter_test:
@@ -44,3 +45,12 @@ flutter:
   assets:
     - assets/images/vivido_logo.svg
     - assets/images/ev_resmi.png
+    # Çankaya ilçe sınırı. web/public/geo/cankaya.geojson'ın KOPYASI —
+    # webde sınır çiziliyordu, mobilde hiç yoktu ve harita nerede bittiği
+    # belirsiz duruyordu. Uygulama ile paketleniyor: 124 KB, ağa bağlı
+    # olmadan da çiziliyor. Web tarafı güncellenirse bu dosya da güncellenmeli.
+    - assets/geo/cankaya.geojson
+    # Harita ikonları — web/public/*.svg'nin KOPYALARI. Konut ve POI
+    # kategorileri iki üründe aynı simgeyle gösterilsin diye aynı dosyalar
+    # kullanılıyor (web tarafı değişirse buradakiler de yenilenmeli).
+    - assets/icons/

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_colors.dart';
 import '../../../favorites/application/favorites_controller.dart';
 import '../../../routes/application/routes_controller.dart';
 import '../../../routes/domain/route_models.dart';
 import '../../../property_strengths/domain/strength_poi_gateway.dart';
 import '../../application/property_catalog_controller.dart';
 import '../../domain/property_gateway.dart';
+import '../../domain/property_models.dart';
 import '../widgets/property_summary_card.dart';
 import 'property_detail_page.dart';
 
@@ -126,16 +128,40 @@ class _PropertyListPageState extends State<PropertyListPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Profilin ve bütçene göre en yüksek skorlu '
-                  '${controller.items.length} konut.',
+                  controller.showAll
+                      ? 'Çankaya genelinde en yüksek skorlu '
+                            '${controller.items.length} konut.'
+                      : 'Önemli konumlarının çevresinde, profilin ve bütçene '
+                            'göre en yüksek skorlu ${controller.items.length} konut.',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.inkMuted,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                // Anchor koridoru anahtarı — web'deki "Tüm evleri göster"in
+                // karşılığı. Filtreyi SUNUCU uyguluyor, o yüzden anahtar
+                // listeyi yeniden çekiyor.
+                _ShowAllSwitch(
+                  value: controller.showAll,
+                  busy: controller.loading,
+                  onChanged: controller.setShowAll,
                 ),
                 const SizedBox(height: 12),
+
+                // Liste boşsa NEDENİ ayırt etmek gerekiyor: bütçeye uyan hiç
+                // ev mi yok, yoksa evler var ama hiçbiri anchor koridoruna mı
+                // düşmüyor? İkincisinde "bütçeni genişlet" demek yanıltıcı
+                // olurdu — asıl çözüm koridoru açmak ya da konumları
+                // gözden geçirmek.
                 if (controller.items.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 80),
-                    child: Center(
-                      child: Text('Bütçene uygun konut bulunamadı.'),
-                    ),
+                  _EmptyState(
+                    showAll: controller.showAll,
+                    fallback: controller.nearestFallback,
+                    onShowAll: () => controller.setShowAll(true),
+                    onOpenFallback: (id) => _openDetail(id),
                   ),
                 for (var index = 0; index < controller.items.length; index++)
                   Padding(
@@ -158,6 +184,117 @@ class _PropertyListPageState extends State<PropertyListPage> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// "Tüm evleri göster" anahtarı.
+class _ShowAllSwitch extends StatelessWidget {
+  const _ShowAllSwitch({
+    required this.value,
+    required this.busy,
+    required this.onChanged,
+  });
+
+  final bool value;
+  final bool busy;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: AppColors.inputBg,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(14, 4, 6, 4),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'Tüm Çankaya\'yı göster',
+              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500),
+            ),
+          ),
+          Switch(
+            value: value,
+            // Yükleme sırasında kilitli: anahtar sunucuya yeni bir istek
+            // attırıyor, hızlı ard arda basmak yarış durumu yaratırdı.
+            onChanged: busy ? null : onChanged,
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Liste boşken çıkan durum kartı.
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({
+    required this.showAll,
+    required this.fallback,
+    required this.onShowAll,
+    required this.onOpenFallback,
+  });
+
+  final bool showAll;
+  final PropertySummary? fallback;
+  final VoidCallback onShowAll;
+  final ValueChanged<String> onOpenFallback;
+
+  @override
+  Widget build(BuildContext context) {
+    // "Tüm Çankaya" zaten açıksa koridoru suçlayamayız: gerçekten bütçeye
+    // uyan ev yok demektir.
+    if (showAll) {
+      return const Padding(
+        padding: EdgeInsets.only(top: 60),
+        child: Center(
+          child: Text(
+            'Bütçene uygun konut bulunamadı.\n'
+            'Profil sekmesinden kira aralığını genişletebilirsin.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.inkMuted, height: 1.5),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 24),
+      child: Column(
+        children: [
+          const Icon(Icons.place_outlined, size: 36, color: AppColors.inkMuted),
+          const SizedBox(height: 12),
+          const Text(
+            'Önemli konumlarının çevresinde bütçene uyan ev çıkmadı.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.inkMuted, height: 1.5),
+          ),
+          const SizedBox(height: 16),
+          if (fallback != null) ...[
+            const Text(
+              'Alana en yakın ev:',
+              style: TextStyle(fontSize: 12.5, color: AppColors.inkMuted),
+            ),
+            const SizedBox(height: 8),
+            PropertySummaryCard(
+              rank: 1,
+              property: fallback!,
+              favoriteBusy: false,
+              inRoute: false,
+              onTap: () => onOpenFallback(fallback!.id),
+              onFavorite: () {},
+              onRoute: () {},
+            ),
+            const SizedBox(height: 16),
+          ],
+          OutlinedButton(
+            onPressed: onShowAll,
+            child: const Text('Tüm Çankaya\'yı göster'),
+          ),
+        ],
       ),
     );
   }

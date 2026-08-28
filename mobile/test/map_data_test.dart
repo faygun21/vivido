@@ -35,6 +35,14 @@ void main() {
                   'longitude': 32.8,
                 },
               ]),
+              // ⚠️ Girişli uç NESNE döner (anchor koridoru eklenince
+              // değişti). Sahte yanıt eskiden düz dizi veriyordu; gerçek
+              // API değişince mobil "beklenen biçimde değil" hatasına
+              // düşüp haritada 0 konut gösteriyordu ama test yanlış şekli
+              // kodladığı için yeşil kalmaya devam etti.
+              //
+              // Hemen aşağıdaki `/properties/map` (misafir ucu) HÂLÂ
+              // dizi döndürüyor — ikisi bilerek farklı.
               '/api/v1/properties' => _jsonResponse({
                 'items': [
                   {
@@ -47,6 +55,7 @@ void main() {
                     'totalScore': 87.5,
                   },
                 ],
+                // Koridor poligonu DOLU: ayrıştırıldığını da doğruluyoruz.
                 'corridorPolygon': {
                   'type': 'MultiPolygon',
                   'coordinates': [
@@ -113,6 +122,39 @@ void main() {
         expect(publicRequest.queryParameters['north'], '40.000000');
       },
     );
+
+    test('girisli uc dizi donerse ANLASILIR bir hata verir', () async {
+      // Sözleşme yeniden değişirse (ya da eski bir sunucuya bağlanılırsa)
+      // sessizce "0 konut" göstermek yerine hata üretmeli: sessizlik,
+      // bu regresyonun günlerce fark edilmemesinin sebebiydi.
+      final client = ApiClient(
+        baseUrl: 'http://localhost/api/v1',
+        tokenStore: MemoryTokenStore(),
+        httpClient: MockClient((_) async => _jsonResponse(<Object>[])),
+      );
+      addTearDown(client.close);
+
+      expect(
+        () => ApiMapDataGateway(client).getAuthenticatedProperties(),
+        throwsA(isA<MapDataFailure>()),
+      );
+    });
+
+    test('items alani eksikse hata verir', () async {
+      final client = ApiClient(
+        baseUrl: 'http://localhost/api/v1',
+        tokenStore: MemoryTokenStore(),
+        httpClient: MockClient(
+          (_) async => _jsonResponse({'corridorPolygon': null}),
+        ),
+      );
+      addTearDown(client.close);
+
+      expect(
+        () => ApiMapDataGateway(client).getAuthenticatedProperties(),
+        throwsA(isA<MapDataFailure>()),
+      );
+    });
   });
 
   group('MapDataController', () {

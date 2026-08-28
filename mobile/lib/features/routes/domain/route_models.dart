@@ -265,6 +265,7 @@ class RouteDetail {
     required this.stops,
     required this.legs,
     required this.createdAt,
+    this.isSaved = true,
   });
 
   final String id;
@@ -278,6 +279,20 @@ class RouteDetail {
   final List<RouteStop> stops;
   final List<RouteLeg> legs;
   final DateTime createdAt;
+
+  /// Rota veritabanına kaydedildi mi?
+  ///
+  /// `POST /routes/preview` hesaplanmış ama KAYDEDİLMEMİŞ bir rota döner:
+  /// `id` boş, bu alan `false`. Arayüz buna bakıp "Rotayı kaydet" düğmesini
+  /// gösteriyor — aksi hâlde kullanıcı kaydetmediği bir rotayı kaydedilmiş
+  /// sanardı. Sunucu alanı göndermezse `true` varsayılıyor: eski kayıtlı
+  /// rotalar (GET /routes/{id}) bu alanı taşımıyor olabilir.
+  final bool isSaved;
+
+  /// Durakların konut id'leri, ziyaret sırasıyla. Yeniden optimize ederken
+  /// sunucuya bu liste gönderiliyor.
+  List<int> get propertyIds =>
+      stops.map((stop) => stop.propertyId).toList(growable: false);
 
   factory RouteDetail.fromJson(Map<String, dynamic> json) => RouteDetail(
     id: json['id'].toString(),
@@ -300,6 +315,7 @@ class RouteDetail {
     createdAt:
         DateTime.tryParse(json['createdAt'] as String? ?? '') ??
         DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+    isSaved: json['isSaved'] as bool? ?? true,
   );
 }
 

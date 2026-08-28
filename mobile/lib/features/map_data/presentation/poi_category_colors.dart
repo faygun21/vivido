@@ -13,6 +13,27 @@ const poiCategoryColors = <String, Color>{
 
 const poiFallbackColor = Color(0xFF64748B);
 
+/// POI kategorisi → harita ikonu varlığı.
+///
+/// Renklerin YANINDA duruyor çünkü ikisi de aynı şeyi anlatıyor: bir
+/// kategorinin haritada nasıl göründüğü. Ayrı dosyalara dağılsalardı
+/// kategori eklenince biri güncellenip diğeri unutulur, POI rengi olup
+/// ikonu olmayan bir tür ortaya çıkardı.
+///
+/// Dosyalar `web/public/*.svg`'nin kopyası; eşleme web'deki
+/// `getCategoryIconPath()` ile aynı mantığı izliyor ki aynı POI iki üründe
+/// aynı simgeyle görünsün.
+const poiCategoryIconAssets = <String, String>{
+  'market': 'assets/icons/avm.svg',
+  'pharmacy': 'assets/icons/hastane.svg',
+  'health': 'assets/icons/hastane.svg',
+  'school': 'assets/icons/kep_kahve.svg',
+  'transit': 'assets/icons/bus.svg',
+  'food': 'assets/icons/cafe.svg',
+  'park': 'assets/icons/park.svg',
+  'gym': 'assets/icons/sport_kahve.svg',
+};
+
 Color poiCategoryColor(String code) =>
     poiCategoryColors[code] ?? poiFallbackColor;
 

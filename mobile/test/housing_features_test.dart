@@ -9,6 +9,7 @@ import 'package:vivido_mobile/features/favorites/application/favorites_controlle
 import 'package:vivido_mobile/features/favorites/data/api_favorites_gateway.dart';
 import 'package:vivido_mobile/features/favorites/domain/favorite_models.dart';
 import 'package:vivido_mobile/features/favorites/domain/favorites_gateway.dart';
+import 'package:vivido_mobile/features/properties/application/property_catalog_controller.dart';
 import 'package:vivido_mobile/features/properties/data/api_property_gateway.dart';
 import 'package:vivido_mobile/features/routes/application/routes_controller.dart';
 import 'package:vivido_mobile/features/routes/data/api_routes_gateway.dart';
@@ -25,6 +26,11 @@ void main() {
         httpClient: MockClient((request) async {
           requests.add(request);
           return switch (request.url.path) {
+            // ⚠️ Bu uç NESNE döner, dizi DEĞİL. Sahte yanıt eskiden düz
+            // dizi veriyordu; gerçek API anchor filtresiyle nesneye
+            // çevrilince mobil istemci patladı ama test yanlış şekli
+            // kodladığı için yeşil kalmaya devam etti. Konutlar sekmesinin
+            // hiç açılmamasının sebebi buydu.
             '/api/v1/properties/top' => _jsonResponse({
               'items': [_propertySummaryJson],
               'nearestFallback': null,
@@ -42,12 +48,65 @@ void main() {
       final detail = await gateway.getPropertyDetail('42');
 
       expect(requests.first.url.queryParameters['limit'], '12');
-      expect(top.single.address.neighborhoodName, 'Ayrancı');
-      expect(top.single.isFavorite, isTrue);
+      // Anchor koridoru varsayılan olarak AÇIK (showAll=false) — web ile
+      // aynı davranış.
+      expect(requests.first.url.queryParameters['showAll'], 'false');
+      expect(top.items.single.address.neighborhoodName, 'Ayrancı');
+      expect(top.items.single.isFavorite, isTrue);
       expect(detail.features.hasParking, isTrue);
       expect(detail.score.rows.single.categoryCode, 'market');
       expect(detail.score.weakLink?.points, -2.5);
       expect(detail.score.budget.ratioToMax, 0.8);
+    });
+
+    test('koridor bosken en yakin ev onerisi tasinir', () async {
+      final client = ApiClient(
+        baseUrl: 'http://localhost/api/v1',
+        tokenStore: MemoryTokenStore(),
+        httpClient: MockClient((request) async {
+          return _jsonResponse({
+            'items': <Object>[],
+            'nearestFallback': _propertySummaryJson,
+            'corridorPolygon': null,
+          });
+        }),
+      );
+      addTearDown(client.close);
+
+      final top = await ApiPropertyGateway(client).getTopProperties();
+
+      // "Uygun ev yok" ile "burada yok ama en yakını şu" farklı mesajlar;
+      // arayüz ikisini ayırt edebilsin diye alan taşınıyor.
+      expect(top.items, isEmpty);
+      expect(top.nearestFallback?.address.neighborhoodName, 'Ayrancı');
+    });
+
+    test('tum evleri goster acikken sunucuya showAll gonderilir', () async {
+      final requests = <http.Request>[];
+      final client = ApiClient(
+        baseUrl: 'http://localhost/api/v1',
+        tokenStore: MemoryTokenStore(),
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          return _jsonResponse({
+            'items': [_propertySummaryJson],
+            'nearestFallback': null,
+            'corridorPolygon': null,
+          });
+        }),
+      );
+      addTearDown(client.close);
+
+      final controller = PropertyCatalogController(ApiPropertyGateway(client));
+      await controller.load();
+      await controller.setShowAll(true);
+
+      // Filtre SUNUCUDA uygulanıyor; elde süzmek yanlış olurdu çünkü
+      // koridor dışındaki evler zaten yanıtta hiç yok.
+      expect(requests, hasLength(2));
+      expect(requests.first.url.queryParameters['showAll'], 'false');
+      expect(requests.last.url.queryParameters['showAll'], 'true');
+      expect(controller.showAll, isTrue);
     });
 
     test('favori GET POST DELETE isteklerini doğru gönderir', () async {
@@ -157,6 +216,117 @@ void main() {
       expect(controller.activeRoute?.id, 'route-created-1');
       expect(controller.savedRoutes.single.stopCount, 2);
       expect(controller.draft, isEmpty);
+    });
+
+    test('onizleme rotayi KAYDETMEZ ve taslagi korur', () async {
+      final gateway = _FakeRoutesGateway();
+      final controller = RoutesController(gateway);
+      addTearDown(controller.dispose);
+      controller
+        ..addProperty(_draft(42))
+        ..addProperty(_draft(43));
+
+      final ok = await controller.previewRoute(
+        start: const RouteStart(latitude: 39.9, longitude: 32.8, label: 'Ev'),
+        mode: RouteTravelMode.car,
+      );
+
+      expect(ok, isTrue);
+      // Asil degismez: onizleme sunucuda KAYIT YARATMAZ. Eskiden "optimize
+      // et" rotayi dogrudan kaydediyordu ve kullanici begenmedigi rotayi
+      // silmek zorunda kaliyordu.
+      expect(gateway.createCallCount, 0);
+      expect(controller.savedRoutes, isEmpty);
+      expect(controller.isPreviewing, isTrue);
+      expect(controller.activeRoute?.isSaved, isFalse);
+      // Taslak duruyor: begenmezse evleri bastan secmesin.
+      expect(controller.draft, hasLength(2));
+    });
+
+    test('durak eklenince rota YENIDEN optimize edilir', () async {
+      final gateway = _FakeRoutesGateway();
+      final controller = RoutesController(gateway);
+      addTearDown(controller.dispose);
+      controller
+        ..addProperty(_draft(42))
+        ..addProperty(_draft(43));
+      await controller.previewRoute(
+        start: const RouteStart(latitude: 39.9, longitude: 32.8, label: 'Ev'),
+        mode: RouteTravelMode.car,
+      );
+
+      final ok = await controller.reoptimize([42, 43, 44]);
+
+      expect(ok, isTrue);
+      // Ekleme/cikarma sunucuya yeni bir hesap attirmali; yoksa ev listeye
+      // eklenir ama sira eski kalir ve "en uygun ziyaret sirasi" bozulur.
+      expect(gateway.previewCallCount, 2);
+      expect(gateway.previewedPropertyIds, [42, 43, 44]);
+      expect(controller.hasUnsavedChanges, isTrue);
+    });
+
+    test('rotada iki konuttan az kalamaz', () async {
+      final gateway = _FakeRoutesGateway();
+      final controller = RoutesController(gateway);
+      addTearDown(controller.dispose);
+      controller
+        ..addProperty(_draft(42))
+        ..addProperty(_draft(43));
+      await controller.previewRoute(
+        start: const RouteStart(latitude: 39.9, longitude: 32.8, label: 'Ev'),
+        mode: RouteTravelMode.car,
+      );
+
+      final ok = await controller.reoptimize([42]);
+
+      expect(ok, isFalse);
+      expect(controller.errorMessage, contains('en az 2'));
+      // Basarisiz istek sunucuya gitmemeli.
+      expect(gateway.previewCallCount, 1);
+    });
+
+    test('onizlenen rota kaydedilince sunucuya yazilir', () async {
+      final gateway = _FakeRoutesGateway();
+      final controller = RoutesController(gateway);
+      addTearDown(controller.dispose);
+      controller
+        ..addProperty(_draft(42))
+        ..addProperty(_draft(43));
+      await controller.previewRoute(
+        start: const RouteStart(latitude: 39.9, longitude: 32.8, label: 'Ev'),
+        mode: RouteTravelMode.car,
+      );
+
+      final saved = await controller.saveActiveRoute(name: 'Cumartesi turu');
+
+      expect(saved, isTrue);
+      expect(gateway.createCallCount, 1);
+      expect(controller.activeRoute?.isSaved, isTrue);
+      expect(controller.hasUnsavedChanges, isFalse);
+      expect(controller.savedRoutes.single.name, 'Cumartesi turu');
+      expect(controller.draft, isEmpty);
+    });
+
+    test('rota kapatilinca kaydedilmemis degisiklikler atilir', () async {
+      final gateway = _FakeRoutesGateway();
+      final controller = RoutesController(gateway);
+      addTearDown(controller.dispose);
+      controller
+        ..addProperty(_draft(42))
+        ..addProperty(_draft(43));
+      await controller.previewRoute(
+        start: const RouteStart(latitude: 39.9, longitude: 32.8, label: 'Ev'),
+        mode: RouteTravelMode.car,
+      );
+      await controller.reoptimize([42, 43, 44]);
+
+      controller.closeActiveRoute();
+
+      expect(controller.activeRoute, isNull);
+      expect(controller.hasUnsavedChanges, isFalse);
+      // Kapatmak KAYITLI rotalara dokunmamali.
+      expect(gateway.deletedIds, isEmpty);
+      expect(gateway.createCallCount, 0);
     });
 
     test(
@@ -293,6 +463,38 @@ class _FakeRoutesGateway implements RoutesGateway {
   int createCallCount = 0;
   final List<String> deletedIds = [];
   RouteDetail? lastCreated;
+
+  int previewCallCount = 0;
+  List<int>? previewedPropertyIds;
+
+  @override
+  Future<RouteDetail> previewRoute({
+    required RouteStart start,
+    required List<int> propertyIds,
+    required RouteTravelMode mode,
+  }) async {
+    previewCallCount++;
+    previewedPropertyIds = propertyIds;
+    final templateStops = _routeDetailJson['stops']! as List<Object?>;
+    return RouteDetail.fromJson({
+      ..._routeDetailJson,
+      // Önizleme KAYDEDİLMEMİŞ bir rota döner: id boş, isSaved false.
+      'id': '',
+      'isSaved': false,
+      'mode': mode.apiValue,
+      'start': start.toJson(),
+      'stopCount': propertyIds.length,
+      'stops': [
+        for (var index = 0; index < propertyIds.length; index++)
+          {
+            ...(templateStops[index % templateStops.length]
+                as Map<String, dynamic>),
+            'propertyId': propertyIds[index],
+            'sequence': index + 1,
+          },
+      ],
+    });
+  }
 
   @override
   Future<RouteDetail> createRoute({

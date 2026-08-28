@@ -3,7 +3,14 @@ import 'package:maplibre/maplibre.dart';
 
 import '../../../../core/models/models.dart';
 import '../../../auth/application/session_controller.dart';
+import '../../../location_search/application/location_search_controller.dart';
+import '../../../location_search/data/api_location_search_gateway.dart';
+import '../../../location_search/domain/location_search_models.dart';
+import '../../../location_search/presentation/widgets/location_search_panel.dart';
 import '../../../map/presentation/widgets/cankaya_map.dart';
+import '../../../map_data/application/map_data_controller.dart';
+import '../../../map_data/data/api_map_data_gateway.dart';
+import '../../../map_data/presentation/widgets/map_layer_button.dart';
 
 class AnchorManagerPage extends StatefulWidget {
   const AnchorManagerPage({
@@ -26,10 +33,34 @@ class _AnchorManagerPageState extends State<AnchorManagerPage> {
   Geographic? _pendingPoint;
   bool _busy = false;
 
+  /// ⚠️ Bu harita eskiden BOMBOŞTU: ne konut ne POI ne arama vardı.
+  /// Kullanıcı, hiçbir referans noktası olmayan gri bir yüzeyde rastgele
+  /// bir yere dokunuyormuş gibi hissediyordu. Oysa "önemli konum" seçmek
+  /// tam olarak çevreye bakarak yapılan bir iş: nerede market var, hangi
+  /// evler yakın, aradığım cadde nerede.
+  late final MapDataController _mapData;
+  late final LocationSearchController _search;
+  LocationSearchResult? _focus;
+
   @override
   void initState() {
     super.initState();
     _anchors = [...?widget.controller.profile?.anchors];
+    _mapData = MapDataController(
+      gateway: ApiMapDataGateway(widget.controller.client),
+      authenticated: true,
+    );
+    _mapData.initialize();
+    _search = LocationSearchController(
+      ApiLocationSearchGateway(widget.controller.client),
+    );
+  }
+
+  @override
+  void dispose() {
+    _mapData.dispose();
+    _search.dispose();
+    super.dispose();
   }
 
   Future<void> _selectPoint(double lat, double lon) async {
@@ -113,13 +144,23 @@ class _AnchorManagerPageState extends State<AnchorManagerPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Harita YÜKSEKLİĞİ sabit ve büyük; liste altında kaydırılıyor.
+    //
+    // Eskiden ikisi ekranı 5/4 paylaşıyordu ve harita, konum seçmeye
+    // yetmeyecek kadar küçük kalıyordu — özellikle 3 konum eklendikten
+    // sonra liste yer kaplıyor, harita eziliyordu. Artık sayfa kayıyor:
+    // haritaya bakarken tam boy görüyorsun, listeye bakmak istediğinde
+    // aşağı kaydırıyorsun.
+    final mapHeight = (MediaQuery.of(context).size.height * 0.56).clamp(
+      280.0,
+      560.0,
+    );
+
     final content = SafeArea(
       top: !widget.embedded,
-      child: Padding(
+      child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+        children: [
             if (widget.embedded) ...[
               Text(
                 'Önemli konumların',
@@ -137,20 +178,52 @@ class _AnchorManagerPageState extends State<AnchorManagerPage> {
               ),
               const SizedBox(height: 12),
             ],
-            Expanded(
-              flex: 5,
+            SizedBox(
+              height: mapHeight,
               child: Stack(
                 children: [
                   Positioned.fill(
-                    child: CankayaMap(
-                      anchors: _anchors,
-                      pendingPoint: _pendingPoint,
-                      onMapTap: _anchors.length >= 3 ? null : _selectPoint,
+                    child: AnimatedBuilder(
+                      animation: _mapData,
+                      builder: (context, _) => CankayaMap(
+                        anchors: _anchors,
+                        pendingPoint: _pendingPoint,
+                        focus: _focus,
+                        // Konut ve POI'ler artık burada da çiziliyor:
+                        // kullanıcı önemli konumu çevresini görerek seçsin.
+                        pois: _mapData.pois,
+                        properties: _mapData.properties,
+                        onBoundsChanged: _mapData.updateViewport,
+                        onMapTap: _anchors.length >= 3 ? null : _selectPoint,
+                      ),
                     ),
+                  ),
+                  // Arama kutusu: aradığı caddeyi/mahalleyi bulup oraya
+                  // gidebilsin. Haritayı elle sürükleyerek aramak, bu
+                  // ekranı gereksiz yere zahmetli kılıyordu.
+                  Positioned(
+                    left: 12,
+                    right: 12,
+                    top: 12,
+                    child: LocationSearchPanel(
+                      controller: _search,
+                      onSelected: (result) =>
+                          setState(() => _focus = result),
+                      onCleared: () => setState(() => _focus = null),
+                    ),
+                  ),
+                  // Katman seçici — ana haritadakinin AYNISI. Kullanıcı
+                  // hangi hizmetlerin görüneceğini seçebiliyor (yalnızca
+                  // spor salonu, ya da hastane + spor salonu…). Önemli
+                  // konum seçerken bakılan şey tam olarak bu: çevrede ne var.
+                  Positioned(
+                    right: 12,
+                    top: 74,
+                    child: MapLayerButton(controller: _mapData),
                   ),
                   Positioned(
                     left: 12,
-                    top: 12,
+                    top: 74,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.92),
@@ -181,27 +254,29 @@ class _AnchorManagerPageState extends State<AnchorManagerPage> {
               ),
             ),
             const SizedBox(height: 12),
-            Expanded(
-              flex: 4,
-              child:
-                  _anchors.isEmpty
-                      ? const _EmptyAnchors()
-                      : ReorderableListView.builder(
-                        itemCount: _anchors.length,
-                        onReorderItem: _reorder,
-                        buildDefaultDragHandles: false,
-                        itemBuilder: (context, index) {
-                          final anchor = _anchors[index];
-                          return _AnchorTile(
-                            key: ValueKey(anchor.id),
-                            anchor: anchor,
-                            weight: _anchorWeights(_anchors.length)[index],
-                            index: index,
-                            onDelete: _busy ? null : () => _delete(anchor),
-                          );
-                        },
-                      ),
-            ),
+            // Sayfa artık kayıyor, bu yüzden liste KENDİ kaydırmasını
+            // yapmıyor: iki kaydırma iç içe geçseydi sürükleyerek sıralama
+            // ile sayfa kaydırma birbirine karışırdı.
+            if (_anchors.isEmpty)
+              const _EmptyAnchors()
+            else
+              ReorderableListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _anchors.length,
+                onReorderItem: _reorder,
+                buildDefaultDragHandles: false,
+                itemBuilder: (context, index) {
+                  final anchor = _anchors[index];
+                  return _AnchorTile(
+                    key: ValueKey(anchor.id),
+                    anchor: anchor,
+                    weight: _anchorWeights(_anchors.length)[index],
+                    index: index,
+                    onDelete: _busy ? null : () => _delete(anchor),
+                  );
+                },
+              ),
             if (widget.onFinished != null) ...[
               const SizedBox(height: 10),
               FilledButton.icon(
@@ -210,8 +285,7 @@ class _AnchorManagerPageState extends State<AnchorManagerPage> {
                 label: Text(_anchors.isEmpty ? 'Şimdilik geç' : 'Haritaya geç'),
               ),
             ],
-          ],
-        ),
+        ],
       ),
     );
 

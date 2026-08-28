@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/models/models.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../../location/application/user_location_controller.dart';
+import '../../../location_search/application/location_search_controller.dart';
+import '../../../location_search/domain/location_search_models.dart';
 import '../../../map/presentation/widgets/cankaya_map.dart';
 import '../../../properties/presentation/property_format.dart';
 import '../../application/routes_controller.dart';
@@ -11,6 +15,8 @@ class RoutesPage extends StatefulWidget {
     required this.controller,
     required this.anchors,
     required this.onShowOnMainMap,
+    required this.userLocation,
+    required this.searchController,
     super.key,
   });
 
@@ -18,15 +24,33 @@ class RoutesPage extends StatefulWidget {
   final List<Anchor> anchors;
   final VoidCallback onShowOnMainMap;
 
+  /// Haritayla PAYLAŞILAN konum denetleyicisi. Ayrı bir örnek kullansaydık
+  /// kullanıcıdan izni iki kez isterdik ve haritadaki mavi nokta ile rota
+  /// başlangıcı farklı koordinatları gösterebilirdi.
+  final UserLocationController userLocation;
+
+  /// Başlangıç noktası için adres araması.
+  final LocationSearchController searchController;
+
   @override
   State<RoutesPage> createState() => _RoutesPageState();
 }
+
+/// Başlangıç noktasının kaynağı.
+///
+/// Eskiden yalnızca "önemli konumlar + Çankaya Merkez" vardı; web'de
+/// başlangıç canlı konumdan ya da yazılan bir adresten seçilebiliyordu.
+/// Mobil o iki seçeneği kazandı.
+enum _StartKind { live, address, anchor, districtCenter }
 
 class _RoutesPageState extends State<RoutesPage> {
   late final TextEditingController _nameController;
   final GlobalKey _activeRouteKey = GlobalKey();
   RouteTravelMode _mode = RouteTravelMode.car;
-  String _startId = _defaultStartId;
+
+  _StartKind _startKind = _StartKind.live;
+  String? _startAnchorId;
+  LocationSearchResult? _startAddress;
 
   @override
   void initState() {
@@ -41,38 +65,94 @@ class _RoutesPageState extends State<RoutesPage> {
     super.dispose();
   }
 
-  RouteStart get _selectedStart {
-    for (final anchor in widget.anchors) {
-      if (anchor.id == _startId) {
+  /// Seçili başlangıç noktası; henüz belirlenemiyorsa null.
+  ///
+  /// Canlı konum seçiliyken koordinat cihazdan gelene kadar null kalır —
+  /// bu yüzden "Rotayı oluştur" düğmesi o an pasif olmalı, yoksa kullanıcı
+  /// başlangıcı olmayan bir rota isteyebilirdi.
+  RouteStart? get _selectedStart {
+    switch (_startKind) {
+      case _StartKind.live:
+        final live = widget.userLocation.location;
+        if (live == null) return null;
         return RouteStart(
-          latitude: anchor.lat,
-          longitude: anchor.lon,
-          label: anchor.label,
+          latitude: live.latitude,
+          longitude: live.longitude,
+          label: 'Canlı konumum',
         );
-      }
+      case _StartKind.address:
+        final address = _startAddress;
+        if (address == null) return null;
+        return RouteStart(
+          latitude: address.latitude,
+          longitude: address.longitude,
+          label: address.label,
+        );
+      case _StartKind.anchor:
+        for (final anchor in widget.anchors) {
+          if (anchor.id == _startAnchorId) {
+            return RouteStart(
+              latitude: anchor.lat,
+              longitude: anchor.lon,
+              label: anchor.label,
+            );
+          }
+        }
+        return null;
+      case _StartKind.districtCenter:
+        return const RouteStart(
+          latitude: 39.87,
+          longitude: 32.85,
+          label: 'Çankaya Merkez',
+        );
     }
-    return const RouteStart(
-      latitude: 39.87,
-      longitude: 32.85,
-      label: 'Çankaya Merkez',
-    );
   }
 
-  Future<void> _createRoute() async {
+  /// Canlı konumu ister ve başlangıç olarak seçer.
+  Future<void> _useLiveLocation() async {
+    setState(() => _startKind = _StartKind.live);
+    final result = await widget.userLocation.request();
+    if (!mounted || result != null) return;
+
+    final message = widget.userLocation.message;
+    if (message != null) _showMessage(message);
+    // Konum alınamadıysa seçimi bırakmıyoruz: kullanıcı tekrar deneyebilsin,
+    // ama düğme pasif kalacağı için başlangıcı olmayan rota isteyemez.
+  }
+
+  /// Rotayı hesaplar — KAYDETMEZ.
+  Future<void> _previewRoute() async {
     FocusScope.of(context).unfocus();
-    final created = await widget.controller.createRoute(
-      name: _nameController.text,
-      start: _selectedStart,
-      mode: _mode,
-    );
+    final start = _selectedStart;
+    if (start == null) {
+      _showMessage('Önce bir başlangıç noktası seç.');
+      return;
+    }
+
+    final ok = await widget.controller.previewRoute(start: start, mode: _mode);
     if (!mounted) return;
-    if (!created) {
+    if (!ok) {
       _showMessage(widget.controller.errorMessage ?? 'Rota oluşturulamadı.');
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Rota oluşturuldu ve hesabına kaydedildi.')),
+    _scrollToActiveRoute();
+  }
+
+  /// Ekrandaki rotayı isim sorarak kaydeder.
+  Future<void> _saveActiveRoute() async {
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => _SaveRouteDialog(initialName: _defaultRouteName()),
     );
+    if (name == null || !mounted) return;
+
+    final ok = await widget.controller.saveActiveRoute(name: name);
+    if (!mounted) return;
+    if (!ok) {
+      _showMessage(widget.controller.errorMessage ?? 'Rota kaydedilemedi.');
+      return;
+    }
+    _showMessage('Rota kaydedildi.');
   }
 
   Future<void> _deleteRoute(RouteSummary route) async {
@@ -146,6 +226,15 @@ class _RoutesPageState extends State<RoutesPage> {
       _showMessage(widget.controller.errorMessage ?? 'Rota detayı açılamadı.');
       return;
     }
+    _scrollToActiveRoute();
+  }
+
+  /// Rota kartını görünür alana kaydırır.
+  ///
+  /// Hem kayıtlı rota açılınca hem yeni önizleme hesaplanınca gerekiyor:
+  /// kart sayfanın altında kalıyor ve kaydırılmazsa kullanıcı "hiçbir şey
+  /// olmadı" sanıyor.
+  void _scrollToActiveRoute() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final activeContext = _activeRouteKey.currentContext;
       if (activeContext == null) return;
@@ -190,36 +279,29 @@ class _RoutesPageState extends State<RoutesPage> {
               onRemove: controller.removeProperty,
               onClear: controller.clearDraft,
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _nameController,
+            const SizedBox(height: 16),
+            // ROTA ADI BURADAN KALKTI: isim yalnızca KAYDEDERKEN soruluyor.
+            // Önizleme için ad istemek, kullanıcıya daha görmediği bir şeyi
+            // isimlendirtmek olurdu.
+            _StartPointPicker(
+              kind: _startKind,
+              anchorId: _startAnchorId,
+              address: _startAddress,
+              anchors: widget.anchors,
+              userLocation: widget.userLocation,
+              searchController: widget.searchController,
               enabled: !controller.saving,
-              decoration: const InputDecoration(
-                labelText: 'Rota adı',
-                prefixIcon: Icon(Icons.edit_road),
-              ),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _startId,
-              decoration: const InputDecoration(
-                labelText: 'Başlangıç noktası',
-                prefixIcon: Icon(Icons.trip_origin),
-              ),
-              items: [
-                const DropdownMenuItem(
-                  value: _defaultStartId,
-                  child: Text('Çankaya Merkez'),
-                ),
-                for (final anchor in widget.anchors)
-                  DropdownMenuItem(value: anchor.id, child: Text(anchor.label)),
-              ],
-              onChanged:
-                  controller.saving
-                      ? null
-                      : (value) {
-                        if (value != null) setState(() => _startId = value);
-                      },
+              onUseLive: _useLiveLocation,
+              onUseAnchor: (id) => setState(() {
+                _startKind = _StartKind.anchor;
+                _startAnchorId = id;
+              }),
+              onUseAddress: (result) => setState(() {
+                _startKind = _StartKind.address;
+                _startAddress = result;
+              }),
+              onUseDistrictCenter: () =>
+                  setState(() => _startKind = _StartKind.districtCenter),
             ),
             const SizedBox(height: 12),
             SegmentedButton<RouteTravelMode>(
@@ -252,19 +334,23 @@ class _RoutesPageState extends State<RoutesPage> {
             ],
             const SizedBox(height: 12),
             FilledButton.icon(
+              // Başlangıç noktası belirlenemiyorsa (canlı konum seçili ama
+              // koordinat henüz gelmediyse) düğme pasif: başlangıcı olmayan
+              // bir rota istenemesin.
               onPressed:
-                  controller.saving || controller.draft.length < minRouteStops
-                      ? null
-                      : _createRoute,
-              icon:
-                  controller.saving
-                      ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                      : const Icon(Icons.route),
+                  controller.saving ||
+                      controller.draft.length < minRouteStops ||
+                      _selectedStart == null
+                  ? null
+                  : _previewRoute,
+              icon: controller.saving
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.route),
               label: Text(
-                controller.saving ? 'Hesaplanıyor…' : 'Rotayı optimize et',
+                controller.saving ? 'Hesaplanıyor…' : 'Rotayı oluştur',
               ),
             ),
             if (controller.activeRoute != null) ...[
@@ -274,6 +360,12 @@ class _RoutesPageState extends State<RoutesPage> {
                 child: _ActiveRouteCard(
                   route: controller.activeRoute!,
                   busy: controller.saving,
+                  // Kaydet düğmesi yalnızca kaydedilmemiş bir rota ya da
+                  // kaydedilmiş ama DEĞİŞTİRİLMİŞ bir rota varken çıkıyor.
+                  onSave:
+                      controller.isPreviewing || controller.hasUnsavedChanges
+                      ? _saveActiveRoute
+                      : null,
                   onRemoveStop: _removeStop,
                   onShowOnMainMap: widget.onShowOnMainMap,
                   onClose: controller.closeActiveRoute,
@@ -423,6 +515,7 @@ class _ActiveRouteCard extends StatelessWidget {
     required this.onRemoveStop,
     required this.onShowOnMainMap,
     required this.onClose,
+    this.onSave,
   });
 
   final RouteDetail route;
@@ -430,6 +523,9 @@ class _ActiveRouteCard extends StatelessWidget {
   final void Function(RouteStop stop) onRemoveStop;
   final VoidCallback onShowOnMainMap;
   final VoidCallback onClose;
+
+  /// Kaydedilecek bir şey yoksa null — düğme hiç çizilmez.
+  final VoidCallback? onSave;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -488,6 +584,39 @@ class _ActiveRouteCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
+          // Kaydetme çağrısı — rota HESAPLANDI ama kaydedilmedi.
+          // Kullanıcının kaydedilmemiş bir rotayı kaydedilmiş sanmasını
+          // engelleyen tek işaret bu.
+          if (onSave != null) ...[
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.inputBg,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Bu rota henüz kaydedilmedi.',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: AppColors.inkMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton.icon(
+                      onPressed: busy ? null : onSave,
+                      icon: const Icon(Icons.bookmark_add_outlined, size: 18),
+                      label: const Text('Rotayı kaydet'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
           Text(
             'Ziyaret sırası',
             style: Theme.of(
@@ -546,7 +675,315 @@ class _RouteMetric extends StatelessWidget {
   );
 }
 
-const _defaultStartId = '__cankaya__';
+/// Başlangıç noktası seçici.
+///
+/// Web'deki tek satırlık konum kutusunun mobil karşılığı: en üstte canlı
+/// konum, altında kayıtlı önemli konumlar, altında adres araması.
+class _StartPointPicker extends StatelessWidget {
+  const _StartPointPicker({
+    required this.kind,
+    required this.anchorId,
+    required this.address,
+    required this.anchors,
+    required this.userLocation,
+    required this.searchController,
+    required this.enabled,
+    required this.onUseLive,
+    required this.onUseAnchor,
+    required this.onUseAddress,
+    required this.onUseDistrictCenter,
+  });
+
+  final _StartKind kind;
+  final String? anchorId;
+  final LocationSearchResult? address;
+  final List<Anchor> anchors;
+  final UserLocationController userLocation;
+  final LocationSearchController searchController;
+  final bool enabled;
+  final VoidCallback onUseLive;
+  final ValueChanged<String> onUseAnchor;
+  final ValueChanged<LocationSearchResult> onUseAddress;
+  final VoidCallback onUseDistrictCenter;
+
+  String get _summary {
+    switch (kind) {
+      case _StartKind.live:
+        final locating =
+            userLocation.status == UserLocationStatus.locating;
+        if (locating) return 'Konumun alınıyor…';
+        return userLocation.location == null
+            ? 'Canlı konumum (henüz alınmadı)'
+            : 'Canlı konumum';
+      case _StartKind.address:
+        return address?.label ?? 'Adres seç';
+      case _StartKind.anchor:
+        for (final anchor in anchors) {
+          if (anchor.id == anchorId) return anchor.label;
+        }
+        return 'Önemli konum seç';
+      case _StartKind.districtCenter:
+        return 'Çankaya Merkez';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Row(
+        children: [
+          const Icon(Icons.trip_origin, size: 18, color: AppColors.inkMuted),
+          const SizedBox(width: 8),
+          Text(
+            'Başlangıç noktası',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: AppColors.inkMuted,
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        onTap: enabled ? () => _open(context) : null,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: AppColors.inputBg,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            child: Row(
+              children: [
+                Icon(
+                  switch (kind) {
+                    _StartKind.live => Icons.my_location,
+                    _StartKind.address => Icons.place_outlined,
+                    _StartKind.anchor => Icons.star_outline,
+                    _StartKind.districtCenter => Icons.location_city_outlined,
+                  },
+                  size: 20,
+                  color: AppColors.accent,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    _summary,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ),
+                const Icon(Icons.expand_more, color: AppColors.inkMuted),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+
+  Future<void> _open(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => _StartPointSheet(
+        anchors: anchors,
+        searchController: searchController,
+        onUseLive: () {
+          Navigator.pop(sheetContext);
+          onUseLive();
+        },
+        onUseAnchor: (id) {
+          Navigator.pop(sheetContext);
+          onUseAnchor(id);
+        },
+        onUseAddress: (result) {
+          Navigator.pop(sheetContext);
+          onUseAddress(result);
+        },
+        onUseDistrictCenter: () {
+          Navigator.pop(sheetContext);
+          onUseDistrictCenter();
+        },
+      ),
+    );
+  }
+}
+
+/// Başlangıç seçim alt sayfası.
+class _StartPointSheet extends StatefulWidget {
+  const _StartPointSheet({
+    required this.anchors,
+    required this.searchController,
+    required this.onUseLive,
+    required this.onUseAnchor,
+    required this.onUseAddress,
+    required this.onUseDistrictCenter,
+  });
+
+  final List<Anchor> anchors;
+  final LocationSearchController searchController;
+  final VoidCallback onUseLive;
+  final ValueChanged<String> onUseAnchor;
+  final ValueChanged<LocationSearchResult> onUseAddress;
+  final VoidCallback onUseDistrictCenter;
+
+  @override
+  State<_StartPointSheet> createState() => _StartPointSheetState();
+}
+
+class _StartPointSheetState extends State<_StartPointSheet> {
+  final TextEditingController _query = TextEditingController();
+
+  @override
+  void dispose() {
+    _query.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.only(
+      left: 16,
+      right: 16,
+      top: 12,
+      bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+    ),
+    // ⚠️ KAYDIRILABİLİR OLMAK ZORUNDA. Klavye açılınca alt sayfaya kalan
+    // yükseklik düşüyor ve sabit bir Column taşıyor ("BOTTOM OVERFLOWED").
+    // Önemli konumu çok olan kullanıcıda liste zaten uzuyor.
+    child: AnimatedBuilder(
+      animation: widget.searchController,
+      builder: (context, _) {
+        final results = widget.searchController.results;
+        return SingleChildScrollView(
+          child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.line,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Canlı konum EN ÜSTTE: en sık istenen seçenek.
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.my_location, color: AppColors.accent),
+              title: const Text('Canlı konumum'),
+              subtitle: const Text('Bulunduğun yerden başla'),
+              onTap: widget.onUseLive,
+            ),
+            const Divider(),
+            TextField(
+              controller: _query,
+              decoration: const InputDecoration(
+                hintText: 'Adres veya mahalle ara',
+                prefixIcon: Icon(Icons.search),
+              ),
+              onChanged: widget.searchController.search,
+            ),
+            const SizedBox(height: 8),
+            if (results.isNotEmpty)
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 220),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: results.length,
+                  itemBuilder: (context, index) {
+                    final result = results[index];
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.place_outlined),
+                      title: Text(result.label),
+                      onTap: () => widget.onUseAddress(result),
+                    );
+                  },
+                ),
+              ),
+            if (widget.anchors.isNotEmpty) ...[
+              const Divider(),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 6),
+                child: Text(
+                  'Önemli konumların',
+                  style: TextStyle(fontSize: 12.5, color: AppColors.inkMuted),
+                ),
+              ),
+              for (final anchor in widget.anchors)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.star_outline),
+                  title: Text(anchor.label),
+                  onTap: () => widget.onUseAnchor(anchor.id),
+                ),
+            ],
+            const Divider(),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.location_city_outlined),
+              title: const Text('Çankaya Merkez'),
+              subtitle: const Text('Konum vermeden başla'),
+              onTap: widget.onUseDistrictCenter,
+            ),
+          ],
+          ),
+        );
+      },
+    ),
+  );
+}
+
+/// Kaydetme sırasında ad soran diyalog.
+class _SaveRouteDialog extends StatefulWidget {
+  const _SaveRouteDialog({required this.initialName});
+
+  final String initialName;
+
+  @override
+  State<_SaveRouteDialog> createState() => _SaveRouteDialogState();
+}
+
+class _SaveRouteDialogState extends State<_SaveRouteDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialName,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Rotayı kaydet'),
+    content: TextField(
+      controller: _controller,
+      autofocus: true,
+      decoration: const InputDecoration(labelText: 'Rota adı'),
+      onSubmitted: (value) => Navigator.pop(context, value),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Vazgeç'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(context, _controller.text),
+        child: const Text('Kaydet'),
+      ),
+    ],
+  );
+}
 
 String _defaultRouteName() {
   final now = DateTime.now();
