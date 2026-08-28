@@ -135,7 +135,7 @@ void main() {
       await gateway.addFavorite('42');
       await gateway.removeFavorite('42');
 
-      expect(favorites.single.property?.id, '42');
+      expect(favorites.items.single.property?.id, '42');
       expect(requests[1].method, 'POST');
       expect(jsonDecode(requests[1].body), {'propertyId': 42});
       expect(requests[2].method, 'DELETE');
@@ -443,12 +443,14 @@ class _FakeFavoritesGateway implements FavoritesGateway {
   Future<void> addFavorite(String propertyId) async => ids.add(propertyId);
 
   @override
-  Future<List<FavoriteEntry>> getFavorites() async {
+  Future<FavoritesLoadResult> getFavorites() async {
     if (failReads) throw StateError('list failed');
-    return [
-      for (final id in ids)
-        FavoriteEntry(propertyId: id, createdAt: DateTime.utc(2026, 8, 26)),
-    ];
+    return FavoritesLoadResult(
+      items: [
+        for (final id in ids)
+          FavoriteEntry(propertyId: id, createdAt: DateTime.utc(2026, 8, 26)),
+      ],
+    );
   }
 
   @override

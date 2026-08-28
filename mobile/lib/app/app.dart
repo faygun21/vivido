@@ -7,6 +7,7 @@ import '../core/network/api_client.dart';
 import '../core/storage/token_store.dart';
 import '../core/theme/app_theme.dart';
 import '../features/auth/application/session_controller.dart';
+import '../features/auth/data/secure_offline_credential_store.dart';
 import '../features/auth/presentation/pages/splash_page.dart';
 import '../features/auth/presentation/pages/welcome_page.dart';
 import '../features/home/presentation/pages/guest_home_page.dart';
@@ -42,6 +43,7 @@ class _VividoAppState extends State<VividoApp> {
     return SessionController(
       client: client,
       repository: VividoRepository(client),
+      offlineCredentials: SecureOfflineCredentialStore(),
     );
   }
 

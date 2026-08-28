@@ -12,6 +12,7 @@ class FavoritesController extends ChangeNotifier {
   Set<String> busyPropertyIds = const {};
   bool loading = false;
   String? errorMessage;
+  bool showingCachedData = false;
 
   bool _loaded = false;
   bool _disposed = false;
@@ -27,9 +28,10 @@ class FavoritesController extends ChangeNotifier {
     errorMessage = null;
     _notify();
     try {
-      final loadedItems = await _gateway.getFavorites();
+      final result = await _gateway.getFavorites();
       if (requestVersion != _dataVersion) return;
-      items = loadedItems;
+      items = result.items;
+      showingCachedData = result.fromCache;
       _loaded = true;
     } on FavoritesFailure catch (error) {
       if (requestVersion != _dataVersion) return;
@@ -63,10 +65,15 @@ class FavoritesController extends ChangeNotifier {
       _loaded = false;
       final requestVersion = ++_dataVersion;
       try {
-        final loadedItems = await _gateway.getFavorites();
+        final result = await _gateway.getFavorites();
         if (requestVersion == _dataVersion) {
-          items = loadedItems;
+          items = result.items;
+          showingCachedData = result.fromCache;
           _loaded = true;
+          if (result.fromCache) {
+            errorMessage =
+                'Favori durumu kaydedildi; güncel listeye ulaşılamıyor.';
+          }
         }
       } on Object {
         if (requestVersion == _dataVersion) {

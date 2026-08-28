@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/models/models.dart';
 import '../../../core/network/api_client.dart';
+import '../domain/offline_credential_store.dart';
 
 /// Uygulamanın hangi ekranı gösterdiğini belirler.
 ///
@@ -12,10 +13,16 @@ import '../../../core/network/api_client.dart';
 enum SessionPhase { booting, guest, browsing, onboarding, authenticated }
 
 class SessionController extends ChangeNotifier {
-  SessionController({required this.client, required this.repository});
+  SessionController({
+    required this.client,
+    required this.repository,
+    OfflineCredentialStore? offlineCredentials,
+  }) : offlineCredentials =
+           offlineCredentials ?? const DisabledOfflineCredentialStore();
 
   final ApiClient client;
   final VividoRepository repository;
+  final OfflineCredentialStore offlineCredentials;
 
   SessionPhase phase = SessionPhase.booting;
   UserProfile? profile;
@@ -34,18 +41,41 @@ class SessionController extends ChangeNotifier {
   Future<void> bootstrap() async {
     await Future.delayed(const Duration(milliseconds: 2500));
     if (phase != SessionPhase.booting) return;
+    AuthSession? restored;
     try {
-      final restored = await client.restoreSession();
+      restored = await client.restoreSession();
       if (restored == null) {
         phase = SessionPhase.guest;
       } else {
         await _loadAfterAuthentication();
       }
     } on Object {
-      await client.logout();
-      phase = SessionPhase.guest;
-      lastErrorCode = null;
-      errorMessage = 'Kayıtlı oturum açılamadı. Lütfen yeniden giriş yap.';
+      if (restored != null && client.session != null) {
+        // İnternet yokken yerel oturumu silmek R-78'i imkânsız kılar: kullanıcı
+        // cihazda saklanan favorilerine ulaşabilmeli. Sunucu 401 dönerse
+        // ApiClient oturumu zaten temizler; yalnız bağlantı/servis hatasında
+        // burada kalır ve çevrimdışı ana ekran açılır.
+        phase = SessionPhase.authenticated;
+        lastErrorCode = null;
+        errorMessage =
+            'Çevrimdışı moddasın. Cihazda saklanan favorilerini görebilirsin.';
+      } else {
+        await client.logout();
+        phase = SessionPhase.guest;
+        lastErrorCode = null;
+        errorMessage = 'Kayıtlı oturum açılamadı. Lütfen yeniden giriş yap.';
+      }
+    }
+    notifyListeners();
+  }
+
+  Future<void> reloadAfterConnectivity() async {
+    if (!isAuthenticated || busy) return;
+    try {
+      await _loadAfterAuthentication();
+      _clearError();
+    } on Object catch (error) {
+      _fail(error);
     }
     notifyListeners();
   }
@@ -66,10 +96,90 @@ class SessionController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> login({required String email, required String password}) =>
-      _runAuthentication(
-        () => client.login(email: email.trim(), password: password),
+  Future<bool> login({required String email, required String password}) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    _setBusy(true);
+    late final AuthSession session;
+    try {
+      session = await client.login(email: normalizedEmail, password: password);
+    } on Object catch (error) {
+      if (_canTryOfflineLogin(error)) {
+        return _loginOffline(email: normalizedEmail, password: password);
+      }
+      _fail(error);
+      return false;
+    }
+
+    try {
+      // Güvenli cihaz deposundaki bir sorun, sunucuda başarıyla açılmış
+      // oturumu geçersiz hale getirmemeli. Yalnız çevrimdışı erişim o cihazda
+      // etkinleşmemiş olur.
+      try {
+        await offlineCredentials.enroll(
+          email: normalizedEmail,
+          password: password,
+          session: session,
+        );
+      } on Object {
+        // Çevrimiçi oturum normal şekilde devam eder.
+      }
+      await _loadAfterAuthentication();
+      _clearError();
+      return true;
+    } on Object catch (error) {
+      _fail(error);
+      return false;
+    } finally {
+      _setBusy(false);
+    }
+  }
+
+  Future<bool> _loginOffline({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final enrolled = await offlineCredentials.hasEnrollment(email);
+      final offlineSession = await offlineCredentials.unlock(
+        email: email,
+        password: password,
       );
+      if (offlineSession != null) {
+        await client.activateOfflineSession(offlineSession);
+        profile = null;
+        personas = const [];
+        phase = SessionPhase.authenticated;
+        lastErrorCode = null;
+        errorMessage =
+            'Çevrimdışı giriş yapıldı. Yalnızca cihazda saklanan '
+            'favoriler kullanılabilir.';
+        return true;
+      }
+      lastErrorCode = 'OFFLINE_LOGIN_FAILED';
+      errorMessage =
+          enrolled
+              ? 'Çevrimdışı giriş için e-posta veya parola hatalı.'
+              : 'Bu hesapta çevrimdışı giriş henüz etkin değil. İnternet '
+                  'varken bir kez giriş yapmalısın.';
+      return false;
+    } on Object {
+      lastErrorCode = 'OFFLINE_STORAGE_ERROR';
+      errorMessage =
+          'Çevrimdışı giriş bilgisi cihazdan okunamadı. İnterneti açıp '
+          'yeniden giriş yapmalısın.';
+      return false;
+    } finally {
+      _setBusy(false);
+    }
+  }
+
+  bool _canTryOfflineLogin(Object error) {
+    if (error is! ApiException) return true;
+    return error.statusCode == 0 ||
+        error.statusCode == 408 ||
+        error.code == 'NETWORK_ERROR' ||
+        error.code == 'REQUEST_TIMEOUT';
+  }
 
   /// Doğrulama bekleyen kayıt varsa e-posta adresi burada tutulur;
   /// kod ekranı adresi kullanıcıya ikinci kez yazdırmasın diye.

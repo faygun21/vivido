@@ -46,6 +46,9 @@ class ApiClient {
     return _session;
   }
 
+  Future<void> activateOfflineSession(AuthSession session) =>
+      _saveSession(session);
+
   Future<AuthSession> login({
     required String email,
     required String password,

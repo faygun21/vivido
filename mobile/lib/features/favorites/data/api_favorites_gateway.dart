@@ -8,12 +8,14 @@ class ApiFavoritesGateway implements FavoritesGateway {
   final ApiClient _client;
 
   @override
-  Future<List<FavoriteEntry>> getFavorites() async {
+  Future<FavoritesLoadResult> getFavorites() async {
     try {
       final json = await _client.get('/profile/favorites');
-      return (json as List<dynamic>)
-          .map((item) => FavoriteEntry.fromJson(item as Map<String, dynamic>))
-          .toList(growable: false);
+      return FavoritesLoadResult(
+        items: (json as List<dynamic>)
+            .map((item) => FavoriteEntry.fromJson(item as Map<String, dynamic>))
+            .toList(growable: false),
+      );
     } on ApiException catch (error) {
       throw FavoritesFailure(error.detail ?? error.title);
     }

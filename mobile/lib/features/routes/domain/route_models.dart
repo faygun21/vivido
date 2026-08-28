@@ -127,6 +127,16 @@ class RouteSummary {
         DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
     stopCount: (json['stopCount'] as num? ?? 0).toInt(),
   );
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'name': name,
+    'mode': mode.apiValue,
+    'totalDistanceM': totalDistanceM,
+    'totalDurationS': totalDurationS,
+    'createdAt': createdAt.toIso8601String(),
+    'stopCount': stopCount,
+  };
 }
 
 class RouteStopProperty {
@@ -155,6 +165,15 @@ class RouteStopProperty {
         latitude: (json['lat'] as num? ?? 0).toDouble(),
         longitude: (json['lon'] as num? ?? 0).toDouble(),
       );
+
+  Map<String, Object?> toJson() => {
+    'monthlyRent': monthlyRent,
+    'areaM2': areaM2,
+    'roomCount': roomCount,
+    'neighborhood': neighborhood,
+    'lat': latitude,
+    'lon': longitude,
+  };
 }
 
 class RouteStop {
@@ -190,6 +209,16 @@ class RouteStop {
       json['property'] as Map<String, dynamic>? ?? const {},
     ),
   );
+
+  Map<String, Object?> toJson() => {
+    'seq': sequence,
+    'propertyId': propertyId,
+    'score': score,
+    'legDistanceM': legDistanceM,
+    'legDurationS': legDurationS,
+    'visitedAt': visitedAt?.toIso8601String(),
+    'property': property.toJson(),
+  };
 }
 
 class RouteManeuver {
@@ -213,6 +242,13 @@ class RouteManeuver {
         .toList(growable: false),
     exit: (json['exit'] as num?)?.toInt(),
   );
+
+  Map<String, Object?> toJson() => {
+    'type': type,
+    'modifier': modifier,
+    'location': location,
+    'exit': exit,
+  };
 }
 
 class RouteStep {
@@ -236,6 +272,13 @@ class RouteStep {
       json['maneuver'] as Map<String, dynamic>? ?? const {},
     ),
   );
+
+  Map<String, Object?> toJson() => {
+    'distance': distance,
+    'duration': duration,
+    'name': name,
+    'maneuver': maneuver.toJson(),
+  };
 }
 
 class RouteLeg {
@@ -250,6 +293,11 @@ class RouteLeg {
         .map((item) => RouteStep.fromJson(item as Map<String, dynamic>))
         .toList(growable: false),
   );
+
+  Map<String, Object?> toJson() => {
+    'seq': sequence,
+    'steps': steps.map((step) => step.toJson()).toList(growable: false),
+  };
 }
 
 class RouteDetail {
@@ -317,6 +365,21 @@ class RouteDetail {
         DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
     isSaved: json['isSaved'] as bool? ?? true,
   );
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'name': name,
+    'start': start.toJson(),
+    'mode': mode.apiValue,
+    'totalDistanceM': totalDistanceM,
+    'totalDurationS': totalDurationS,
+    'stopCount': stopCount,
+    'geometry': {'type': 'LineString', 'coordinates': geometry},
+    'stops': stops.map((stop) => stop.toJson()).toList(growable: false),
+    'legs': legs.map((leg) => leg.toJson()).toList(growable: false),
+    'createdAt': createdAt.toIso8601String(),
+    'isSaved': isSaved,
+  };
 }
 
 List<List<double>> _coordinates(Object? geometry) {

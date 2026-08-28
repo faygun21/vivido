@@ -28,6 +28,14 @@ class PropertyAddress {
               json['cityName'] as String?,
             ]),
       );
+
+  Map<String, Object?> toJson() => {
+    'streetName': streetName,
+    'neighborhoodName': neighborhoodName,
+    'districtName': districtName,
+    'cityName': cityName,
+    'formatted': formatted,
+  };
 }
 
 class PropertySummary {
@@ -97,6 +105,22 @@ class PropertySummary {
     topWeakness: topWeakness,
     isFavorite: isFavorite ?? this.isFavorite,
   );
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'externalRef': externalRef,
+    'monthlyRent': monthlyRent,
+    'areaM2': areaM2,
+    'roomCount': roomCount,
+    'latitude': latitude,
+    'longitude': longitude,
+    'totalScore': totalScore,
+    'band': band,
+    'address': address.toJson(),
+    'topStrength': topStrength,
+    'topWeakness': topWeakness,
+    'isFavorite': isFavorite,
+  };
 }
 
 class PropertyFeatures {
