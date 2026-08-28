@@ -3,6 +3,21 @@ import 'package:flutter/foundation.dart';
 import '../domain/property_gateway.dart';
 import '../domain/property_models.dart';
 
+enum PropertySortOption {
+  score,
+  rentDescending,
+  rentAscending,
+  areaDescending,
+  areaAscending,
+}
+
+class RankedProperty {
+  const RankedProperty({required this.property, required this.rank});
+
+  final PropertySummary property;
+  final int rank;
+}
+
 class PropertyCatalogController extends ChangeNotifier {
   PropertyCatalogController(this._gateway);
 
@@ -20,6 +35,53 @@ class PropertyCatalogController extends ChangeNotifier {
   /// özel yerlerden hesapladığı anchor koridoruna göre filtreliyor — web ile
   /// aynı davranış, aynı hesapla iki üründe aynı liste görünsün diye.
   bool showAll = false;
+  Set<String> selectedRoomCounts = const {};
+  PropertySortOption sortOption = PropertySortOption.score;
+
+  List<String> get roomCountOptions =>
+      items.map((item) => item.roomCount).toSet().toList()..sort();
+
+  bool get hasActiveFilter => selectedRoomCounts.isNotEmpty;
+  bool get hasCustomView =>
+      hasActiveFilter || sortOption != PropertySortOption.score;
+
+  List<RankedProperty> get visibleItems {
+    final filtered = <RankedProperty>[
+      for (var index = 0; index < items.length; index++)
+        if (selectedRoomCounts.isEmpty ||
+            selectedRoomCounts.contains(items[index].roomCount))
+          RankedProperty(property: items[index], rank: index + 1),
+    ];
+    switch (sortOption) {
+      case PropertySortOption.score:
+        return filtered;
+      case PropertySortOption.rentDescending:
+        filtered.sort(
+          (left, right) =>
+              right.property.monthlyRent.compareTo(left.property.monthlyRent),
+        );
+        break;
+      case PropertySortOption.rentAscending:
+        filtered.sort(
+          (left, right) =>
+              left.property.monthlyRent.compareTo(right.property.monthlyRent),
+        );
+        break;
+      case PropertySortOption.areaDescending:
+        filtered.sort(
+          (left, right) =>
+              right.property.areaM2.compareTo(left.property.areaM2),
+        );
+        break;
+      case PropertySortOption.areaAscending:
+        filtered.sort(
+          (left, right) =>
+              left.property.areaM2.compareTo(right.property.areaM2),
+        );
+        break;
+    }
+    return filtered;
+  }
 
   bool _loaded = false;
   bool _disposed = false;
@@ -32,6 +94,25 @@ class PropertyCatalogController extends ChangeNotifier {
     if (showAll == value) return;
     showAll = value;
     await load(force: true);
+  }
+
+  void toggleRoomCount(String value) {
+    final next = Set<String>.of(selectedRoomCounts);
+    next.contains(value) ? next.remove(value) : next.add(value);
+    selectedRoomCounts = next;
+    _notify();
+  }
+
+  void setSortOption(PropertySortOption value) {
+    if (sortOption == value) return;
+    sortOption = value;
+    _notify();
+  }
+
+  void clearFilters() {
+    if (selectedRoomCounts.isEmpty) return;
+    selectedRoomCounts = const {};
+    _notify();
   }
 
   Future<void> load({bool force = false}) async {
