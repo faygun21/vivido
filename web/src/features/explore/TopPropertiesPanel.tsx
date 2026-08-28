@@ -35,6 +35,15 @@ interface TopPropertiesPanelProps {
   /** Anchor alanında hiç ev yoksa sunucunun önerdiği "alana en yakın" ev. */
   nearestFallback: PropertySummary | null;
   onSelectFallback: (property: PropertySummary) => void;
+  /**
+   * Rotaya eklenmiş konut id'leri — favori bayrağının (`isFavorite`) aksine
+   * sunucudan gelmiyor, henüz kaydedilmemiş bir seçim; `ExplorePage`'de
+   * türetiliyor (bkz. oradaki not).
+   */
+  routePropertyIds: Set<number>;
+  /** Rota `MAX_ROUTE_STOPS`'a ulaştıysa YENİ ekleme düğmeleri devre dışı kalır — çıkarma hep açık. */
+  routeAtCapacity: boolean;
+  onToggleRoute: (propertyId: number) => void;
 }
 
 export function TopPropertiesPanel({
@@ -48,6 +57,9 @@ export function TopPropertiesPanel({
   onShowAllProperties,
   nearestFallback,
   onSelectFallback,
+  routePropertyIds,
+  routeAtCapacity,
+  onToggleRoute,
 }: TopPropertiesPanelProps) {
   return (
     <aside
@@ -104,6 +116,9 @@ export function TopPropertiesPanel({
                     rank="≈"
                     selected={nearestFallback.id === selectedId}
                     onSelect={onSelectFallback}
+                    inRoute={routePropertyIds.has(Number(nearestFallback.id))}
+                    routeAtCapacity={routeAtCapacity}
+                    onToggleRoute={onToggleRoute}
                   />
                 </ol>
               </>
@@ -119,6 +134,9 @@ export function TopPropertiesPanel({
               rank={index + 1}
               selected={property.id === selectedId}
               onSelect={onSelect}
+              inRoute={routePropertyIds.has(Number(property.id))}
+              routeAtCapacity={routeAtCapacity}
+              onToggleRoute={onToggleRoute}
             />
           ))}
         </ol>
@@ -135,11 +153,25 @@ interface TopPropertyCardProps {
   rank: number | string;
   selected: boolean;
   onSelect: (property: PropertySummary) => void;
+  inRoute: boolean;
+  routeAtCapacity: boolean;
+  onToggleRoute: (propertyId: number) => void;
 }
 
-function TopPropertyCard({ property, rank, selected, onSelect }: TopPropertyCardProps) {
+function TopPropertyCard({
+  property,
+  rank,
+  selected,
+  onSelect,
+  inRoute,
+  routeAtCapacity,
+  onToggleRoute,
+}: TopPropertyCardProps) {
   const favorite = useFavoriteMutation();
   const address = splitAddress(property.address);
+  // Rota doluyken YENİ ekleme kilitlenir, ama zaten içindeyse çıkarmak
+  // her zaman açık kalmalı — favori düğmesinde böyle bir sınır yok.
+  const routeDisabled = routeAtCapacity && !inRoute;
 
   return (
     <li className={`top-card${selected ? ' is-selected' : ''}`}>
@@ -181,6 +213,27 @@ function TopPropertyCard({ property, rank, selected, onSelect }: TopPropertyCard
         aria-label={property.isFavorite ? 'Favorilerden çıkar' : 'Favorilere ekle'}
       >
         {property.isFavorite ? '♥' : '♡'}
+      </button>
+
+      <button
+        className={`top-card-route${inRoute ? ' is-active' : ''}`}
+        type="button"
+        onClick={() => onToggleRoute(Number(property.id))}
+        disabled={routeDisabled}
+        aria-pressed={inRoute}
+        aria-label={inRoute ? 'Rotadan çıkar' : 'Rotaya ekle'}
+        title={
+          routeDisabled
+            ? 'Rota dolu — önce bir durak çıkar'
+            : inRoute
+              ? 'Rotadan çıkar'
+              : 'Rotaya ekle'
+        }
+      >
+        {/* Bayrak: dolu = rotada, çerçeveli = değil — kalp ♥/♡ ile aynı
+            aktif/pasif deseni ama karışmasın diye ayrı bir sembol
+            (2026-08-28: eski "+" işareti favoriden ayrışmıyordu). */}
+        {inRoute ? '⚑' : '⚐'}
       </button>
     </li>
   );

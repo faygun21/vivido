@@ -32,11 +32,31 @@ interface PropertyDetailPanelProps {
    * isteğe bağlı.
    */
   onBack?: () => void;
+  /** Rota oluşturma misafire kapalı — bu düğme de aynı koşulla gösterilir. */
+  showRouteButton: boolean;
+  /**
+   * Bu ev rota seçimindeyse (henüz kaydedilmemiş `routeIds` ya da hesaplanmış
+   * `activeRoute.stops`) — favorinin aksine `PropertyDetail`'da gelmiyor,
+   * `ExplorePage` türetip geçiyor.
+   */
+  isInRoute: boolean;
+  /** Rota `MAX_ROUTE_STOPS`'a ulaştıysa VE bu ev içinde değilse düğme kilitlenir. */
+  routeAtCapacity: boolean;
+  onToggleRoute: () => void;
 }
 
-export function PropertyDetailPanel({ property, onClose, onBack }: PropertyDetailPanelProps) {
+export function PropertyDetailPanel({
+  property,
+  onClose,
+  onBack,
+  showRouteButton,
+  isInRoute,
+  routeAtCapacity,
+  onToggleRoute,
+}: PropertyDetailPanelProps) {
   const [showAllRows, setShowAllRows] = useState(false);
   const favorite = useFavoriteMutation();
+  const routeDisabled = routeAtCapacity && !isInRoute;
 
   const { score } = property;
   const address = splitAddress(property.address);
@@ -107,6 +127,22 @@ export function PropertyDetailPanel({ property, onClose, onBack }: PropertyDetai
           <p className="field-error" role="alert">
             Favori güncellenemedi. Tekrar dene.
           </p>
+        )}
+
+        {showRouteButton && (
+          <button
+            className={`route-btn${isInRoute ? ' is-active' : ''}`}
+            type="button"
+            onClick={onToggleRoute}
+            disabled={routeDisabled}
+            aria-pressed={isInRoute}
+            title={routeDisabled ? 'Rota dolu — önce bir durak çıkar' : undefined}
+          >
+            {/* Bayrak deseni: kalp ♥/♡'nin aktif/pasif mantığı, ama ayrı sembol
+                — "+" favoriden görsel olarak ayrışmıyordu (2026-08-28). */}
+            <span aria-hidden="true">{isInRoute ? '⚑' : '⚐'}</span>
+            {isInRoute ? 'Rotada' : 'Rotaya ekle'}
+          </button>
         )}
 
         <section className="property-section">
