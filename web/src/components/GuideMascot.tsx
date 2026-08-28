@@ -83,7 +83,9 @@ useEffect(() => {
     if (!currentSelector) return;
 
     const timer = setTimeout(() => {
-      const targetElement = document.querySelector(currentSelector) as HTMLElement | null;
+      const currentSelector = step.selector;
+    if (!currentSelector) return;
+    const targetElement = document.querySelector<HTMLElement>(currentSelector);
       
       if (targetElement) {
         const originalOutline = targetElement.style.outline;
