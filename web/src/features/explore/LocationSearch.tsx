@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { LocationSearchResponse, LocationSearchResult } from '@vivido/shared';
 import { api, ApiError, NetworkError } from '@/shared/api/client';
 import './LocationSearch.css';
@@ -14,6 +14,16 @@ const kindLabels = {
   place: 'Konum',
 } as const;
 
+/**
+ * Yazmayı bırakınca kaç ms sonra otomatik arama tetiklenecek.
+ *
+ * İlk sürümde 2000ms'ydi — canlı testte "hâlâ göstermiyor" diye
+ * bildirildi (2026-08-28): aslında çalışıyordu ama 2 saniyelik sessiz
+ * bekleme kullanıcıya bozuk gibi hissettiriyordu. Normal bir
+ * otomatik-tamamlama gecikmesine indirildi.
+ */
+const SEARCH_DEBOUNCE_MS = 400;
+
 export function LocationSearch({ onSelect, onClear }: LocationSearchProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<LocationSearchResult[]>([]);
@@ -22,10 +32,10 @@ export function LocationSearch({ onSelect, onClear }: LocationSearchProps) {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const normalizedQuery = query.trim();
+  async function runSearch(rawQuery: string) {
+    const normalizedQuery = rawQuery.trim();
     if (normalizedQuery.length < 2 || loading) return;
 
     setLoading(true);
@@ -49,6 +59,45 @@ export function LocationSearch({ onSelect, onClear }: LocationSearchProps) {
       setLoading(false);
     }
   }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    void runSearch(query);
+  }
+
+  // `runSearch` her render'da yeniden kuruluyor (kapattığı `loading`/`onClear`
+  // güncel kalsın diye) — zamanlayıcı efekti bunu bağımlılığa koymadan hep
+  // GÜNCEL halini çağırabilsin diye bir ref'te tutuyoruz. Yoksa ya efekt her
+  // render'da gereksiz yere yeniden kurulur ya da 2sn sonra çalışan
+  // zamanlayıcı bayat bir `loading` değeriyle çalışırdı.
+  const runSearchRef = useRef(runSearch);
+  runSearchRef.current = runSearch;
+
+  /**
+   * Yazarken otomatik arama — 2sn boyunca yeni tuşa basılmazsa sorgu
+   * kendiliğinden çalışır, "Ara"ya basmaya gerek kalmaz (2026-08-28).
+   * Her tuş vuruşu önceki zamanlayıcıyı iptal eder (bkz. `ExplorePage`'deki
+   * `boundsTimer` ile aynı desen).
+   */
+  useEffect(() => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+
+    if (query.trim().length < 2) {
+      // Kısa/boş sorguda eski sonuçları ekranda bırakmanın anlamı yok.
+      setResults([]);
+      setSearched(false);
+      return;
+    }
+
+    debounceTimer.current = setTimeout(() => {
+      void runSearchRef.current(query);
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, [query]);
 
   function clear() {
     setQuery('');

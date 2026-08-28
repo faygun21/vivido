@@ -28,6 +28,7 @@ export const BudgetInput: React.FC<BudgetInputProps> = ({
       <div
         style={{
           display: 'flex',
+          flexWrap: 'wrap',
           gap: '12px',
           width: '100%',
         }}

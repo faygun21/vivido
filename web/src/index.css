@@ -80,6 +80,7 @@ a { color: var(--accent); }
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+  flex: none;
   color: var(--ink);
   font-weight: 700;
   font-size: 1.15rem;
@@ -99,9 +100,43 @@ a { color: var(--accent); }
   align-items: center;
   gap: 0.4rem;
   font-size: 0.9rem;
+  /* Orta genişlikte (ör. admin + tüm sekmeler açıkken) düğmeler tek
+     satıra sığmayabilir. `min-width: 0` olmadan flex item'lar
+     içeriklerinin doğal genişliğinin altına küçülmez. ≤560px'te bunun
+     yerine hamburger menüsü devreye giriyor (aşağıda) — yatay kaydırma
+     "tasarım olarak olumsuz" bulundu (2026-08-28), sadece ORTA genişlik
+     için bir güvenlik ağı olarak kaldı. */
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
+.app-nav::-webkit-scrollbar { display: none; }
+
+/* Kaydırma alanındaki her öğe kendi doğal genişliğini korusun — yoksa
+   önce sıkışıp sonra kaydırma devreye girerdi, ikisi birden garip dururdu. */
+.app-nav > * { flex: none; }
+
 .app-nav a { text-decoration: none; }
+
+/* Hamburger — sadece dar ekranda görünür (bkz. aşağıdaki @media). */
+.nav-hamburger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  border-radius: 0.7rem;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.nav-hamburger:hover { background: var(--input-bg); }
 
 .nav-btn {
   display: inline-flex;
@@ -185,10 +220,103 @@ a { color: var(--accent); }
   font-size: 0.78rem;
 }
 
+/* ─── Onboarding sihirbazı (Lifestyle/Preferences/Budget) ───
+   Üçü de aynı `position:fixed` + `overflow:hidden` kabuğu KULLANIYORDU —
+   içerik viewport'tan uzunsa (küçük telefon, klavye açıkken, yazı boyutu
+   büyütülmüşse) "Devam Et" düğmesine ulaşmanın hiçbir yolu yoktu, kaçış
+   noktası da body scroll'u da kapalıydı (2026-08-28). Normal akışlı,
+   gerektiğinde kayan bir kabukla değiştirildi. */
+.wizard-shell {
+  min-height: 100vh;
+  background-color: #FDFBF7;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 24px 32px;
+  font-family: sans-serif;
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  .wizard-shell { padding: 20px 16px; }
+}
+
+/* Persona kartları — sihirbazda VE tekli onboarding formunda aynı 2
+   sütunlu düzen kullanılıyordu, hiçbirinde mobil karşılığı yoktu. */
+.wizard-persona-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  width: 100%;
+}
+
+@media (max-width: 480px) {
+  .wizard-persona-grid { grid-template-columns: 1fr; }
+}
+
+/* Ad/Soyad gibi yan yana iki alan — dar ekranda alt alta düşer. */
+.wizard-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  max-width: 500px;
+}
+
+@media (max-width: 480px) {
+  .wizard-two-col { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 560px) {
   .app-header { padding: 0 0.75rem; }
-  .user-email { display: none; }
   .nav-btn { padding: 0.45rem 0.7rem; }
+
+  .nav-hamburger { display: inline-flex; }
+
+  /* Bağlantılar artık yatay kaydırılmıyor — hamburger'ın açtığı, başlığın
+     hemen altına oturan dikey bir panelde duruyor (2026-08-28). */
+  .app-nav {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.3rem;
+    padding: 0.75rem;
+    background: var(--surface);
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
+    box-shadow: var(--shadow-md);
+    overflow: visible;
+  }
+
+  .app-nav.is-open { display: flex; }
+
+  .app-nav > * { width: 100%; }
+
+  .nav-btn { justify-content: center; }
+  .guest-chip { justify-content: center; }
+  .user-email { display: block; max-width: none; text-align: center; }
+}
+
+/* ─── Admin paneli ─── 48px yatay dolgu + 4 sabit sütunluk istatistik
+   ızgarası 375px'lik bir telefonda kartları eziyordu (2026-08-28). */
+.admin-page { padding: 40px 48px; }
+
+.admin-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 720px) {
+  .admin-page { padding: 24px 20px; }
+  .admin-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 420px) {
+  .admin-stats-grid { grid-template-columns: 1fr; }
 }
 
 /* ─── Sayfalar ─── */
@@ -506,6 +634,19 @@ button svg,
 .login-input-group {
   position: relative;
   width: 100%;
+}
+
+/* Kayıt formundaki Ad/Soyad satırı — formun geri kalanı `.login-input-group`
+   ile hep alt alta dururken bu tek satır yan yana sabitti, dar ekranda
+   sıkışıyordu (2026-08-28). */
+.login-name-row {
+  display: flex;
+  gap: 1rem;
+  width: 100%;
+}
+
+@media (max-width: 420px) {
+  .login-name-row { flex-direction: column; }
 }
 
 .login-input {
@@ -837,6 +978,13 @@ button svg,
 /* Detay listenin üstünde. */
 .property-panel { z-index: 9; }
 .top-panel { z-index: 8; }
+
+/* Sürükleme tutamacı — sadece mobilde (bkz. @media 899px) görünür ve
+   işlevsel; masaüstünde panel yan panel olduğu için anlamsız. */
+.property-panel-grip {
+  display: none;
+  flex: none;
+}
 
 .property-panel-head {
   display: flex;
@@ -1996,6 +2144,33 @@ button svg,
      geliyor, gizlemek onu da silerdi. */
   .top-panel-toggle { padding: 0 0.7rem; font-size: 0.82rem; }
   .top-panel-toggle-count { display: none; }
+
+  /* Konut detay paneli aşağı sürüklenip daraltılabiliyor — kapanmıyor,
+     sadece haritayı (ve seçili evin güçlü yön POI'lerini) görecek kadar
+     küçülüyor (2026-08-28). `is-collapsed` PEEK_HEIGHT_PX (96px = 6rem)
+     kadar bir şerit bırakıyor; JS aktif sürüklerken bu transition'ı geçici
+     olarak kapatıp `transform`'u px cinsinden kendisi sürüyor. */
+  .property-panel { transition: transform 0.22s ease; }
+
+  .property-panel-grip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 1.6rem;
+    cursor: grab;
+    touch-action: none;
+  }
+
+  .property-panel-grip span {
+    width: 2.5rem;
+    height: 0.3rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--line) 70%, transparent);
+  }
+
+  .property-panel.is-collapsed {
+    transform: translateY(calc(100% - 6rem));
+  }
 }
 
 /* Çok dar ekranda (telefon) üst şeritte ☰ + arama + düğme sığmıyor;

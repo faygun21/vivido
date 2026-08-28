@@ -110,7 +110,7 @@ export function AdminPage() {
 
   if (isLoading) {
     return (
-      <div style={pageStyle}>
+      <div className="admin-page" style={pageStyle}>
         <p>Kullanıcılar yükleniyor...</p>
       </div>
     );
@@ -118,7 +118,7 @@ export function AdminPage() {
 
   if (isError) {
     return (
-      <div style={pageStyle}>
+      <div className="admin-page" style={pageStyle}>
         <h1>Admin Paneli</h1>
         <p style={errorStyle}>
           Kullanıcı listesi alınırken bir hata oluştu.
@@ -128,7 +128,7 @@ export function AdminPage() {
   }
 
   return (
-    <div style={pageStyle}>
+    <div className="admin-page" style={pageStyle}>
       <div style={titleAreaStyle}>
         <div>
           <h1 style={{ margin: 0 }}>Admin Paneli</h1>
@@ -138,7 +138,7 @@ export function AdminPage() {
         </div>
       </div>
 
-      <div style={statsGridStyle}>
+      <div className="admin-stats-grid" style={statsGridStyle}>
         <StatCard label="Toplam Kullanıcı" value={stats.total} />
         <StatCard label="Admin" value={stats.admins} />
         <StatCard label="Aktif" value={stats.active} />
@@ -320,18 +320,16 @@ function StatusBadge({
   );
 }
 
-const pageStyle = {
-  padding: '40px 48px',
-};
+// Yatay dolgu ve `.admin-stats-grid`in sütun sayısı `.admin-page` CSS
+// sınıfında responsive — bkz. index.css (2026-08-28: 48px dolgu + 4 sabit
+// sütun 375px'lik telefonda istatistik kartlarını eziyordu).
+const pageStyle = {};
 
 const titleAreaStyle = {
   marginBottom: '28px',
 };
 
 const statsGridStyle = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-  gap: '14px',
   marginBottom: '24px',
 };
 

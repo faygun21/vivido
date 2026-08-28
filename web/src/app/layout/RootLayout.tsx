@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/features/auth/authStore';
 import { HOME_PATH } from '@/features/auth/authFlow';
@@ -16,6 +17,18 @@ export function RootLayout() {
   const { status, user, isGuest, clearSession, leaveGuest } = useAuthStore();
 
   const authenticated = status === 'authenticated';
+
+  /**
+   * Dar ekranda menü — yatay kaydırma denendi, kullanıcı geri bildirdi:
+   * "Favorilerim/Profil gibi menüleri kaydırarak görmek tasarım olarak
+   * olumsuz" (2026-08-28). Bunun yerine ≤560px'te bağlantılar bir
+   * hamburger düğmesinin açtığı aşağı-açılır bir panelde toplanıyor.
+   */
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   /**
    * Keşfet ekranı kenardan kenara çizilir: harita `.app-main`'in 68rem'lik
@@ -50,7 +63,23 @@ export function RootLayout() {
         Vivido
         </Link>
 
-        <nav className="app-nav">
+        {/* "☰" DEĞİL: Keşfet sayfasının kendi çekmece düğmesi zaten o
+            simgeyi kullanıyor (bkz. ExplorePage'deki `.map-fab-bars`), aynı
+            ekranda ikisi üst üste görününce ne işe yaradıkları karışıyordu
+            (2026-08-28). Bu buton hesap/gezinme menüsü — "⋮" (kebab) daha
+            doğru bir çağrışım hem de görsel olarak ayrışıyor. */}
+        <button
+          type="button"
+          className="nav-hamburger"
+          aria-expanded={menuOpen}
+          aria-controls="app-nav"
+          aria-label={menuOpen ? 'Menüyü kapat' : 'Menüyü aç'}
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          <span aria-hidden="true">{menuOpen ? '✕' : '⋮'}</span>
+        </button>
+
+        <nav id="app-nav" className={`app-nav${menuOpen ? ' is-open' : ''}`}>
           {authenticated ? (
             <>
               <NavLink

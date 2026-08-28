@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Check, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -68,13 +68,6 @@ export default function LifestyleSelection() {
   const queryClient = useQueryClient();
   const displayName = useAuthStore((s) => s.user?.displayName);
 
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = 'auto';
-    };
-  }, []);
-
   async function handleNext() {
     setSaving(true);
     setError(null);
@@ -98,23 +91,8 @@ export default function LifestyleSelection() {
   }
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100vw',
-      height: '100vh',
-      backgroundColor: '#FDFBF7',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'space-between',
-      padding: '24px 32px',
-      fontFamily: 'sans-serif',
-      boxSizing: 'border-box',
-      overflow: 'hidden',
-      zIndex: 9999
-    }}>
-      
+    <div className="wizard-shell">
+
       {/* ÜST KISIM: 4 Adımlı Stepper (2. Adım Aktif) */}
       <div style={{ maxWidth: '520px', margin: '0 auto', width: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
@@ -164,7 +142,7 @@ export default function LifestyleSelection() {
           Yaşam tarzına en yakın profili seç. Tüm tercihlerini daha sonra özelleştirebilirsin.
         </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px', width: '100%', marginBottom: '14px' }}>
+        <div className="wizard-persona-grid" style={{ marginBottom: '14px' }}>
           {personas.map((persona) => {
             const isSelected = selectedId === persona.id;
             return (
