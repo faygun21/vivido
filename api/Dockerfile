@@ -5,6 +5,18 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Önce sadece proje dosyaları — katman önbelleği için.
+#
+# ⚠️ ÇÖZÜME YENİ PROJE EKLEYEN, BURAYA DA BİR SATIR EKLEMEK ZORUNDA.
+#
+# `dotnet restore Vivido.sln` çözümdeki TÜM projeleri arar; csproj'lar tek
+# tek kopyalandığı için (katman önbelleği bunu gerektiriyor) listede olmayan
+# proje imajın içinde yok sayılır ve restore "project file was not found"
+# ile düşer.
+#
+# Bu sessiz bir tuzak: yerelde `dotnet build` sorunsuz çalışır (dosyalar
+# diskte), yalnızca Docker imajı kırılır — yani hata ancak deploy'da
+# görünür. `Vivido.RouteOptimization` eklendiğinde tam olarak bu oldu ve
+# staging iki gün deploy alamadı.
 COPY Directory.Build.props ./
 COPY Vivido.sln ./
 COPY src/Vivido.Api/*.csproj                        src/Vivido.Api/
@@ -12,8 +24,10 @@ COPY src/Vivido.Application/*.csproj                src/Vivido.Application/
 COPY src/Vivido.Domain/*.csproj                     src/Vivido.Domain/
 COPY src/Vivido.Infrastructure/*.csproj             src/Vivido.Infrastructure/
 COPY src/Vivido.Scoring/*.csproj                    src/Vivido.Scoring/
+COPY src/Vivido.RouteOptimization/*.csproj          src/Vivido.RouteOptimization/
 COPY tests/Vivido.Scoring.Tests/*.csproj            tests/Vivido.Scoring.Tests/
 COPY tests/Vivido.Api.IntegrationTests/*.csproj     tests/Vivido.Api.IntegrationTests/
+COPY tests/Vivido.RouteOptimization.Tests/*.csproj  tests/Vivido.RouteOptimization.Tests/
 RUN dotnet restore Vivido.sln
 
 # Sonra kaynak kodu
