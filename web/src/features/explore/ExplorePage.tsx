@@ -89,8 +89,6 @@ export function ExplorePage() {
   const [pendingAnchor, setPendingAnchor] = useState<MapPoint | null>(null);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
   const [topPanelOpen, setTopPanelOpen] = useState(false);
-  // Haritadaki "güçlü yön" ikonlarının ne olduğunu bir kez açıklıyoruz —
-  // ilk evi seçtiğinde bandı görür, kapattığında/bir daha görmez (2026-08-28).
   const [poiHintDismissed, setPoiHintDismissed] = useState(
     () => localStorage.getItem(POI_HINT_STORAGE_KEY) === '1',
   );
@@ -364,10 +362,10 @@ export function ExplorePage() {
       ),
     enabled: bounds != null && selectedCategories.length > 0,
     staleTime: 30_000,
-    // ⚠️ `placeholderData` OLMADAN: harita her hareket ettiğinde `boundsKey`
+    // `placeholderData` OLMADAN: harita her hareket ettiğinde `boundsKey`
     // değişip yeni sorgu başlıyor, TanStack Query yeni veri gelene kadar
-    // `pois`'i `undefined`'a (→ `[]`'e) düşürüyordu — ikonlar bir anlığına
-    // kayboluyor, veri gelince geri geliyordu ("titreme", 2026-08-28).
+    // `pois`'i `undefined`'a düşürüyordu — ikonlar bir anlığına
+    // kayboluyor, veri gelince geri geliyordu 
     // Eski liste yeni veri gelene kadar EKRANDA KALIYOR artık.
     placeholderData: keepPreviousData,
   });
@@ -457,12 +455,6 @@ export function ExplorePage() {
   }));
 
   // Pin tıklaması her sekmede AYNI şeyi yapar: detay panelini açar.
-  //
-  // Eskiden "Rota" sekmesindeyken tıklamak konutu doğrudan rotaya
-  // ekliyordu/çıkarıyordu — kullanıcı evin özelliklerine hiç bakmadan,
-  // "unutarak" bir sürü ev ekleyebiliyordu (2026-08-28). Artık rotaya
-  // ekleme SADECE detay panelindeki/liste kartındaki açık "Rotaya ekle"
-  // düğmesinden oluyor — kullanıcı önce evi görür, sonra karar verir.
   function handlePropertyClick(id: string) {
     if (tab === 'rota') {
       const propertyId = Number(id);
@@ -718,8 +710,6 @@ export function ExplorePage() {
               onClick={() => selectTab(value)}
             >
               {title}
-              {/* Rota kapasitesi HER sekmede görünsün — kullanıcı doluluğu
-                  yalnızca ekleyemeyince (title tooltip'iyle) öğrenmesin. */}
               {value === 'rota' && routePropertyIds.size > 0 && (
                 <span className="drawer-tab-count">
                   {routePropertyIds.size}/{MAX_ROUTE_STOPS}
@@ -928,6 +918,8 @@ export function ExplorePage() {
 
       <GuideMascot 
         isOpen={drawerOpen} 
+        isWideScreen={wideScreen} 
+        isGuest={isGuest} 
         onTabChange={setTab} 
       />
     </section>

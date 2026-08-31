@@ -268,8 +268,14 @@ a { color: var(--accent); }
 }
 
 @media (max-width: 560px) {
+<<<<<<< Updated upstream
   .app-header { padding: 0 0.75rem; }
   .nav-btn { padding: 0.45rem 0.7rem; }
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+>>>>>>> c03c622 (feat: maskot mobil ekranlara uyarlandı ve keşfet paneli güncellendi)
 
   .nav-hamburger { display: inline-flex; }
 
@@ -574,6 +580,34 @@ a { color: var(--accent); }
 
 @media (max-width: 420px) {
   .admin-stats-grid { grid-template-columns: 1fr; }
+<<<<<<< HEAD
+=======
+=======
+  .app-header {
+    padding: 0 0.5rem; /* Ekranın sağ/sol kenar boşluklarını daralttık */
+    gap: 0.25rem;      /* Logo ile butonlar arasındaki boşluğu kıstık */
+  }
+  
+  .app-nav {
+    gap: 0.25rem;      /* Butonların kendi aralarındaki boşluğu daralttık */
+  }
+
+  .user-email { 
+    display: none; 
+  }
+  
+  .nav-btn { 
+    padding: 0.4rem 0.55rem; /* Butonların iç boşluğunu küçülttük */
+    font-size: 0.85rem;      /* Buton yazılarını bir tık ufalttık */
+  }
+
+  .guest-chip {
+    padding: 0.3rem 0.5rem;  /* Misafir etiketini küçülttük */
+    font-size: 0.75rem;
+  }
+>>>>>>> Stashed changes
+>>>>>>> 86f3f79 (feat: maskot mobil ekranlara uyarlandı ve keşfet paneli güncellendi)
+>>>>>>> c03c622 (feat: maskot mobil ekranlara uyarlandı ve keşfet paneli güncellendi)
 }
 
 /* ─── Sayfalar ─── */
@@ -2373,9 +2407,25 @@ button svg,
     bottom: 0;
     width: auto;
     max-width: none;
-    max-height: 72%;
+    height: 45vh;      
+    max-height: 50vh;  
     border-radius: 1.1rem 1.1rem 0 0;
     transform: translateY(100%);
+    overflow: hidden; 
+  }
+  .map-topbar {
+    top: auto;           
+    bottom: 2.5rem;       
+    left: auto;           
+    right: 1rem;          
+    flex-direction: column-reverse;
+    align-items: flex-end; 
+  }
+
+  .explore-drawer .drawer-body {
+    height: calc(100% - 120px); /* Üst başlık (Keşfet) ve sekmelerin (Profil, Rota vb.) payı çıkarıldı */
+    overflow-y: auto;
+    padding-bottom: 2rem;
   }
 
   /* Sağdaki iki panel de alttan açılan sayfaya döner. Yuva kaydırması
@@ -2435,8 +2485,8 @@ button svg,
 @media (max-width: 560px) {
   .map-topbar { flex-wrap: wrap; }
   .top-panel-toggle { margin-left: 0; }
+  .brand span { display: none; }
 }
-
 /* ── Rota oluşturucu ve metrik kartı (R-120/121) ── */
 
 /* Rota pinleri — anchor `map-pin` deseninin mavi varyantı. */
