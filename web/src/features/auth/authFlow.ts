@@ -31,7 +31,21 @@ export async function routeAfterAuth(
   from?: string,
 ): Promise<void> {
   try {
-    await api.get('/profile');
+    const profile = await api.get<{ minMonthlyBudget: number | null; maxMonthlyBudget: number | null }>(
+      '/profile',
+    );
+
+    // Sihirbaz (lifestyle → preferences → budget) yarıda bırakılmış olabilir:
+    // her adım profili KISMEN kaydediyor, yani `GET /profile` 404 vermez
+    // ama bütçe hâlâ boş kalabiliyor. Bu durumda kullanıcıyı ana ekrana
+    // (HOME_PATH) göndermek, bütçe filtresi hiç uygulanmadan tüm evleri
+    // gösteren, sessizce kişiselleştirmesiz bir deneyime yol açıyordu —
+    // sihirbaza geri gönderip tamamlatıyoruz.
+    if (profile.minMonthlyBudget == null && profile.maxMonthlyBudget == null) {
+      navigate('/lifestyle', { replace: true });
+      return;
+    }
+
     navigate(from ?? HOME_PATH, { replace: true });
   } catch {
     // 404 → profil yok, ilk kayıt. Başka bir hata olsa bile lifestyle

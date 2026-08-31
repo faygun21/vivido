@@ -81,9 +81,7 @@ public class PropertiesController : ControllerBase
 
         var budgetProperties = await BudgetFilteredQuery(profile).ToListAsync(ct);
 
-        var (corridor, properties) = showAll
-            ? ((Geometry?)null, budgetProperties)
-            : await BuildAnchorAreaAsync(profile, budgetProperties, ct);
+        var (corridor, properties) = await BuildAnchorAreaBoundedAsync(profile, budgetProperties, showAll, ct);
 
         // Tek tek ScorePropertyAsync çağırmak N+1 sorgu demekti (profil,
         // ağırlık ve kategori her konut için ayrı ayrı çekiliyordu) — geniş
@@ -139,9 +137,7 @@ public class PropertiesController : ControllerBase
         // trivial (<10ms); ayrı bir SQL bbox turu gerektirmiyor.
         var budgetProperties = await BudgetFilteredQuery(profile).ToListAsync(ct);
 
-        var (corridor, properties) = showAll
-            ? ((Geometry?)null, budgetProperties)
-            : await BuildAnchorAreaAsync(profile, budgetProperties, ct);
+        var (corridor, properties) = await BuildAnchorAreaBoundedAsync(profile, budgetProperties, showAll, ct);
 
         var corridorDto = corridor is null ? null : ToPolygonGeoJson(corridor);
 
@@ -290,21 +286,24 @@ public class PropertiesController : ControllerBase
     /// `ApiProblem` sözleşmesini hiç kullanmıyordu). Artık Program.cs'teki
     /// global exception handler'a düşer: detay sızdırmadan INTERNAL_ERROR
     /// döner, tam hata sunucu tarafında loglanır.
+    ///
+    /// ⚠️ `profileId` İSTEKTEN ALINMAZ: eskiden query string'ten geliyordu,
+    /// yani giriş yapmış HERHANGİ bir kullanıcı başkasının profileId'sini
+    /// vererek onun skorunu çekebiliyordu (broken object-level authorization).
+    /// Artık dosyadaki diğer her action gibi JWT'deki kullanıcıdan türetilir.
     /// </summary>
     [HttpGet("{propertyId:long}/score")]
-    public async Task<IActionResult> GetPropertyScore(long propertyId, [FromQuery] Guid profileId)
+    public async Task<IActionResult> GetPropertyScore(long propertyId, CancellationToken ct = default)
     {
-        if (profileId == Guid.Empty)
-        {
-            return BadRequest(new { Message = "Geçerli bir profileId belirtilmelidir." });
-        }
+        var profile = await GetProfileAsync(ct);
+        if (profile == null) return ApiProblem.ProfileNotFound();
 
-        var score = await _scoringService.ScorePropertyAsync(propertyId, profileId);
+        var score = await _scoringService.ScorePropertyAsync(propertyId, profile.Id);
 
         return Ok(new
         {
             PropertyId = propertyId,
-            ProfileId = profileId,
+            ProfileId = profile.Id,
             Score = score
         });
     }
@@ -487,6 +486,38 @@ public class PropertiesController : ControllerBase
     /// kullanılabilir; bu, "her istekte OSRM'e git" maliyetine karşı kabul
     /// edilebilir bir yaklaşıklık.
     /// </summary>
+    /// <summary>
+    /// Bir istekte kabul edilen üst sınır. <see cref="BuildAnchorAreaAsync"/>
+    /// cache boşken (anchor CRUD sonrası ya da 10dk TTL bitince) ardışık en
+    /// fazla 2×(anchor sayısı-1) OSRM çağrısı yapabiliyor — her biri kendi
+    /// zaman aşımına (bkz. OsrmOptions) sahip olsa da toplamı çok
+    /// uzayabiliyordu (3 anchor'da ~40sn'ye kadar), kullanıcıyı hiçbir geri
+    /// bildirim vermeden bekletiyordu. Bu, RoutesController'daki
+    /// RequestTimeout deseninin aynısı: aşılırsa koridor filtresi olmadan
+    /// (bütçeye uygun TÜM evlerle) devam edilir, istek asla çıplak
+    /// başarısız olmaz.
+    /// </summary>
+    private static readonly TimeSpan CorridorTimeout = TimeSpan.FromSeconds(15);
+
+    private async Task<(Geometry? Corridor, List<Property> Matched)> BuildAnchorAreaBoundedAsync(
+        UserProfile profile, List<Property> budgetProperties, bool showAll, CancellationToken ct)
+    {
+        if (showAll) return (null, budgetProperties);
+
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(CorridorTimeout);
+
+        try
+        {
+            return await BuildAnchorAreaAsync(profile, budgetProperties, timeoutCts.Token);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            // İstemci iptal ETMEDİ — kendi üst sınırımız tetiklendi.
+            return (null, budgetProperties);
+        }
+    }
+
     private async Task<(Geometry? Corridor, List<Property> Matched)> BuildAnchorAreaAsync(
         UserProfile profile, List<Property> budgetProperties, CancellationToken ct)
     {

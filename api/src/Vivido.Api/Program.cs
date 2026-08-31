@@ -3,6 +3,7 @@ using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -218,6 +219,23 @@ builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
+    // `RejectionStatusCode` yalnızca durum kodunu ayarlar, GÖVDE üretmez —
+    // varsayılanla 429 yanıtı boş dönerdi, `ApiProblem` sözleşmesini
+    // (her hatada makine-okunur `code` alanı) burada kırardı. İstemci
+    // diğer her hatada olduğu gibi `problem.code === 'TOO_MANY_REQUESTS'`
+    // ile dallanabilsin diye açıkça yazıyoruz.
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        var problem = ApiProblem.Build(
+            StatusCodes.Status429TooManyRequests,
+            "Çok fazla istek",
+            "TOO_MANY_REQUESTS",
+            "Kısa bir süre bekleyip tekrar deneyin.");
+
+        context.HttpContext.Response.ContentType = "application/problem+json";
+        await context.HttpContext.Response.WriteAsJsonAsync(problem.Value, cancellationToken);
+    };
+
     static string ClientKey(HttpContext ctx) =>
         ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
@@ -272,6 +290,36 @@ builder.Services.AddCors(o =>
 });
 
 var app = builder.Build();
+
+// ─── FORWARDED HEADERS ───
+//
+// Üretimde bir reverse proxy/load balancer (Nginx, ALB, Cloudflare vb.)
+// arkasında çalışılıyorsa `ctx.Connection.RemoteIpAddress` (yukarıdaki rate
+// limiter'ın IP başına partition anahtarı) HER istekte proxy'nin KENDİ
+// IP'sini görür — "auth" limiti (10/dk) o zaman proxy arkasındaki TÜM
+// kullanıcılar arasında paylaşılan tek bir sayaca döner, bir kullanıcının
+// yanlış şifre denemesi başkasını da kilitleyebilir.
+//
+// `ForwardedHeaders:KnownProxies` yapılandırılmadıysa (varsayılan, örn.
+// yerel geliştirme) bu middleware'in hiçbir etkisi yoktur — ASP.NET Core
+// `X-Forwarded-For` başlığını yalnızca BİLİNEN/güvenilen bir proxy'den
+// geldiğinde kabul eder, aksi halde sahte bir başlıkla IP taklit
+// edilebilmesin diye tamamen YOK sayar. Üretime alırken gerçek proxy
+// IP'si/ağı buraya (virgülle ayrılmış, `ForwardedHeaders__KnownProxies` ortam
+// değişkeniyle) eklenmelidir.
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+};
+
+foreach (var proxy in (builder.Configuration["ForwardedHeaders:KnownProxies"] ?? string.Empty)
+             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+{
+    if (System.Net.IPAddress.TryParse(proxy, out var ip))
+        forwardedHeadersOptions.KnownProxies.Add(ip);
+}
+
+app.UseForwardedHeaders(forwardedHeadersOptions);
 
 // ─── Merkezi hata yönetimi ───
 //

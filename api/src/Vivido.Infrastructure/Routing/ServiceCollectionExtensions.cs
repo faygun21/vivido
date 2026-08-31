@@ -19,8 +19,8 @@ public static class ServiceCollectionExtensions
     {
         var options = new OsrmOptions
         {
-            CarUrl = configuration["Routing:CarUrl"] ?? "http://localhost:5002",
-            FootUrl = configuration["Routing:FootUrl"] ?? "http://localhost:5001",
+            CarUrl = configuration["Routing:CarUrl"] ?? "http://localhost:5102",
+            FootUrl = configuration["Routing:FootUrl"] ?? "http://localhost:5101",
             MaxTableSize = ParseInt(configuration["Routing:MaxTableSize"], 200),
             TimeoutSeconds = ParseInt(configuration["Routing:TimeoutSeconds"], 30),
         };
