@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { api } from '@/shared/api/client';
+import { ApiError, api } from '@/shared/api/client';
+import { useSessionQuery } from '@/shared/api/sessionQuery';
 import { useAuthStore } from '@/features/auth/authStore';
+import type { UserProfile } from '@vivido/shared';
 
 interface Persona {
   id: string;
@@ -67,6 +69,30 @@ export default function LifestyleSelection() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const displayName = useAuthStore((s) => s.user?.displayName);
+
+  // Sihirbaz daha önce yarıda bırakıldıysa (bkz. ExplorePage'deki
+  // "profil var ama bütçe hâlâ boş" yönlendirmesi) kullanıcı buraya GERİ
+  // gönderilebiliyor — o zaman burada daha önce seçtiği persona sessizce
+  // 'remote_worker' varsayılanına dönmemeli. `PreferencesRanking` ve
+  // `BudgetSelection` zaten bu deseni kullanıyor, burada eksikti.
+  const { data: savedProfile } = useSessionQuery({
+    queryKey: ['profile'],
+    queryFn: async (): Promise<UserProfile | null> => {
+      try {
+        return await api.get<UserProfile>('/profile');
+      } catch (err) {
+        if (err instanceof ApiError && err.problem.code === 'PROFILE_NOT_FOUND') {
+          return null;
+        }
+        throw err;
+      }
+    },
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (savedProfile?.personaCode) setSelectedId(savedProfile.personaCode);
+  }, [savedProfile]);
 
   async function handleNext() {
     setSaving(true);
@@ -208,7 +234,11 @@ export default function LifestyleSelection() {
           <p style={{ color: '#b91c1c', fontSize: '13px', margin: 0, textAlign: 'center' }}>{error}</p>
         )}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button style={{ padding: '8px 22px', borderRadius: '8px', border: '1px solid #d6d3d1', backgroundColor: 'transparent', color: '#44403c', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}>
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            style={{ padding: '8px 22px', borderRadius: '8px', border: '1px solid #d6d3d1', backgroundColor: 'transparent', color: '#44403c', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}
+          >
             Geri
           </button>
           <button
