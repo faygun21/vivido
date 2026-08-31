@@ -99,6 +99,77 @@ public class AdminController : ControllerBase
         return Ok(new AdminUserPageDto(items, page, pageSize, total));
     }
 
+    /// <summary>
+    /// Tek kullanıcının destek görünümü: profili, önemli konumları, favori
+    /// ve rota sayıları.
+    ///
+    /// ⚠️ NEDEN VAR: "skorlar bana yanlış geliyor" diyen bir kullanıcıya
+    /// bakmanın hiçbir yolu yoktu. Skor tamamen profile bağlı (persona
+    /// ağırlıkları, kriter sırası, bütçe, önemli konumlar); bunları
+    /// görmeden şikâyeti değerlendirmek mümkün değil.
+    ///
+    /// ⛔ Parola/token DÖNMEZ. Favori ve rotaların yalnızca SAYISI veriliyor,
+    /// içerikleri değil — destek için sayı yeterli, ötesi gereksiz bir
+    /// mahremiyet ihlali olurdu.
+    /// </summary>
+    [HttpGet("users/{id:guid}")]
+    public async Task<IActionResult> GetUserDetail(
+        Guid id,
+        CancellationToken ct = default)
+    {
+        var user = await _db.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == id, ct);
+
+        if (user is null)
+            return ApiProblem.Build(404, "Kullanıcı bulunamadı", "USER_NOT_FOUND");
+
+        var profile = await _db.UserProfiles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.UserId == id, ct);
+
+        AdminProfileDto? profileDto = null;
+
+        if (profile is not null)
+        {
+            var order = await _db.UserProfileCategoryOrders
+                .AsNoTracking()
+                .Where(o => o.ProfileId == profile.Id)
+                .OrderBy(o => o.Priority)
+                .Select(o => o.CategoryCode)
+                .ToListAsync(ct);
+
+            var anchors = await _db.Anchors
+                .AsNoTracking()
+                .Where(a => a.ProfileId == profile.Id)
+                .OrderBy(a => a.Priority)
+                .Select(a => new AdminAnchorDto(a.Label, a.Mode, a.Priority))
+                .ToListAsync(ct);
+
+            profileDto = new AdminProfileDto(
+                profile.PersonaCode,
+                profile.MinMonthlyBudget,
+                profile.MaxMonthlyBudget,
+                order,
+                anchors);
+        }
+
+        var favoriteCount = await _db.FavoriteProperties.CountAsync(f => f.UserId == id, ct);
+        var routeCount = await _db.Routes.CountAsync(r => r.UserId == id, ct);
+
+        return Ok(new AdminUserDetailDto(
+            user.Id,
+            user.Email,
+            user.DisplayName,
+            user.IsAdmin,
+            user.IsActive,
+            user.EmailVerifiedAt,
+            user.CreatedAt,
+            profileDto,
+            favoriteCount,
+            routeCount));
+    }
+
     /// <summary>Admin yetkisi verir / alır.</summary>
     [HttpPatch("users/{id:guid}/admin")]
     public async Task<IActionResult> SetAdmin(
@@ -275,6 +346,35 @@ public record AdminUserDto(
     /// <summary>NULL ise kullanıcı e-postasını hiç doğrulamadı.</summary>
     DateTime? EmailVerifiedAt,
     DateTime CreatedAt
+);
+
+public record AdminAnchorDto(string Label, string Mode, int Priority);
+
+/// <summary>
+/// Skoru belirleyen profil ayarları. Skor şikâyetlerini değerlendirmek için
+/// gereken minimum bilgi.
+/// </summary>
+public record AdminProfileDto(
+    string? PersonaCode,
+    decimal? MinMonthlyBudget,
+    decimal? MaxMonthlyBudget,
+    /// <summary>Kriter sırası — önem sırasına göre kategori kodları.</summary>
+    IReadOnlyList<string> CategoryOrder,
+    IReadOnlyList<AdminAnchorDto> Anchors
+);
+
+public record AdminUserDetailDto(
+    Guid Id,
+    string Email,
+    string? DisplayName,
+    bool IsAdmin,
+    bool IsActive,
+    DateTime? EmailVerifiedAt,
+    DateTime CreatedAt,
+    /// <summary>Kullanıcı hiç profil oluşturmadıysa null.</summary>
+    AdminProfileDto? Profile,
+    int FavoriteCount,
+    int RouteCount
 );
 
 public record AdminUserPageDto(

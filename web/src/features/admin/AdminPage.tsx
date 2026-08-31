@@ -46,6 +46,7 @@ export function AdminPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [detailUserId, setDetailUserId] = useState<string | null>(null);
 
   // Arama SUNUCUDA yapılıyor; her tuşta istek atmamak için 300 ms bekletiyoruz.
   useEffect(() => {
@@ -144,6 +145,11 @@ export function AdminPage() {
 
       <EmailStatusCard />
 
+      <div className="admin-insights">
+        <SystemHealthPanel />
+        <MetricsPanel />
+      </div>
+
       {actionError && <div className="admin-error">{actionError}</div>}
 
       {isError ? (
@@ -232,6 +238,18 @@ export function AdminPage() {
 
                       <td>
                         <div className="admin-actions">
+                          <button
+                            type="button"
+                            className="btn-sm btn-secondary"
+                            onClick={() =>
+                              setDetailUserId((current) =>
+                                current === user.id ? null : user.id,
+                              )
+                            }
+                          >
+                            {detailUserId === user.id ? 'Gizle' : 'Detay'}
+                          </button>
+
                           {!verified && (
                             <button
                               type="button"
@@ -277,6 +295,20 @@ export function AdminPage() {
                     </tr>
                   );
                 })}
+
+                {/* Detay, seçili kullanıcının ALTINDA açılıyor — ayrı bir
+                    sayfaya gitmek listedeki yeri kaybettirirdi. */}
+                {detailUserId !== null &&
+                  users.some((u) => u.id === detailUserId) && (
+                    <tr>
+                      <td colSpan={7} className="admin-detail-cell">
+                        <UserDetailPanel
+                          userId={detailUserId}
+                          onClose={() => setDetailUserId(null)}
+                        />
+                      </td>
+                    </tr>
+                  )}
               </tbody>
             </table>
           </div>
@@ -384,5 +416,351 @@ function EmailStatusCard() {
         <span key={problem}>{problem}</span>
       ))}
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SİSTEM SAĞLIĞI VE METRİKLER
+// ═══════════════════════════════════════════════════════════════════
+
+interface ServiceProbe {
+  healthy: boolean;
+  elapsedMs: number;
+  error: string | null;
+}
+
+interface SystemHealth {
+  osrmCar: ServiceProbe;
+  osrmFoot: ServiceProbe;
+  database: ServiceProbe;
+  data: {
+    properties: number;
+    pois: number;
+    neighborhoods: number;
+    accessRows: number;
+    dataVersions: { dataVersion: string; count: number }[];
+  };
+}
+
+interface Metrics {
+  users: {
+    users: number;
+    verified: number;
+    admins: number;
+    profiles: number;
+    anchors: number;
+    favorites: number;
+    routes: number;
+    personas: { personaCode: string; count: number }[];
+  };
+  scores: {
+    excellent: number;
+    good: number;
+    fair: number;
+    poor: number;
+    total: number;
+    median: number | null;
+    atCeiling: number;
+    atFloor: number;
+  };
+}
+
+const nf = new Intl.NumberFormat('tr-TR');
+
+function ProbeRow({ label, probe }: { label: string; probe: ServiceProbe }) {
+  return (
+    <div className="admin-probe">
+      <span
+        className={
+          probe.healthy ? 'admin-dot admin-dot--ok' : 'admin-dot admin-dot--down'
+        }
+        aria-hidden
+      />
+      <span className="admin-probe-label">{label}</span>
+      <span className="admin-probe-value">
+        {probe.healthy ? `${probe.elapsedMs} ms` : (probe.error ?? 'ulaşılamıyor')}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Bağımlı servislerin durumu ve veri kümesi sayıları.
+ *
+ * Neden var: OSRM bu projede iki gün çöküktü ve kimse fark etmedi — site
+ * sağlıklı görünürken yalnızca rota oluşturma 503 dönüyordu. Arıza sessiz
+ * olduğu için ancak kullanıcı şikâyet edince ortaya çıktı.
+ */
+function SystemHealthPanel() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin-system-health'],
+    queryFn: () => api.get<SystemHealth>('/admin/system-health'),
+    // Sağlık bilgisi bayatlamamalı; panel açık dururken de tazelensin.
+    refetchInterval: 30_000,
+  });
+
+  if (isLoading || !data) return null;
+
+  const mixedVersions = data.data.dataVersions.length > 1;
+
+  return (
+    <section className="admin-card">
+      <h2 className="admin-card-title">Sistem</h2>
+
+      <div className="admin-probes">
+        <ProbeRow label="OSRM · araç" probe={data.osrmCar} />
+        <ProbeRow label="OSRM · yürüme" probe={data.osrmFoot} />
+        <ProbeRow label="Veritabanı" probe={data.database} />
+      </div>
+
+      <h2 className="admin-card-title">Veri</h2>
+      <div className="admin-figures">
+        <Figure label="Konut" value={data.data.properties} />
+        <Figure label="POI" value={data.data.pois} />
+        <Figure label="Mahalle" value={data.data.neighborhoods} />
+        <Figure label="Erişim satırı" value={data.data.accessRows} />
+      </div>
+
+      <p className="admin-count" style={{ marginTop: '0.6rem' }}>
+        Veri sürümü:{' '}
+        {data.data.dataVersions.map((v) => v.dataVersion).join(', ') || '—'}
+      </p>
+
+      {/* Birden fazla sürüm bir arada = ETL yarım kalmış. */}
+      {mixedVersions && (
+        <div className="admin-error" style={{ marginTop: '0.6rem' }}>
+          Veri kümesinde birden fazla sürüm var. ETL yarım kalmış olabilir;
+          skorlar tutarsız olabilir.
+        </div>
+      )}
+    </section>
+  );
+}
+
+function Figure({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="admin-figure">
+      <div className="admin-figure-value">{nf.format(value)}</div>
+      <div className="admin-figure-label">{label}</div>
+    </div>
+  );
+}
+
+/**
+ * Kullanım ve skor dağılımı.
+ *
+ * Skor histogramı motor kalibrasyonunun etkisini gösteriyor: bu projede bir
+ * güncelleme medyanı 93.8'den 75.1'e indirdi ve ölçmek için elle SQL yazmak
+ * gerekmişti.
+ */
+function MetricsPanel() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin-metrics'],
+    queryFn: () => api.get<Metrics>('/admin/metrics'),
+  });
+
+  if (isLoading || !data) return null;
+
+  const s = data.scores;
+  const bands = [
+    { label: 'Çok iyi', value: s.excellent, cls: 'band-chip--excellent' },
+    { label: 'İyi', value: s.good, cls: 'band-chip--good' },
+    { label: 'Orta', value: s.fair, cls: 'band-chip--fair' },
+    { label: 'Zayıf', value: s.poor, cls: 'band-chip--poor' },
+  ];
+  const max = Math.max(1, ...bands.map((b) => b.value));
+
+  return (
+    <section className="admin-card">
+      <h2 className="admin-card-title">Kullanım</h2>
+      <div className="admin-figures">
+        <Figure label="Kullanıcı" value={data.users.users} />
+        <Figure label="Doğrulanmış" value={data.users.verified} />
+        <Figure label="Profil" value={data.users.profiles} />
+        <Figure label="Rota" value={data.users.routes} />
+        <Figure label="Favori" value={data.users.favorites} />
+        <Figure label="Önemli konum" value={data.users.anchors} />
+      </div>
+
+      {data.users.personas.length > 0 && (
+        <p className="admin-count" style={{ marginTop: '0.5rem' }}>
+          Persona:{' '}
+          {data.users.personas
+            .map((p) => `${p.personaCode} (${p.count})`)
+            .join(' · ')}
+        </p>
+      )}
+
+      <h2 className="admin-card-title">
+        Skor dağılımı
+        {s.median !== null && (
+          <span className="admin-count"> · medyan {s.median}</span>
+        )}
+      </h2>
+
+      {s.total === 0 ? (
+        <p className="admin-count">
+          Skor önbelleği boş — henüz skorlama tetiklenmemiş.
+        </p>
+      ) : (
+        <>
+          <div className="admin-bars">
+            {bands.map((band) => (
+              <div key={band.label} className="admin-bar-row">
+                <span className="admin-bar-label">{band.label}</span>
+                <div className="admin-bar-track">
+                  <div
+                    className={`admin-bar-fill ${band.cls}`}
+                    style={{ width: `${(band.value / max) * 100}%` }}
+                  />
+                </div>
+                <span className="admin-bar-value">{nf.format(band.value)}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Uç değerler kalibrasyon sorununun en hızlı göstergesi. */}
+          {(s.atCeiling > 0 || s.atFloor > 0) && (
+            <p className="admin-count" style={{ marginTop: '0.5rem' }}>
+              Tam 100 alan: {nf.format(s.atCeiling)} · 0 alan:{' '}
+              {nf.format(s.atFloor)}
+            </p>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  KULLANICI DETAYI
+// ═══════════════════════════════════════════════════════════════════
+
+interface AdminAnchor {
+  label: string;
+  mode: string;
+  priority: number;
+}
+
+interface AdminProfile {
+  personaCode: string | null;
+  minMonthlyBudget: number | null;
+  maxMonthlyBudget: number | null;
+  categoryOrder: string[];
+  anchors: AdminAnchor[];
+}
+
+interface AdminUserDetail {
+  id: string;
+  email: string;
+  displayName: string | null;
+  isAdmin: boolean;
+  isActive: boolean;
+  emailVerifiedAt: string | null;
+  createdAt: string;
+  profile: AdminProfile | null;
+  favoriteCount: number;
+  routeCount: number;
+}
+
+const money = new Intl.NumberFormat('tr-TR', {
+  style: 'currency',
+  currency: 'TRY',
+  maximumFractionDigits: 0,
+});
+
+/**
+ * Bir kullanıcının skorunu belirleyen ayarlar.
+ *
+ * Neden var: "skorlar bana yanlış geliyor" diyen kullanıcıya bakmanın yolu
+ * yoktu. Skor tamamen profile bağlı (persona, kriter sırası, bütçe, önemli
+ * konumlar); bunları görmeden şikâyeti değerlendirmek mümkün değil.
+ */
+function UserDetailPanel({
+  userId,
+  onClose,
+}: {
+  userId: string;
+  onClose: () => void;
+}) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['admin-user-detail', userId],
+    queryFn: () => api.get<AdminUserDetail>(`/admin/users/${userId}`),
+  });
+
+  return (
+    <aside className="admin-detail">
+      <div className="admin-detail-head">
+        <strong>{isLoading ? 'Yükleniyor…' : (data?.displayName ?? 'Kullanıcı')}</strong>
+        <button
+          type="button"
+          className="btn-sm btn-secondary"
+          onClick={onClose}
+        >
+          Kapat
+        </button>
+      </div>
+
+      {isError && <div className="admin-error">Detay alınamadı.</div>}
+
+      {data && (
+        <div className="admin-detail-body">
+          <div className="admin-detail-row">
+            <span>E-posta</span>
+            <span>{data.email}</span>
+          </div>
+          <div className="admin-detail-row">
+            <span>Kayıt</span>
+            <span>{new Date(data.createdAt).toLocaleDateString('tr-TR')}</span>
+          </div>
+          <div className="admin-detail-row">
+            <span>Favori · Rota</span>
+            <span>
+              {data.favoriteCount} · {data.routeCount}
+            </span>
+          </div>
+
+          {data.profile === null ? (
+            // Profilsiz kullanıcı skor GÖREMEZ: skorlama profildeki
+            // ağırlıklara dayanıyor. "Hiçbir ev görünmüyor" şikâyetinin en
+            // olası sebebi bu.
+            <p className="admin-count" style={{ marginTop: '0.6rem' }}>
+              Bu kullanıcı henüz profil oluşturmamış — kişiselleştirilmiş skor
+              üretilemez.
+            </p>
+          ) : (
+            <>
+              <div className="admin-detail-row">
+                <span>Persona</span>
+                <span>{data.profile.personaCode ?? '—'}</span>
+              </div>
+              <div className="admin-detail-row">
+                <span>Bütçe</span>
+                <span>
+                  {data.profile.minMonthlyBudget !== null &&
+                  data.profile.maxMonthlyBudget !== null
+                    ? `${money.format(data.profile.minMonthlyBudget)} – ${money.format(data.profile.maxMonthlyBudget)}`
+                    : '—'}
+                </span>
+              </div>
+              <div className="admin-detail-row">
+                <span>Kriter sırası</span>
+                <span>{data.profile.categoryOrder.join(' · ') || '—'}</span>
+              </div>
+              <div className="admin-detail-row">
+                <span>Önemli konumlar</span>
+                <span>
+                  {data.profile.anchors.length === 0
+                    ? '—'
+                    : data.profile.anchors
+                        .map((a) => `${a.label} (${a.mode})`)
+                        .join(' · ')}
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </aside>
   );
 }
