@@ -86,6 +86,12 @@ services:
       Routing__CarUrl: ${Routing__CarUrl:-http://osrm-car:5000}
 
       Auth__RequireEmailVerification: ${Auth__RequireEmailVerification:-true}
+
+      # ⭐ İLK ADMIN — boş bırakılırsa panel KULLANILAMAZ.
+      # Bu e-postayla giriş yapan kullanıcıya otomatik admin yetkisi verilir.
+      # Admin yapmanın diğer yolu (`PATCH /admin/users/{id}/admin`) zaten
+      # admin olmayı gerektirdiği için, bu değer olmadan kısır döngü oluşur.
+      BootstrapAdmin__Email: ${BootstrapAdmin__Email:-}
       Email__Provider: ${Email__Provider:-smtp}
       Email__Host: ${Email__Host:-smtp.gmail.com}
       Email__Port: ${Email__Port:-587}

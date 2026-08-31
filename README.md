@@ -151,21 +151,28 @@ zorunluluğu kalkar.
 
 ### 2.5 E-posta doğrulama ve şifre sıfırlama
 
-> ### ⏸️ GEÇİCİ: e-posta doğrulaması YEREL GELİŞTİRMEDE KAPALI
-> Yeni özellikler denenirken her kayıtta terminalden 6 haneli kod
-> kopyalamak akışı gereksiz yavaşlatıyordu. Kapalıyken kayıt **201 + token**
-> döner ve doğrulama ekranı hiç açılmaz — [K-09](docs/02-KARARLAR.md#k-09)
-> bu davranışı zaten tanımlamıştı, kod değişmedi.
+> ### ✅ E-posta doğrulaması HER ORTAMDA AÇIK
+> Bir süre yerel geliştirmede kapalıydı (her kayıtta terminalden 6 haneli
+> kod kopyalamak akışı yavaşlatıyordu); akış yeniden test edileceği için
+> geri açıldı. Artık **yerel davranış staging/production ile aynı**.
 >
 > | Nerede | Dosya | Değer |
 > |---|---|---|
-> | `pnpm dev:api` | `api/src/Vivido.Api/appsettings.Development.json` | `false` |
-> | docker-compose | `.env` (`.env.example`'dan kopyalanır) | `false` |
-> | **staging / production** | `deploy/.env` ortam değişkeni | **`true` — değişmedi** |
+> | `pnpm dev:api` | `api/src/Vivido.Api/appsettings.Development.json` | `true` |
+> | docker-compose | `.env` (`.env.example`'dan kopyalanır) | `true` |
+> | staging / production | `deploy/.env` ortam değişkeni | `true` |
 >
-> **Tekrar açmak için:** iki dosyadaki `RequireEmailVerification` /
-> `Auth__RequireEmailVerification` satırını `true` yap. Başka hiçbir şey
-> gerekmiyor.
+> ⚠️ **`.env` dosyan compose varsayılanını EZER.** Doğrulama açılmıyorsa
+> önce oraya bak: eski kurulumlardan kalma
+> `Auth__RequireEmailVerification=false` satırı varsa `true` yap ya da sil.
+>
+> Kodu almak için posta kutusuna bakmana gerek yok: `Email__Provider`
+> varsayılanı `console`, kod **api loglarına** basılıyor —
+> `docker compose logs -f api` ya da `pnpm dev:api` çıktısı.
+>
+> Geçici olarak kapatmak isteyen `.env` içine
+> `Auth__RequireEmailVerification=false` yazabilir; izlenen dosyaları
+> değiştirmesi gerekmez.
 
 Kayıt olan kullanıcıya **6 haneli bir kod** gider; kod girilene kadar giriş
 kapalıdır. "Şifremi unuttum" aynı mekanizmayı kullanır. Karar ve gerekçe:

@@ -302,7 +302,150 @@ a { color: var(--accent); }
 
 /* ─── Admin paneli ─── 48px yatay dolgu + 4 sabit sütunluk istatistik
    ızgarası 375px'lik bir telefonda kartları eziyordu (2026-08-28). */
+/* ═══════════════════════════════════════════════════════════════════
+   ADMİN PANELİ
+
+   Stiller BURADA, bileşende değil: sayfa baştan sona satır içi `style`
+   nesneleriyle yazılmıştı ve paletten kopuktu (sabit renkler, sabit
+   köşe yarıçapları). Token'lara bağlanınca panel uygulamanın geri
+   kalanıyla aynı dili konuşuyor ve palet değişince kendiliğinden
+   güncelleniyor.
+   ═══════════════════════════════════════════════════════════════════ */
+
 .admin-page { padding: 40px 48px; }
+
+.admin-head h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+}
+
+.admin-sub {
+  margin: 0.4rem 0 0;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+
+.admin-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.4rem 0 0.9rem;
+}
+
+.admin-search {
+  flex: 1;
+  max-width: 22rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid transparent;
+  border-radius: 0.9rem;
+  background: var(--input-bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.admin-search:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.admin-count {
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.admin-error {
+  margin-bottom: 0.9rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid #9a3412;
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, #9a3412 8%, var(--surface));
+  color: var(--ink);
+  font-size: 0.88rem;
+}
+
+/* Dar ekranda tabloyu SAYFA değil kendi kabı kaydırır. */
+.admin-table-wrap {
+  overflow-x: auto;
+  border: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
+  border-radius: 1.1rem;
+  background: var(--surface);
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.admin-table th {
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 40%, transparent);
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.admin-table td {
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 22%, transparent);
+  vertical-align: middle;
+}
+
+.admin-table tbody tr:last-child td { border-bottom: none; }
+
+.admin-name { font-weight: 600; }
+
+.admin-you {
+  margin-top: 0.15rem;
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.admin-email,
+.admin-date { color: var(--ink-muted); white-space: nowrap; }
+
+.admin-empty {
+  padding: 2.5rem 1rem;
+  color: var(--ink-muted);
+  text-align: center;
+}
+
+.admin-actions {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+
+.admin-badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Doğrulama bekleyen kullanıcı GÖZE ÇARPMALI: elle doğrulama düğmesinin
+   var olma sebebi bu satırları bulabilmek. */
+.admin-badge--warn { background: #b45309; color: #fff; }
+.admin-badge--admin { background: var(--accent); color: var(--accent-ink); }
+.admin-badge--off { background: #9a3412; color: #fff; }
+
+.admin-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
 
 .admin-stats-grid {
   display: grid;

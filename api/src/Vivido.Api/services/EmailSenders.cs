@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Mail;
 using System.Text;
@@ -78,6 +79,31 @@ public class SmtpEmailSender : IEmailSender
                 "Email:Provider=smtp ama Email:User / Email:Password boş. " +
                 "Doğrulama e-postaları gönderilemeyecek.");
         }
+
+        // ⚠️ GÖNDEREN UYUMSUZLUĞU — SESSİZ TESLİMAT KAYBININ EN SIK SEBEBİ.
+        //
+        // Gönderen adresi, SMTP'ye giriş yapılan hesaptan FARKLIYSA posta
+        // sunucuya sorunsuz teslim edilir (kod 202 döner, log "gönderildi"
+        // yazar) ama alıcı tarafta SPF/DKIM hizalaması tutmaz. Gevşek
+        // yapılandırılmış alan adları kabul eder, KATI olanlar — özellikle
+        // üniversite ve kurum sunucuları — sessizce reddeder ya da
+        // karantinaya alır.
+        //
+        // Belirtisi tam olarak şudur: bazı adreslere ulaşır, bazılarına
+        // hiç ulaşmaz. Gönderen tarafında hiçbir hata görünmez.
+        if (!string.IsNullOrWhiteSpace(_options.FromAddress) &&
+            !string.Equals(
+                _options.FromAddress.Trim(),
+                _options.User?.Trim(),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning(
+                "E-posta gönderen uyumsuzluğu: Email:FromAddress ({From}) ile " +
+                "Email:User ({User}) farklı. Gönderim başarılı görünse bile " +
+                "katı alan adları (kurum/üniversite) postayı sessizce " +
+                "reddedebilir. İkisini aynı yapmak önerilir.",
+                _options.FromAddress, _options.User);
+        }
     }
 
     public async Task SendAsync(EmailMessage message, CancellationToken cancellationToken = default)
@@ -119,8 +145,25 @@ public class SmtpEmailSender : IEmailSender
 
         try
         {
+            var started = Stopwatch.GetTimestamp();
             await client.SendMailAsync(mail, cancellationToken);
-            _logger.LogInformation("E-posta gönderildi: {To} · {Subject}", message.To, message.Subject);
+
+            // GÖNDEREN de loglanıyor: "gönderildi ama ulaşmadı" durumunda
+            // ilk bakılacak yer burası. Alıcı sunucusunun postayı neden
+            // reddettiğini bu satır olmadan tahmin etmek zorunda kalıyorduk.
+            //
+            // ⚠️ Bu satır "TESLİM EDİLDİ" demek DEĞİL, "SMTP sunucusu kabul
+            // etti" demek. Alıcı tarafta karantina/ret sonradan olur ve
+            // buraya yansımaz; geri dönen posta gönderen kutusuna düşer.
+            _logger.LogInformation(
+                "E-posta SMTP'ye teslim edildi: {To} · {Subject} · " +
+                "gönderen {From} · {Host}:{Port} · {ElapsedMs} ms",
+                message.To,
+                message.Subject,
+                from,
+                _options.Host,
+                _options.Port,
+                (int)Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         }
         catch (SmtpException ex)
         {
