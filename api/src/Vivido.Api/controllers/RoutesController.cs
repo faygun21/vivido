@@ -8,7 +8,7 @@ using Vivido.Application.Dtos.Route;
 using Vivido.Domain.Entities;
 using Vivido.Infrastructure.Data;
 using Vivido.Infrastructure.Routing;
-using Vivido.Scoring;
+using Vivido.RouteOptimization;
 // ASP.NET Core'un `Microsoft.AspNetCore.Routing.Route`'u ile çakışmayı önler.
 using RouteEntity = Vivido.Domain.Entities.Route;
 
@@ -82,7 +82,7 @@ public class RoutesController : ControllerBase
     // Akış (docs/01-PROJE-PLANI.md §7.2):
     //   1. Doğrula: 2–8 konut, konutlar veritabanında var mı, başlangıç koordinatı geçerli mi
     //   2. OSRM /table  → süre matrisi (başlangıç + konutlar)
-    //   3. Held-Karp (Vivido.Scoring) → sabit başlangıçlı en kısa ziyaret sırası
+    //   3. Held-Karp (Vivido.RouteOptimization) → sabit başlangıçlı en kısa ziyaret sırası
     //   4. OSRM /route  → tam geometri + bacak adımları (steps, geojson)
     //   5. routes + route_stops kaydet
     [HttpPost]
