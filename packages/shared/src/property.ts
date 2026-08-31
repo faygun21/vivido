@@ -197,6 +197,18 @@ export interface PropertyDetail {
   isSynthetic: boolean;
 }
 
+/** Kullanıcının bir konut için kendine özel notu. */
+export interface PropertyNoteResponse {
+  propertyId: number;
+  note: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface UpsertPropertyNoteRequest {
+  note: string;
+}
+
 /** `GET /properties/top` ve favori kartları — liste özeti. */
 export interface PropertySummary {
   id: string;
