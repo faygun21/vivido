@@ -641,20 +641,28 @@ export function ExplorePage() {
         />
       )}
 
-      <div className="map-topbar">
-        {!drawerOpen && (
-          <button
-            className="map-fab"
-            type="button"
-            aria-expanded={false}
-            aria-controls="explore-drawer"
-            aria-label="Paneli aç"
-            onClick={() => setDrawerOpen(true)}
-          >
-            <span className="map-fab-bars" aria-hidden="true" />
-          </button>
-        )}
+      {/* Sağ alta sabitlenmiş menü açma tuşu (FAB) */}
+      {!drawerOpen && (
+        <button
+          className="map-fab"
+          type="button"
+          aria-expanded={false}
+          aria-controls="explore-drawer"
+          aria-label="Paneli aç"
+          onClick={() => setDrawerOpen(true)}
+          style={{
+            position: 'absolute',
+            bottom: '2.5rem', 
+            right: 'calc(var(--right-slot) + 1.25rem)',
+            zIndex: 6,
+            transition: 'right 0.22s ease, background 0.15s ease, border-color 0.15s ease'
+          }}
+        >
+          <span className="map-fab-bars" aria-hidden="true" />
+        </button>
+      )}
 
+      <div className="map-topbar">
         {showTopPanelToggle && !topPanelOpen && (
           <button
             className="top-panel-toggle"
