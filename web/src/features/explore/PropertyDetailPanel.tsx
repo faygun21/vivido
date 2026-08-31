@@ -1,7 +1,9 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import type { PropertyDetail, PropertyScoreRow } from '@vivido/shared';
 import { BAND_LABEL, formatMinutes, formatRent, splitAddress } from './propertyFormat';
 import { useFavoriteMutation } from './useFavorite';
+import { usePropertyNote } from './usePropertyNote';
+import { useIsAuthenticated } from '@/shared/api/sessionQuery';
 import { useWideScreen } from '@/shared/useWideScreen';
 
 /** Mobilde daraltılmış halde görünen üst şerit yüksekliği (px) — tutamaç + başlık. */
@@ -61,6 +63,17 @@ export function PropertyDetailPanel({
   const [showAllRows, setShowAllRows] = useState(false);
   const favorite = useFavoriteMutation();
   const routeDisabled = routeAtCapacity && !isInRoute;
+  const authenticated = useIsAuthenticated();
+  const propertyNote = usePropertyNote(property.id);
+  const [editingNote, setEditingNote] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [confirmNoteDelete, setConfirmNoteDelete] = useState(false);
+
+  useEffect(() => {
+    setEditingNote(false);
+    setNoteDraft('');
+    setConfirmNoteDelete(false);
+  }, [property.id]);
 
   /**
    * Mobilde panel alttan açılan bir sayfaya dönüyor (bkz. `@media
@@ -130,6 +143,20 @@ export function PropertyDetailPanel({
 
   function toggleFavorite() {
     favorite.mutate({ propertyId: property.id, isFavorite: property.isFavorite });
+  }
+
+  function beginNoteEdit() {
+    setNoteDraft(propertyNote.note ?? '');
+    setEditingNote(true);
+    setConfirmNoteDelete(false);
+  }
+
+  function saveNote() {
+    const note = noteDraft.trim();
+    if (!note) return;
+    propertyNote.saveNote({ note }, {
+      onSuccess: () => setEditingNote(false),
+    });
   }
 
   return (
@@ -245,6 +272,105 @@ export function PropertyDetailPanel({
             <Tag active={property.features.petsAllowed}>Evcil hayvan</Tag>
           </ul>
         </section>
+
+        {authenticated && (
+          <section className="property-section property-note-section">
+            <div className="property-note-heading">
+              <h3>Kişisel Notum</h3>
+              <span className="muted property-note-private">Yalnızca sen görebilirsin</span>
+            </div>
+
+            {propertyNote.isLoading ? (
+              <p className="muted property-note-status">Not yükleniyor…</p>
+            ) : propertyNote.loadError ? (
+              <div className="property-note-error" role="alert">
+                <p>Not yüklenemedi.</p>
+                <button className="btn-chip" type="button" onClick={() => void propertyNote.retryLoad()}>
+                  Tekrar dene
+                </button>
+              </div>
+            ) : editingNote ? (
+              <div className="property-note-editor">
+                <textarea
+                  value={noteDraft}
+                  onChange={(event) => setNoteDraft(event.target.value)}
+                  maxLength={1000}
+                  rows={4}
+                  autoFocus
+                  aria-label="Kişisel not"
+                  placeholder="Bu ev hakkında kendine bir not bırak…"
+                  disabled={propertyNote.isSaving}
+                />
+                <div className="property-note-editor-meta">
+                  <span className="muted">{noteDraft.length} / 1000</span>
+                  <span className="property-note-actions">
+                    <button
+                      className="btn-chip"
+                      type="button"
+                      onClick={() => setEditingNote(false)}
+                      disabled={propertyNote.isSaving}
+                    >
+                      Vazgeç
+                    </button>
+                    <button
+                      className="btn-primary property-note-save"
+                      type="button"
+                      onClick={saveNote}
+                      disabled={!noteDraft.trim() || propertyNote.isSaving}
+                    >
+                      {propertyNote.isSaving ? 'Kaydediliyor…' : 'Kaydet'}
+                    </button>
+                  </span>
+                </div>
+                {propertyNote.saveError && (
+                  <p className="field-error" role="alert">Not kaydedilemedi. Tekrar dene.</p>
+                )}
+              </div>
+            ) : propertyNote.note ? (
+              <div className="property-note-view">
+                <p>{propertyNote.note}</p>
+                <div className="property-note-actions">
+                  <button className="btn-chip" type="button" onClick={beginNoteEdit}>
+                    Düzenle
+                  </button>
+                  {confirmNoteDelete ? (
+                    <>
+                      <button
+                        className="btn-chip is-danger"
+                        type="button"
+                        onClick={() => propertyNote.deleteNote(undefined, {
+                          onSuccess: () => setConfirmNoteDelete(false),
+                        })}
+                        disabled={propertyNote.isDeleting}
+                      >
+                        {propertyNote.isDeleting ? 'Siliniyor…' : 'Evet, sil'}
+                      </button>
+                      <button
+                        className="btn-chip"
+                        type="button"
+                        onClick={() => setConfirmNoteDelete(false)}
+                        disabled={propertyNote.isDeleting}
+                      >
+                        Vazgeç
+                      </button>
+                    </>
+                  ) : (
+                    <button className="btn-chip" type="button" onClick={() => setConfirmNoteDelete(true)}>
+                      Sil
+                    </button>
+                  )}
+                </div>
+                {propertyNote.deleteError && (
+                  <p className="field-error" role="alert">Not silinemedi. Tekrar dene.</p>
+                )}
+              </div>
+            ) : (
+              <button className="property-note-add" type="button" onClick={beginNoteEdit}>
+                + Not ekle
+              </button>
+            )}
+          </section>
+        )}
 
         {hasBreakdown && (
           <section className="property-section">

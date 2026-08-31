@@ -1304,6 +1304,62 @@ button svg,
   letter-spacing: -0.01em;
 }
 
+.property-note-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.property-note-private { font-size: 0.7rem; }
+.property-note-status { margin: 0; font-size: 0.82rem; }
+
+.property-note-add {
+  width: 100%;
+  padding: 0.65rem;
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--line));
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.property-note-add:hover {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.property-note-editor { display: grid; gap: 0.5rem; }
+
+.property-note-editor textarea {
+  width: 100%;
+  min-height: 6rem;
+  resize: vertical;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  background: var(--input-bg);
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.45;
+}
+
+.property-note-editor textarea:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-color: var(--accent);
+}
+
+.property-note-editor-meta,
+.property-note-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.property-note-editor-meta { justify-content: space-between; }
+.property-note-view p { margin: 0 0 0.55rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.property-note-save { padding: 0.42rem 0.75rem; font-size: 0.78rem; }
+.property-note-error p { margin: 0 0 0.45rem; color: #b91c1c; font-size: 0.82rem; }
+
 .score-explainer { margin: -0.2rem 0 0.7rem; font-size: 0.8rem; }
 
 .feature-grid {

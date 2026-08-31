@@ -33,6 +33,7 @@ public class VividoDbContext : DbContext
     /// <summary>E-posta doğrulama + şifre sıfırlama kodları (K-09).</summary>
     public DbSet<AuthCode> AuthCodes { get; set; } = null!;
     public DbSet<Property> Properties { get; set; } = null!;
+    public DbSet<PropertyNote> PropertyNotes { get; set; } = null!;
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -188,6 +189,33 @@ public class VividoDbContext : DbContext
                   .OnDelete(DeleteBehavior.Cascade);
                   
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
+        });
+
+        builder.Entity<PropertyNote>(entity =>
+        {
+            entity.ToTable("property_notes");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.UserId, e.PropertyId }).IsUnique();
+
+            entity.Property(e => e.Note)
+                  .HasColumnName("note")
+                  .HasMaxLength(1000);
+            entity.Property(e => e.CreatedAt)
+                  .HasColumnName("created_at")
+                  .HasDefaultValueSql("now()");
+            entity.Property(e => e.UpdatedAt)
+                  .HasColumnName("updated_at")
+                  .HasDefaultValueSql("now()");
+
+            entity.HasOne(e => e.User)
+                  .WithMany()
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Property)
+                  .WithMany()
+                  .HasForeignKey(e => e.PropertyId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<Route>(entity =>
