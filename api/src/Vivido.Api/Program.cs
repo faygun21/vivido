@@ -218,6 +218,23 @@ builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
+    // `RejectionStatusCode` yalnızca durum kodunu ayarlar, GÖVDE üretmez —
+    // varsayılanla 429 yanıtı boş dönerdi, `ApiProblem` sözleşmesini
+    // (her hatada makine-okunur `code` alanı) burada kırardı. İstemci
+    // diğer her hatada olduğu gibi `problem.code === 'TOO_MANY_REQUESTS'`
+    // ile dallanabilsin diye açıkça yazıyoruz.
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        var problem = ApiProblem.Build(
+            StatusCodes.Status429TooManyRequests,
+            "Çok fazla istek",
+            "TOO_MANY_REQUESTS",
+            "Kısa bir süre bekleyip tekrar deneyin.");
+
+        context.HttpContext.Response.ContentType = "application/problem+json";
+        await context.HttpContext.Response.WriteAsJsonAsync(problem.Value, cancellationToken);
+    };
+
     static string ClientKey(HttpContext ctx) =>
         ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 

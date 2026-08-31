@@ -7,11 +7,19 @@ namespace Vivido.Infrastructure.Routing;
 /// </summary>
 public sealed class OsrmOptions
 {
-    /// <summary>Car profili OSRM kök adresi — host'ta 5002, konteynerde osrm-car:5000.</summary>
-    public string CarUrl { get; set; } = "http://localhost:5002";
+    /// <summary>
+    /// Car profili OSRM kök adresi — host'ta 5102 (docker-compose.yml
+    /// `OSRM_CAR_HOST_PORT` varsayılanı, bkz. .env.example), konteynerde
+    /// osrm-car:5000.
+    /// </summary>
+    public string CarUrl { get; set; } = "http://localhost:5102";
 
-    /// <summary>Foot profili OSRM kök adresi — host'ta 5001, konteynerde osrm-foot:5000.</summary>
-    public string FootUrl { get; set; } = "http://localhost:5001";
+    /// <summary>
+    /// Foot profili OSRM kök adresi — host'ta 5101 (docker-compose.yml
+    /// `OSRM_FOOT_HOST_PORT` varsayılanı, bkz. .env.example), konteynerde
+    /// osrm-foot:5000.
+    /// </summary>
+    public string FootUrl { get; set; } = "http://localhost:5101";
 
     /// <summary>OSRM /table üst sınırı (osrm-routed --max-table-size, varsayılan 200).</summary>
     public int MaxTableSize { get; set; } = 200;
