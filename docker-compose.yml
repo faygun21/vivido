@@ -210,6 +210,8 @@ services:
       # `Auth__RequireEmailVerification=false` yazabilir; bu dosyayı
       # değiştirmesi gerekmez.
       Auth__RequireEmailVerification: ${Auth__RequireEmailVerification:-true}
+      # İlk admin — boş bırakılırsa kimse admin olamaz (bkz. .env.example).
+      BootstrapAdmin__Email: ${BootstrapAdmin__Email:-}
       Email__Provider: ${Email__Provider:-console}
       Email__Host: ${Email__Host:-smtp.gmail.com}
       Email__Port: ${Email__Port:-587}
