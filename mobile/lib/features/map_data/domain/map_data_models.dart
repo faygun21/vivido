@@ -145,10 +145,7 @@ class AnchorCorridor {
 }
 
 class AuthenticatedPropertiesMap {
-  const AuthenticatedPropertiesMap({
-    required this.items,
-    this.corridor,
-  });
+  const AuthenticatedPropertiesMap({required this.items, this.corridor});
 
   final List<PropertyMapItem> items;
   final AnchorCorridor? corridor;
@@ -163,9 +160,10 @@ class AuthenticatedPropertiesMap {
       items: rawItems
           .map((item) => PropertyMapItem.fromJson(item as Map<String, dynamic>))
           .toList(growable: false),
-      corridor: rawCorridor is Map<String, dynamic>
-          ? AnchorCorridor.fromJson(rawCorridor)
-          : null,
+      corridor:
+          rawCorridor is Map<String, dynamic>
+              ? AnchorCorridor.fromJson(rawCorridor)
+              : null,
     );
   }
 }

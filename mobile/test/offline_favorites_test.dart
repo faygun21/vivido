@@ -245,8 +245,7 @@ void main() {
 
     test('sunucu yokken önbellekteki kayıtlı rota detayını açar', () async {
       final cache =
-          _MemoryRouteListCache()
-            ..details['user-1:route-1'] = _routeDetail;
+          _MemoryRouteListCache()..details['user-1:route-1'] = _routeDetail;
       final gateway = CachedRoutesGateway(
         remote: _FakeRoutesGateway(failReads: true),
         cache: cache,
@@ -260,18 +259,21 @@ void main() {
       expect(route.geometry, isNotEmpty);
     });
 
-    test('rota listesi yüklenince detayları çevrimdışı kullanım için saklar', () async {
-      final cache = _MemoryRouteListCache();
-      final gateway = CachedRoutesGateway(
-        remote: _FakeRoutesGateway(),
-        cache: cache,
-        userId: 'user-1',
-      );
+    test(
+      'rota listesi yüklenince detayları çevrimdışı kullanım için saklar',
+      () async {
+        final cache = _MemoryRouteListCache();
+        final gateway = CachedRoutesGateway(
+          remote: _FakeRoutesGateway(),
+          cache: cache,
+          userId: 'user-1',
+        );
 
-      await gateway.getRoutes();
+        await gateway.getRoutes();
 
-      expect(cache.details['user-1:route-1']?.name, 'Ev turu');
-    });
+        expect(cache.details['user-1:route-1']?.name, 'Ev turu');
+      },
+    );
   });
 }
 

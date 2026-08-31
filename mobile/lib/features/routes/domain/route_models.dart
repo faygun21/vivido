@@ -257,12 +257,16 @@ class RouteStep {
     required this.duration,
     required this.name,
     required this.maneuver,
+    this.geometry = const [],
   });
 
   final double distance;
   final double duration;
   final String name;
   final RouteManeuver maneuver;
+
+  /// Bu adımın GeoJSON çizgisi; koordinatlar [longitude, latitude] sırasındadır.
+  final List<List<double>> geometry;
 
   factory RouteStep.fromJson(Map<String, dynamic> json) => RouteStep(
     distance: (json['distance'] as num? ?? 0).toDouble(),
@@ -271,6 +275,7 @@ class RouteStep {
     maneuver: RouteManeuver.fromJson(
       json['maneuver'] as Map<String, dynamic>? ?? const {},
     ),
+    geometry: _coordinates(json['geometry']),
   );
 
   Map<String, Object?> toJson() => {
@@ -278,6 +283,7 @@ class RouteStep {
     'duration': duration,
     'name': name,
     'maneuver': maneuver.toJson(),
+    'geometry': {'type': 'LineString', 'coordinates': geometry},
   };
 }
 

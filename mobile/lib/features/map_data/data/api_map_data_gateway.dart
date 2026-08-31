@@ -33,7 +33,9 @@ class ApiMapDataGateway implements MapDataGateway {
     try {
       final response = await _client.get('/properties?showAll=$showAll');
       if (response is! Map<String, dynamic>) {
-        throw const MapDataFailure('Konut harita verisi beklenen biçimde değil.');
+        throw const MapDataFailure(
+          'Konut harita verisi beklenen biçimde değil.',
+        );
       }
       return AuthenticatedPropertiesMap.fromJson(response);
     } on ApiException catch (error) {

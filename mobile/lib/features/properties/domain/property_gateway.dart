@@ -8,10 +8,7 @@ import 'property_models.dart';
 /// hiç açılmıyordu. Ortak sözleşme sessizce kırıldığında derleyici uyarmaz —
 /// bu yüzden şekil artık burada AÇIKÇA modelleniyor.
 class TopProperties {
-  const TopProperties({
-    required this.items,
-    this.nearestFallback,
-  });
+  const TopProperties({required this.items, this.nearestFallback});
 
   const TopProperties.empty() : items = const [], nearestFallback = null;
 
@@ -28,7 +25,10 @@ class TopProperties {
 abstract interface class PropertyGateway {
   /// [showAll] true ise anchor koridoru uygulanmaz, ilçenin tamamından en
   /// yüksek puanlı [limit] ev döner. Sunucu tarafı varsayılanıyla aynı.
-  Future<TopProperties> getTopProperties({int limit = 20, bool showAll = false});
+  Future<TopProperties> getTopProperties({
+    int limit = 20,
+    bool showAll = false,
+  });
 
   Future<PropertyDetail> getPropertyDetail(String id);
 }

@@ -101,11 +101,11 @@ varsa “Yarım yapıldı” olarak işaretlenmiştir.
 | **R-12** | Profil | Kullanıcı yaş, cinsiyet, çalışma durumu ve medeni hâl bilgileriyle profil oluşturabilmelidir. | Bu alanlar modelde, API'de ve mobil formda yok. |
 | **R-28** | Konum | Konum izni açıkken kullanıcının GPS konumu haritada gösterilmelidir. | Konum paketi, izin akışı ve GPS işaretçisi yok. |
 | **R-39** | Özel Konum Analizi | Konut ile kullanıcının kayıtlı özel konumları arasındaki tahmini mesafe ve ulaşım süresi gösterilmelidir. | Konut-anchor analiz servisi ve ekranı yok. |
-| **R-51** | Navigasyon | Kullanıcı seçtiği ziyaret rotası için navigasyonu başlatabilmelidir. | Navigasyon modülü yok. |
-| **R-52** | Navigasyon | Navigasyon öncesi konum izni kontrol edilmeli, izin kapalıysa uyarı gösterilmelidir. | Konum izni/navigasyon başlangıcı yok. |
-| **R-53** | Navigasyon | Navigasyon sırasında GPS konumu ve oluşturulan ziyaret rotası haritada gösterilmelidir. | Canlı GPS ve rota çizgisi yok. |
-| **R-54** | Navigasyon | Sıradaki konut, temel manevra bilgisi ve manevraya kalan mesafe gösterilmelidir. | Manevra/adım listesi yok. |
-| **R-55** | Navigasyon | Kullanıcı rotadan belirlenen mesafeden fazla uzaklaşınca sapma uyarısı gösterilmelidir. | Sapma algılama yok. |
+| **R-51** | Navigasyon | Kullanıcı seçtiği ziyaret rotası için navigasyonu başlatabilmelidir. | **Tamamlandı.** Önizlenen, aktif ve kayıtlı rotalardan canlı konuma göre navigasyon başlatılabiliyor; çevrimdışıyken işlem açıklayıcı mesajla engelleniyor. |
+| **R-52** | Navigasyon | Navigasyon öncesi konum izni kontrol edilmeli, izin kapalıysa uyarı gösterilmelidir. | **Tamamlandı.** Paylaşılan konum denetleyicisi servis/izin durumunu navigasyon ekranından önce kontrol ediyor; kalıcı ret için ayarlara yönlendiriyor. Android ve iOS kullanım açıklamaları tanımlı. |
+| **R-53** | Navigasyon | Navigasyon sırasında GPS konumu ve oluşturulan ziyaret rotası haritada gösterilmelidir. | **Tamamlandı.** 5 m filtreli sürekli GPS akışı, yönlü kullanıcı işareti, 16.5 yakınlaştırma/45° eğimle kamera takibi, rota ve gri tamamlanan rota bölümü MapLibre haritasında gösteriliyor. |
+| **R-54** | Navigasyon | Sıradaki konut, temel manevra bilgisi ve manevraya kalan mesafe gösterilmelidir. | **Tamamlandı.** OSRM adımları Türkçe manevra metni ve yön ikonu olarak; manevra mesafesi, durak sırası, konut özeti, kalan durak mesafesi ve tahmini süreyle gösteriliyor. |
+| **R-55** | Navigasyon | Kullanıcı rotadan belirlenen mesafeden fazla uzaklaşınca sapma uyarısı gösterilmelidir. | **Tamamlandı.** 50 m sapma/30 m dönüş histerezisi ve üç ardışık GPS ölçümüyle sapma algılanıyor; mesafeli uyarı ve canlı konumdan rota yenileme sunuluyor. 35 m üzeri doğruluk hesaplamaya alınmıyor. |
 | **R-56** | Ziyaret Takibi | Ulaşılan konut “Ziyaret Ettim” ile işaretlenmeli ve rota ilerlemesi güncellenmelidir. | Ziyaret işaretleme yok. |
 | **R-57** | Ziyaret Takibi | Ziyaretten sonra sıradaki konuta yönlendirilmeli; tümü tamamlanınca rota tamamlandı bildirimi gösterilmelidir. | Ziyaret ilerleme akışı yok. |
 | **R-67** | Konum Gizliliği | Mevcut konum yalnızca izin alındıktan sonra harita ve navigasyon amacıyla kullanılmalıdır. | GPS/konum izni özelliği yok. |

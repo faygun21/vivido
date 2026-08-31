@@ -129,6 +129,35 @@ class RoutesController extends ChangeNotifier {
     }
   }
 
+  /// Kayıtlı rotayı değiştirmeden, navigasyonu kullanıcının güncel konumundan
+  /// başlatacak geçici bir rota hesaplar. Kayıtlı rotanın eski başlangıcını
+  /// kullanmak harita kamerası GPS'i takip ettiğinde yol çizgisini ekran
+  /// dışında bırakır ve ilk manevrayı anlamsız hale getirir.
+  Future<RouteDetail?> prepareNavigation({
+    required RouteDetail route,
+    required RouteStart liveStart,
+  }) async {
+    saving = true;
+    errorMessage = null;
+    _notify();
+    try {
+      return await _gateway.previewRoute(
+        start: liveStart,
+        propertyIds: route.propertyIds,
+        mode: route.mode,
+      );
+    } on RoutesFailure catch (error) {
+      errorMessage = error.message;
+      return null;
+    } on Object {
+      errorMessage = 'Canlı konumundan rota hesaplanamadı.';
+      return null;
+    } finally {
+      saving = false;
+      _notify();
+    }
+  }
+
   /// Ekrandaki rotanın duraklarını değiştirip YENİDEN optimize eder.
   ///
   /// Ekleme ve çıkarma aynı yoldan geçiyor: her ikisinde de sıralama
@@ -208,9 +237,8 @@ class RoutesController extends ChangeNotifier {
       if (replaced != null && replaced != created.id) {
         try {
           await _gateway.deleteRoute(replaced);
-          savedRoutes = savedRoutes
-              .where((item) => item.id != replaced)
-              .toList();
+          savedRoutes =
+              savedRoutes.where((item) => item.id != replaced).toList();
         } on Object {
           // Eski rota silinemedi. Yeni rota kaydedildi, veri kaybı yok;
           // kullanıcıyı burada uyarmak yerine listede iki kayıt görmesine

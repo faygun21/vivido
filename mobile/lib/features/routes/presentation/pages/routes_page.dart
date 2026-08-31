@@ -6,6 +6,7 @@ import '../../../location/application/user_location_controller.dart';
 import '../../../location_search/application/location_search_controller.dart';
 import '../../../location_search/domain/location_search_models.dart';
 import '../../../map/presentation/widgets/cankaya_map.dart';
+import '../../../navigation/presentation/pages/navigation_page.dart';
 import '../../../properties/presentation/property_format.dart';
 import '../../application/routes_controller.dart';
 import '../../domain/route_models.dart';
@@ -17,6 +18,7 @@ class RoutesPage extends StatefulWidget {
     required this.onShowOnMainMap,
     required this.userLocation,
     required this.searchController,
+    required this.offline,
     super.key,
   });
 
@@ -31,6 +33,7 @@ class RoutesPage extends StatefulWidget {
 
   /// Başlangıç noktası için adres araması.
   final LocationSearchController searchController;
+  final bool offline;
 
   @override
   State<RoutesPage> createState() => _RoutesPageState();
@@ -229,6 +232,98 @@ class _RoutesPageState extends State<RoutesPage> {
     _scrollToActiveRoute();
   }
 
+  Future<void> _startNavigation(RouteDetail route) async {
+    if (widget.offline) {
+      _showMessage('Navigasyon için internet bağlantısı gereklidir.');
+      return;
+    }
+    if (route.stopCount < 2) {
+      _showMessage('Navigasyon için rotada en az iki konut bulunmalıdır.');
+      return;
+    }
+    final location = await widget.userLocation.request();
+    if (!mounted) return;
+    if (location == null) {
+      await _showLocationProblem();
+      return;
+    }
+
+    final navigationRoute = await widget.controller.prepareNavigation(
+      route: route,
+      liveStart: RouteStart(
+        latitude: location.latitude,
+        longitude: location.longitude,
+        label: 'Canlı konumum',
+      ),
+    );
+    if (!mounted) return;
+    if (navigationRoute == null) {
+      _showMessage(
+        widget.controller.errorMessage ??
+            'Canlı konumundan rota hesaplanamadı.',
+      );
+      return;
+    }
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder:
+            (_) => NavigationPage(
+              route: navigationRoute,
+              onRecalculate:
+                  (position) => widget.controller.prepareNavigation(
+                    route: navigationRoute,
+                    liveStart: RouteStart(
+                      latitude: position.latitude,
+                      longitude: position.longitude,
+                      label: 'Canlı konumum',
+                    ),
+                  ),
+            ),
+      ),
+    );
+  }
+
+  Future<void> _startSavedNavigation(RouteSummary summary) async {
+    final opened = await widget.controller.openRoute(summary.id);
+    if (!mounted) return;
+    final route = widget.controller.activeRoute;
+    if (!opened || route == null) {
+      _showMessage(widget.controller.errorMessage ?? 'Rota açılamadı.');
+      return;
+    }
+    await _startNavigation(route);
+  }
+
+  Future<void> _showLocationProblem() async {
+    final needsSettings = widget.userLocation.needsAppSettings;
+    await showDialog<void>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Canlı konum alınamadı'),
+            content: Text(
+              widget.userLocation.message ??
+                  'Navigasyonu başlatmak için konum izni ve açık konum servisi gerekir.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Kapat'),
+              ),
+              if (needsSettings)
+                FilledButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    widget.userLocation.openSettings();
+                  },
+                  child: const Text('Ayarları aç'),
+                ),
+            ],
+          ),
+    );
+  }
+
   /// Rota kartını görünür alana kaydırır.
   ///
   /// Hem kayıtlı rota açılınca hem yeni önizleme hesaplanınca gerekiyor:
@@ -292,16 +387,18 @@ class _RoutesPageState extends State<RoutesPage> {
               searchController: widget.searchController,
               enabled: !controller.saving,
               onUseLive: _useLiveLocation,
-              onUseAnchor: (id) => setState(() {
-                _startKind = _StartKind.anchor;
-                _startAnchorId = id;
-              }),
-              onUseAddress: (result) => setState(() {
-                _startKind = _StartKind.address;
-                _startAddress = result;
-              }),
-              onUseDistrictCenter: () =>
-                  setState(() => _startKind = _StartKind.districtCenter),
+              onUseAnchor:
+                  (id) => setState(() {
+                    _startKind = _StartKind.anchor;
+                    _startAnchorId = id;
+                  }),
+              onUseAddress:
+                  (result) => setState(() {
+                    _startKind = _StartKind.address;
+                    _startAddress = result;
+                  }),
+              onUseDistrictCenter:
+                  () => setState(() => _startKind = _StartKind.districtCenter),
             ),
             const SizedBox(height: 12),
             SegmentedButton<RouteTravelMode>(
@@ -339,16 +436,17 @@ class _RoutesPageState extends State<RoutesPage> {
               // bir rota istenemesin.
               onPressed:
                   controller.saving ||
-                      controller.draft.length < minRouteStops ||
-                      _selectedStart == null
-                  ? null
-                  : _previewRoute,
-              icon: controller.saving
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.route),
+                          controller.draft.length < minRouteStops ||
+                          _selectedStart == null
+                      ? null
+                      : _previewRoute,
+              icon:
+                  controller.saving
+                      ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                      : const Icon(Icons.route),
               label: Text(
                 controller.saving ? 'Hesaplanıyor…' : 'Rotayı oluştur',
               ),
@@ -364,10 +462,14 @@ class _RoutesPageState extends State<RoutesPage> {
                   // kaydedilmiş ama DEĞİŞTİRİLMİŞ bir rota varken çıkıyor.
                   onSave:
                       controller.isPreviewing || controller.hasUnsavedChanges
-                      ? _saveActiveRoute
-                      : null,
+                          ? _saveActiveRoute
+                          : null,
                   onRemoveStop: _removeStop,
                   onShowOnMainMap: widget.onShowOnMainMap,
+                  onNavigate:
+                      widget.offline
+                          ? null
+                          : () => _startNavigation(controller.activeRoute!),
                   onClose: controller.closeActiveRoute,
                 ),
               ),
@@ -436,10 +538,23 @@ class _RoutesPageState extends State<RoutesPage> {
                               dimension: 22,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                            : IconButton(
-                              tooltip: 'Rotayı sil',
-                              onPressed: () => _deleteRoute(route),
-                              icon: const Icon(Icons.delete_outline),
+                            : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  tooltip: 'Navigasyonu başlat',
+                                  onPressed:
+                                      widget.offline
+                                          ? null
+                                          : () => _startSavedNavigation(route),
+                                  icon: const Icon(Icons.navigation_outlined),
+                                ),
+                                IconButton(
+                                  tooltip: 'Rotayı sil',
+                                  onPressed: () => _deleteRoute(route),
+                                  icon: const Icon(Icons.delete_outline),
+                                ),
+                              ],
                             ),
                   ),
                 ),
@@ -514,6 +629,7 @@ class _ActiveRouteCard extends StatelessWidget {
     required this.busy,
     required this.onRemoveStop,
     required this.onShowOnMainMap,
+    required this.onNavigate,
     required this.onClose,
     this.onSave,
   });
@@ -522,6 +638,7 @@ class _ActiveRouteCard extends StatelessWidget {
   final bool busy;
   final void Function(RouteStop stop) onRemoveStop;
   final VoidCallback onShowOnMainMap;
+  final VoidCallback? onNavigate;
   final VoidCallback onClose;
 
   /// Kaydedilecek bir şey yoksa null — düğme hiç çizilmez.
@@ -649,6 +766,15 @@ class _ActiveRouteCard extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 8),
+          FilledButton.icon(
+            onPressed:
+                route.legs.any((leg) => leg.steps.isNotEmpty)
+                    ? onNavigate
+                    : null,
+            icon: const Icon(Icons.navigation),
+            label: const Text('Navigasyonu başlat'),
+          ),
+          const SizedBox(height: 8),
           FilledButton.tonalIcon(
             onPressed: onShowOnMainMap,
             icon: const Icon(Icons.map_outlined),
@@ -709,8 +835,7 @@ class _StartPointPicker extends StatelessWidget {
   String get _summary {
     switch (kind) {
       case _StartKind.live:
-        final locating =
-            userLocation.status == UserLocationStatus.locating;
+        final locating = userLocation.status == UserLocationStatus.locating;
         if (locating) return 'Konumun alınıyor…';
         return userLocation.location == null
             ? 'Canlı konumum (henüz alınmadı)'
@@ -737,9 +862,9 @@ class _StartPointPicker extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             'Başlangıç noktası',
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: AppColors.inkMuted,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.labelLarge?.copyWith(color: AppColors.inkMuted),
           ),
         ],
       ),
@@ -788,26 +913,27 @@ class _StartPointPicker extends StatelessWidget {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (sheetContext) => _StartPointSheet(
-        anchors: anchors,
-        searchController: searchController,
-        onUseLive: () {
-          Navigator.pop(sheetContext);
-          onUseLive();
-        },
-        onUseAnchor: (id) {
-          Navigator.pop(sheetContext);
-          onUseAnchor(id);
-        },
-        onUseAddress: (result) {
-          Navigator.pop(sheetContext);
-          onUseAddress(result);
-        },
-        onUseDistrictCenter: () {
-          Navigator.pop(sheetContext);
-          onUseDistrictCenter();
-        },
-      ),
+      builder:
+          (sheetContext) => _StartPointSheet(
+            anchors: anchors,
+            searchController: searchController,
+            onUseLive: () {
+              Navigator.pop(sheetContext);
+              onUseLive();
+            },
+            onUseAnchor: (id) {
+              Navigator.pop(sheetContext);
+              onUseAnchor(id);
+            },
+            onUseAddress: (result) {
+              Navigator.pop(sheetContext);
+              onUseAddress(result);
+            },
+            onUseDistrictCenter: () {
+              Navigator.pop(sheetContext);
+              onUseDistrictCenter();
+            },
+          ),
     );
   }
 }
@@ -860,81 +986,81 @@ class _StartPointSheetState extends State<_StartPointSheet> {
         final results = widget.searchController.results;
         return SingleChildScrollView(
           child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.line,
-                  borderRadius: BorderRadius.circular(2),
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.line,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            // Canlı konum EN ÜSTTE: en sık istenen seçenek.
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.my_location, color: AppColors.accent),
-              title: const Text('Canlı konumum'),
-              subtitle: const Text('Bulunduğun yerden başla'),
-              onTap: widget.onUseLive,
-            ),
-            const Divider(),
-            TextField(
-              controller: _query,
-              decoration: const InputDecoration(
-                hintText: 'Adres veya mahalle ara',
-                prefixIcon: Icon(Icons.search),
+              const SizedBox(height: 16),
+              // Canlı konum EN ÜSTTE: en sık istenen seçenek.
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.my_location, color: AppColors.accent),
+                title: const Text('Canlı konumum'),
+                subtitle: const Text('Bulunduğun yerden başla'),
+                onTap: widget.onUseLive,
               ),
-              onChanged: widget.searchController.search,
-            ),
-            const SizedBox(height: 8),
-            if (results.isNotEmpty)
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 220),
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: results.length,
-                  itemBuilder: (context, index) {
-                    final result = results[index];
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.place_outlined),
-                      title: Text(result.label),
-                      onTap: () => widget.onUseAddress(result),
-                    );
-                  },
-                ),
-              ),
-            if (widget.anchors.isNotEmpty) ...[
               const Divider(),
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 6),
-                child: Text(
-                  'Önemli konumların',
-                  style: TextStyle(fontSize: 12.5, color: AppColors.inkMuted),
+              TextField(
+                controller: _query,
+                decoration: const InputDecoration(
+                  hintText: 'Adres veya mahalle ara',
+                  prefixIcon: Icon(Icons.search),
                 ),
+                onChanged: widget.searchController.search,
               ),
-              for (final anchor in widget.anchors)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.star_outline),
-                  title: Text(anchor.label),
-                  onTap: () => widget.onUseAnchor(anchor.id),
+              const SizedBox(height: 8),
+              if (results.isNotEmpty)
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 220),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: results.length,
+                    itemBuilder: (context, index) {
+                      final result = results[index];
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.place_outlined),
+                        title: Text(result.label),
+                        onTap: () => widget.onUseAddress(result),
+                      );
+                    },
+                  ),
                 ),
+              if (widget.anchors.isNotEmpty) ...[
+                const Divider(),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 6),
+                  child: Text(
+                    'Önemli konumların',
+                    style: TextStyle(fontSize: 12.5, color: AppColors.inkMuted),
+                  ),
+                ),
+                for (final anchor in widget.anchors)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.star_outline),
+                    title: Text(anchor.label),
+                    onTap: () => widget.onUseAnchor(anchor.id),
+                  ),
+              ],
+              const Divider(),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.location_city_outlined),
+                title: const Text('Çankaya Merkez'),
+                subtitle: const Text('Konum vermeden başla'),
+                onTap: widget.onUseDistrictCenter,
+              ),
             ],
-            const Divider(),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.location_city_outlined),
-              title: const Text('Çankaya Merkez'),
-              subtitle: const Text('Konum vermeden başla'),
-              onTap: widget.onUseDistrictCenter,
-            ),
-          ],
           ),
         );
       },

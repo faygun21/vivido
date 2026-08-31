@@ -38,9 +38,10 @@ class ApiPropertyGateway implements PropertyGateway {
       // map_data gateway), liste ekranının ona ihtiyacı yok.
       return TopProperties(
         items: items,
-        nearestFallback: fallbackJson == null
-            ? null
-            : PropertySummary.fromJson(fallbackJson),
+        nearestFallback:
+            fallbackJson == null
+                ? null
+                : PropertySummary.fromJson(fallbackJson),
       );
     } on ApiException catch (error) {
       throw PropertyDataFailure(error.detail ?? error.title);

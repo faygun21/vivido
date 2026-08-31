@@ -161,130 +161,130 @@ class _AnchorManagerPageState extends State<AnchorManagerPage> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         children: [
-            if (widget.embedded) ...[
-              Text(
-                'Önemli konumların',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Haritaya dokunup en fazla 3 yer ekle. Listeyi sürükleyerek '
-                'önem sırasını değiştirebilirsin.',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-            SizedBox(
-              height: mapHeight,
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: AnimatedBuilder(
-                      animation: _mapData,
-                      builder: (context, _) => CankayaMap(
-                        anchors: _anchors,
-                        pendingPoint: _pendingPoint,
-                        focus: _focus,
-                        // Konut ve POI'ler artık burada da çiziliyor:
-                        // kullanıcı önemli konumu çevresini görerek seçsin.
-                        pois: _mapData.pois,
-                        properties: _mapData.properties,
-                        onBoundsChanged: _mapData.updateViewport,
-                        onMapTap: _anchors.length >= 3 ? null : _selectPoint,
-                      ),
-                    ),
-                  ),
-                  // Arama kutusu: aradığı caddeyi/mahalleyi bulup oraya
-                  // gidebilsin. Haritayı elle sürükleyerek aramak, bu
-                  // ekranı gereksiz yere zahmetli kılıyordu.
-                  Positioned(
-                    left: 12,
-                    right: 12,
-                    top: 12,
-                    child: LocationSearchPanel(
-                      controller: _search,
-                      onSelected: (result) =>
-                          setState(() => _focus = result),
-                      onCleared: () => setState(() => _focus = null),
-                    ),
-                  ),
-                  // Katman seçici — ana haritadakinin AYNISI. Kullanıcı
-                  // hangi hizmetlerin görüneceğini seçebiliyor (yalnızca
-                  // spor salonu, ya da hastane + spor salonu…). Önemli
-                  // konum seçerken bakılan şey tam olarak bu: çevrede ne var.
-                  Positioned(
-                    right: 12,
-                    top: 74,
-                    child: MapLayerButton(controller: _mapData),
-                  ),
-                  Positioned(
-                    left: 12,
-                    top: 74,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.92),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        child: Text(
-                          _anchors.length >= 3
-                              ? '3/3 konum · listeyi sıralayabilirsin'
-                              : '${_anchors.length}/3 konum · eklemek için haritaya dokun',
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (_busy)
-                    const Positioned.fill(
-                      child: ColoredBox(
-                        color: Color(0x33000000),
-                        child: Center(child: CircularProgressIndicator()),
-                      ),
-                    ),
-                ],
+          if (widget.embedded) ...[
+            Text(
+              'Önemli konumların',
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Haritaya dokunup en fazla 3 yer ekle. Listeyi sürükleyerek '
+              'önem sırasını değiştirebilirsin.',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 12),
-            // Sayfa artık kayıyor, bu yüzden liste KENDİ kaydırmasını
-            // yapmıyor: iki kaydırma iç içe geçseydi sürükleyerek sıralama
-            // ile sayfa kaydırma birbirine karışırdı.
-            if (_anchors.isEmpty)
-              const _EmptyAnchors()
-            else
-              ReorderableListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _anchors.length,
-                onReorderItem: _reorder,
-                buildDefaultDragHandles: false,
-                itemBuilder: (context, index) {
-                  final anchor = _anchors[index];
-                  return _AnchorTile(
-                    key: ValueKey(anchor.id),
-                    anchor: anchor,
-                    weight: _anchorWeights(_anchors.length)[index],
-                    index: index,
-                    onDelete: _busy ? null : () => _delete(anchor),
-                  );
-                },
-              ),
-            if (widget.onFinished != null) ...[
-              const SizedBox(height: 10),
-              FilledButton.icon(
-                onPressed: _busy ? null : widget.onFinished,
-                icon: const Icon(Icons.arrow_forward),
-                label: Text(_anchors.isEmpty ? 'Şimdilik geç' : 'Haritaya geç'),
-              ),
-            ],
+          ],
+          SizedBox(
+            height: mapHeight,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: AnimatedBuilder(
+                    animation: _mapData,
+                    builder:
+                        (context, _) => CankayaMap(
+                          anchors: _anchors,
+                          pendingPoint: _pendingPoint,
+                          focus: _focus,
+                          // Konut ve POI'ler artık burada da çiziliyor:
+                          // kullanıcı önemli konumu çevresini görerek seçsin.
+                          pois: _mapData.pois,
+                          properties: _mapData.properties,
+                          onBoundsChanged: _mapData.updateViewport,
+                          onMapTap: _anchors.length >= 3 ? null : _selectPoint,
+                        ),
+                  ),
+                ),
+                // Arama kutusu: aradığı caddeyi/mahalleyi bulup oraya
+                // gidebilsin. Haritayı elle sürükleyerek aramak, bu
+                // ekranı gereksiz yere zahmetli kılıyordu.
+                Positioned(
+                  left: 12,
+                  right: 12,
+                  top: 12,
+                  child: LocationSearchPanel(
+                    controller: _search,
+                    onSelected: (result) => setState(() => _focus = result),
+                    onCleared: () => setState(() => _focus = null),
+                  ),
+                ),
+                // Katman seçici — ana haritadakinin AYNISI. Kullanıcı
+                // hangi hizmetlerin görüneceğini seçebiliyor (yalnızca
+                // spor salonu, ya da hastane + spor salonu…). Önemli
+                // konum seçerken bakılan şey tam olarak bu: çevrede ne var.
+                Positioned(
+                  right: 12,
+                  top: 74,
+                  child: MapLayerButton(controller: _mapData),
+                ),
+                Positioned(
+                  left: 12,
+                  top: 74,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.92),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      child: Text(
+                        _anchors.length >= 3
+                            ? '3/3 konum · listeyi sıralayabilirsin'
+                            : '${_anchors.length}/3 konum · eklemek için haritaya dokun',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                ),
+                if (_busy)
+                  const Positioned.fill(
+                    child: ColoredBox(
+                      color: Color(0x33000000),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Sayfa artık kayıyor, bu yüzden liste KENDİ kaydırmasını
+          // yapmıyor: iki kaydırma iç içe geçseydi sürükleyerek sıralama
+          // ile sayfa kaydırma birbirine karışırdı.
+          if (_anchors.isEmpty)
+            const _EmptyAnchors()
+          else
+            ReorderableListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _anchors.length,
+              onReorderItem: _reorder,
+              buildDefaultDragHandles: false,
+              itemBuilder: (context, index) {
+                final anchor = _anchors[index];
+                return _AnchorTile(
+                  key: ValueKey(anchor.id),
+                  anchor: anchor,
+                  weight: _anchorWeights(_anchors.length)[index],
+                  index: index,
+                  onDelete: _busy ? null : () => _delete(anchor),
+                );
+              },
+            ),
+          if (widget.onFinished != null) ...[
+            const SizedBox(height: 10),
+            FilledButton.icon(
+              onPressed: _busy ? null : widget.onFinished,
+              icon: const Icon(Icons.arrow_forward),
+              label: Text(_anchors.isEmpty ? 'Şimdilik geç' : 'Haritaya geç'),
+            ),
+          ],
         ],
       ),
     );
