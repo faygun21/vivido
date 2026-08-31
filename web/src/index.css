@@ -268,14 +268,8 @@ a { color: var(--accent); }
 }
 
 @media (max-width: 560px) {
-<<<<<<< Updated upstream
   .app-header { padding: 0 0.75rem; }
   .nav-btn { padding: 0.45rem 0.7rem; }
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-=======
->>>>>>> c03c622 (feat: maskot mobil ekranlara uyarlandı ve keşfet paneli güncellendi)
 
   .nav-hamburger { display: inline-flex; }
 
@@ -305,7 +299,6 @@ a { color: var(--accent); }
   .guest-chip { justify-content: center; }
   .user-email { display: block; max-width: none; text-align: center; }
 }
-
 /* ─── Admin paneli ─── 48px yatay dolgu + 4 sabit sütunluk istatistik
    ızgarası 375px'lik bir telefonda kartları eziyordu (2026-08-28). */
 /* ═══════════════════════════════════════════════════════════════════
@@ -580,10 +573,7 @@ a { color: var(--accent); }
 
 @media (max-width: 420px) {
   .admin-stats-grid { grid-template-columns: 1fr; }
-<<<<<<< HEAD
-=======
-=======
-  .app-header {
+.app-header {
     padding: 0 0.5rem; /* Ekranın sağ/sol kenar boşluklarını daralttık */
     gap: 0.25rem;      /* Logo ile butonlar arasındaki boşluğu kıstık */
   }
@@ -605,9 +595,6 @@ a { color: var(--accent); }
     padding: 0.3rem 0.5rem;  /* Misafir etiketini küçülttük */
     font-size: 0.75rem;
   }
->>>>>>> Stashed changes
->>>>>>> 86f3f79 (feat: maskot mobil ekranlara uyarlandı ve keşfet paneli güncellendi)
->>>>>>> c03c622 (feat: maskot mobil ekranlara uyarlandı ve keşfet paneli güncellendi)
 }
 
 /* ─── Sayfalar ─── */
