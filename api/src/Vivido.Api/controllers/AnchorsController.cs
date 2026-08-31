@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using NetTopologySuite.Geometries;
 using Vivido.Application.dtos.profile;
 using Vivido.Domain.Entities;
@@ -25,11 +26,22 @@ public class AnchorsController : ControllerBase
     private const int MaxAnchors = 3;
 
     private readonly VividoDbContext _context;
+    private readonly IMemoryCache _cache;
 
-    public AnchorsController(VividoDbContext context)
+    public AnchorsController(VividoDbContext context, IMemoryCache cache)
     {
         _context = context;
+        _cache = cache;
     }
+
+    /// <summary>
+    /// Anchor'lar (ve dolayısıyla koridor) değiştiğinde
+    /// <see cref="PropertiesController"/>'ın 10dk'lık koridor cache'ini
+    /// hemen geçersiz kılar — kullanıcı yeni bir anchor eklediğinde eski
+    /// koridoru 10 dakika daha görmesin diye.
+    /// </summary>
+    private void InvalidateCorridorCache(Guid profileId) =>
+        _cache.Remove(PropertiesController.CorridorCacheKey(profileId));
 
     // ─── GET /api/v1/profile/anchors ───
     [HttpGet]
@@ -88,6 +100,7 @@ public class AnchorsController : ControllerBase
 
         _context.Anchors.Add(anchor);
         await _context.SaveChangesAsync();
+        InvalidateCorridorCache(profile.Id);
 
         return CreatedAtAction(nameof(GetAnchors), ToDto(anchor));
     }
@@ -118,6 +131,7 @@ public class AnchorsController : ControllerBase
         // Tek SaveChanges = tek transaction. DEFERRABLE kısıt COMMIT'te
         // kontrol edildiği için ara adımdaki çakışma sorun olmaz.
         await _context.SaveChangesAsync();
+        InvalidateCorridorCache(profile.Id);
 
         return NoContent();
     }
@@ -162,6 +176,9 @@ public class AnchorsController : ControllerBase
         // ⚠️ Döngü İÇİNDE SaveChanges çağırma — her biri ayrı transaction olur
         // ve DEFERRABLE avantajı kaybolur, ikincisinde kısıt ihlali patlar.
         await _context.SaveChangesAsync();
+        // Sıra değişince koridor bacakları da değişir (ardışık anchor
+        // ikilileri farklılaşır) — eski koridoru cache'te bırakmamak gerekir.
+        InvalidateCorridorCache(profile.Id);
 
         var result = anchors.OrderBy(a => a.Priority).Select(ToDto).ToList();
         return Ok(result);

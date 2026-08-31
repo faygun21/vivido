@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using NetTopologySuite.Geometries;
 using Vivido.Api.services; // PropertyScoringService namespace'i
 using Vivido.Application.dtos.property; // DTO'ların
@@ -22,20 +24,30 @@ public class PropertiesController : ControllerBase
     private readonly PropertyScoreBreakdownService _breakdownService;
     private readonly PropertyAddressService _addressService;
     private readonly OsrmClient _osrm;
+    private readonly IMemoryCache _cache;
 
     public PropertiesController(
         VividoDbContext context,
         PropertyScoringService scoringService,
         PropertyScoreBreakdownService breakdownService,
         PropertyAddressService addressService,
-        OsrmClient osrm)
+        OsrmClient osrm,
+        IMemoryCache cache)
     {
         _context = context;
         _scoringService = scoringService;
         _breakdownService = breakdownService;
         _addressService = addressService;
         _osrm = osrm;
+        _cache = cache;
     }
+
+    /// <summary>
+    /// Anchor koridoru cache anahtarı — bkz. <see cref="BuildAnchorAreaAsync"/>.
+    /// <see cref="AnchorsController"/> anchor CRUD sonrası aynı anahtarla
+    /// invalide ediyor (bkz. oradaki not).
+    /// </summary>
+    internal static string CorridorCacheKey(Guid profileId) => $"anchor-corridor:{profileId}";
 
     /// <summary>
     /// "En uygun evler" listesinin varsayılan uzunluğu.
@@ -49,9 +61,16 @@ public class PropertiesController : ControllerBase
     /// 1. Harita ve Liste Görünümü (R-113, R-114):
     /// Kullanıcının aylık bütçesine uygun konutları getirir, her biri için skor hesaplar
     /// ve uygunluk skoruna göre yüksekten düşüğe (descending) sıralayıp harita ikonları için döner.
+    ///
+    /// ⚠️ <see cref="GetMapPropertiesByBounds"/> İLE KARIŞTIRMA: bu uç
+    /// bbox almaz, kullanıcının bütçesine/anchor koridoruna göre TÜM
+    /// eşleşen (skorlu) konutları döner — "kişiselleştirilmiş liste" ekseni.
+    /// Diğeri viewport'a (bbox) göre ham/skorsuz konut noktalarını döner —
+    /// "haritada görünen alan" ekseni. İkisi aynı veriye farklı iki filtre
+    /// modeliyle bakıyor, birbirinin yerine geçmez.
     /// </summary>
     [HttpGet]
-    public async Task<ActionResult<PropertiesMapResponseDto>> GetPropertiesForMap(
+    public async Task<ActionResult<PropertiesMapResponseDto>> GetScoredProperties(
         // Kapalıyken (varsayılan) anchor koridoru uygulanır; kullanıcı
         // "Tüm evleri göster"i açtıysa true gönderilir.
         [FromQuery] bool showAll = false,
@@ -264,7 +283,13 @@ public class PropertiesController : ControllerBase
     }
 
     /// <summary>
-    /// Spesifik skor sorgulama ucu
+    /// Spesifik skor sorgulama ucu.
+    ///
+    /// ⚠️ Beklenmeyen hatalar burada YAKALANMAZ — eskiden `ex.Message` doğrudan
+    /// istemciye dönüyordu (SQL/EF iç detaylarını sızdırma riski, ayrıca
+    /// `ApiProblem` sözleşmesini hiç kullanmıyordu). Artık Program.cs'teki
+    /// global exception handler'a düşer: detay sızdırmadan INTERNAL_ERROR
+    /// döner, tam hata sunucu tarafında loglanır.
     /// </summary>
     [HttpGet("{propertyId:long}/score")]
     public async Task<IActionResult> GetPropertyScore(long propertyId, [FromQuery] Guid profileId)
@@ -274,21 +299,14 @@ public class PropertiesController : ControllerBase
             return BadRequest(new { Message = "Geçerli bir profileId belirtilmelidir." });
         }
 
-        try
-        {
-            var score = await _scoringService.ScorePropertyAsync(propertyId, profileId);
+        var score = await _scoringService.ScorePropertyAsync(propertyId, profileId);
 
-            return Ok(new
-            {
-                PropertyId = propertyId,
-                ProfileId = profileId,
-                Score = score
-            });
-        }
-        catch (Exception ex)
+        return Ok(new
         {
-            return StatusCode(500, new { Message = "Skor hesaplanırken sunucu tarafında bir hata oluştu.", Details = ex.Message });
-        }
+            PropertyId = propertyId,
+            ProfileId = profileId,
+            Score = score
+        });
     }
 
     /// <summary>
@@ -298,9 +316,12 @@ public class PropertiesController : ControllerBase
     /// </summary>
     [HttpGet("map")]
     [AllowAnonymous]
+    // Kimlik doğrulama istemediği için [AllowAnonymous] uçlar arasında en
+    // kolay kötüye kullanılabilecek olanı — IP başına dakikada 120 istekle sınırlı.
+    [EnableRateLimiting("public-map")]
     [ProducesResponseType<List<MapPropertyDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> GetPropertiesForMapByBounds(
+    public async Task<IActionResult> GetMapPropertiesByBounds(
         [FromQuery] double west,
         [FromQuery] double south,
         [FromQuery] double east,
@@ -454,6 +475,17 @@ public class PropertiesController : ControllerBase
     ///
     /// ⚠️ GEÇİCİ: koridor şu an mentor'un gözle kontrol edebilmesi için
     /// dışarı (frontend'e) döndürülüyor — bkz. çağıranlardaki not.
+    ///
+    /// ⭐ CACHE (2026-08-31): kullanıcının anchor'ları (ev/iş yeri) neredeyse
+    /// hiç değişmiyor, ama koridor öncesinde HER istekte (harita her
+    /// hareket ettiğinde, panel her açıldığında) sıfırdan hesaplanıyordu —
+    /// anchor sayısı kadar OSRM `/route` çağrısı + CPU-ağır NTS
+    /// `Buffer`/`Union` işlemleri. 10 dakikalık TTL ile <see cref="IMemoryCache"/>'e
+    /// yazılıyor; <see cref="AnchorsController"/> anchor CRUD'da aynı
+    /// anahtarla invalide ediyor. Anahtar yalnızca profile.Id'ye bağlı —
+    /// bütçe aralığı değişse bile (nadir) TTL süresi içinde eski koridor
+    /// kullanılabilir; bu, "her istekte OSRM'e git" maliyetine karşı kabul
+    /// edilebilir bir yaklaşıklık.
     /// </summary>
     private async Task<(Geometry? Corridor, List<Property> Matched)> BuildAnchorAreaAsync(
         UserProfile profile, List<Property> budgetProperties, CancellationToken ct)
@@ -466,23 +498,28 @@ public class PropertiesController : ControllerBase
 
         if (anchors.Count == 0) return (null, budgetProperties);
 
-        var legs = await BuildCorridorLegsAsync(anchors, ct);
-
-        // ⭐ Her bacak KENDİ BAŞINA genişler. Tek bir genel genişletme (tüm
-        // bacakların birleşimine bakıp "birinde ev bulundu mu") kullansaydık,
-        // güçlü bir bacak (çok ev olan bölge) hemen eşiği geçip döngüyü
-        // durdurur, zayıf bir bacak (örn. kopuk anchor'ın kendi dairesi) hiç
-        // genişlemeden dar kalırdı — o anchor'ın etrafında pratikte hiç ev
-        // gösterilmemiş olurdu. Bunun yerine her bacak, kendi çevresinde en
-        // az 1 ev bulana kadar (ya da MaxCorridorWidenAttempts sınırına
-        // kadar — abartmasın diye) ayrı ayrı genişletiliyor, SONRA hepsi
-        // birleştiriliyor.
-        Geometry? corridor = null;
-        foreach (var leg in legs)
+        var cacheKey = CorridorCacheKey(profile.Id);
+        if (!_cache.TryGetValue(cacheKey, out Geometry? corridor))
         {
-            corridor = corridor is null
-                ? BuildWidenedLegPolygon(leg, budgetProperties)
-                : corridor.Union(BuildWidenedLegPolygon(leg, budgetProperties));
+            var legs = await BuildCorridorLegsAsync(anchors, ct);
+
+            // ⭐ Her bacak KENDİ BAŞINA genişler. Tek bir genel genişletme (tüm
+            // bacakların birleşimine bakıp "birinde ev bulundu mu") kullansaydık,
+            // güçlü bir bacak (çok ev olan bölge) hemen eşiği geçip döngüyü
+            // durdurur, zayıf bir bacak (örn. kopuk anchor'ın kendi dairesi) hiç
+            // genişlemeden dar kalırdı — o anchor'ın etrafında pratikte hiç ev
+            // gösterilmemiş olurdu. Bunun yerine her bacak, kendi çevresinde en
+            // az 1 ev bulana kadar (ya da MaxCorridorWidenAttempts sınırına
+            // kadar — abartmasın diye) ayrı ayrı genişletiliyor, SONRA hepsi
+            // birleştiriliyor.
+            foreach (var leg in legs)
+            {
+                corridor = corridor is null
+                    ? BuildWidenedLegPolygon(leg, budgetProperties)
+                    : corridor.Union(BuildWidenedLegPolygon(leg, budgetProperties));
+            }
+
+            _cache.Set(cacheKey, corridor, TimeSpan.FromMinutes(10));
         }
 
         var matched = corridor is null

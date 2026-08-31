@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
 using Vivido.Application.dtos.poi;
@@ -13,9 +14,13 @@ namespace Vivido.Api.Controllers;
 /// Bounding box + kategori filtresiyle çalışır; sonuç MapLibre GeoJSON
 /// katmanına doğrudan beslenir. POI'ler herkese açık harita verisidir,
 /// bu yüzden [AllowAnonymous] — misafir görünümü de POI katmanlarını kullanır.
+///
+/// Tüm uçlar [AllowAnonymous] (kimlik doğrulama istemiyor) olduğu için IP
+/// başına sınırlı — bkz. Program.cs "public-map" rate limiter policy'si.
 /// </summary>
 [ApiController]
 [Route("api/v1/pois")]
+[EnableRateLimiting("public-map")]
 public sealed class PoisController : ControllerBase
 {
     private const int MaximumPoiCount = 5000;
@@ -187,9 +192,16 @@ public sealed class PoisController : ControllerBase
         return Ok(items);
     }
 
-    /// <summary>Katman paneli için aktif POI kategorileri (kod + Türkçe ad).</summary>
+    /// <summary>
+    /// Katman paneli için aktif POI kategorileri (kod + Türkçe ad).
+    ///
+    /// Neredeyse hiç değişmeyen referans veri — tarayıcı/ara katmanların 1
+    /// saat boyunca yeniden istemeden önbellekten kullanmasına izin verir
+    /// (bkz. Program.cs `AddResponseCaching`/`UseResponseCaching`).
+    /// </summary>
     [HttpGet("categories")]
     [AllowAnonymous]
+    [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Any)]
     [ProducesResponseType<List<PoiCategoryDto>>(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetCategories(CancellationToken cancellationToken)
     {

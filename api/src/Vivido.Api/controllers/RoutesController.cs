@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using NetTopologySuite.Geometries;
 using Vivido.Application.Dtos.Route;
 using Vivido.Domain.Entities;
@@ -19,13 +20,30 @@ namespace Vivido.Api.Controllers;
 [Authorize] // Sadece giriş yapmış kullanıcılar
 public class RoutesController : ControllerBase
 {
+    /// <summary>
+    /// Bir rota isteğine (OSRM /table + Held-Karp + OSRM /route toplamı)
+    /// tanınan üst sınır. OSRM'in kendi zaman aşımı (10sn, bkz. OsrmOptions)
+    /// zaten her tekil çağrıyı sınırlıyor ama akış İKİ OSRM çağrısı
+    /// içeriyor — bu, TOPLAM isteğin (kullanıcının gördüğü bekleme) asla
+    /// bu süreyi aşmamasını garanti eder.
+    /// </summary>
+    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
+
+    /// <summary>Çift tıklama/ağ retry'ında aynı rotanın iki kez kaydedilmesini önleyen pencere.</summary>
+    private static readonly TimeSpan IdempotencyWindow = TimeSpan.FromMinutes(5);
+
+    private const int DefaultPageSize = 50;
+    private const int MaxPageSize = 100;
+
     private readonly VividoDbContext _context;
     private readonly OsrmClient _osrm;
+    private readonly IMemoryCache _cache;
 
-    public RoutesController(VividoDbContext context, OsrmClient osrm)
+    public RoutesController(VividoDbContext context, OsrmClient osrm, IMemoryCache cache)
     {
         _context = context;
         _osrm = osrm;
+        _cache = cache;
     }
 
     private Guid GetUserId()
@@ -36,13 +54,24 @@ public class RoutesController : ControllerBase
 
     // GET: /api/v1/routes
     [HttpGet]
-    public async Task<IActionResult> GetRoutes()
+    public async Task<IActionResult> GetRoutes(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = DefaultPageSize,
+        CancellationToken cancellationToken = default)
     {
         var userId = GetUserId();
-        
-        var routes = await _context.Routes
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
+
+        var query = _context.Routes
             .Where(r => r.UserId == userId)
-            .OrderByDescending(r => r.CreatedAt)
+            .OrderByDescending(r => r.CreatedAt);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var routes = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(r => new RouteListResponse
             {
                 Id = r.Id,
@@ -54,7 +83,15 @@ public class RoutesController : ControllerBase
                 StopCount = r.Stops.Count,
                 ScheduledAt = r.ScheduledAt,
             })
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
+
+        // Yanıt şekli (düz dizi) bilerek KORUNUYOR — mevcut istemciler
+        // değişmeden çalışmaya devam eder. Toplam sayı/sayfa header'da:
+        // istemci ilerledikçe gerçek sayfalamaya (sayfa göstergesi, "daha
+        // fazla yükle") header'ları okuyarak geçebilir.
+        Response.Headers["X-Total-Count"] = totalCount.ToString();
+        Response.Headers["X-Page"] = page.ToString();
+        Response.Headers["X-Page-Size"] = pageSize.ToString();
 
         return Ok(routes);
     }
@@ -89,10 +126,40 @@ public class RoutesController : ControllerBase
     [ProducesResponseType<RouteDetailResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable)]
-    public Task<IActionResult> CreateRoute(
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status504GatewayTimeout)]
+    public async Task<IActionResult> CreateRoute(
         [FromBody] CreateRouteRequest request,
         CancellationToken cancellationToken)
-        => BuildRouteAsync(request, persist: true, cancellationToken);
+    {
+        // İsteğe bağlı idempotency: zayıf bağlantıda çift tıklama ya da bir
+        // istemci retry'ı aynı isteği iki kez gönderebilir. İstemci bir
+        // `Idempotency-Key` header'ı gönderirse, aynı anahtarla 5 dakika
+        // içinde gelen ikinci istek YENİDEN HESAPLAMAZ/KAYDETMEZ — ilk
+        // sonucu döner. Header yoksa davranış eskisiyle birebir aynı.
+        var idempotencyKey = Request.Headers["Idempotency-Key"].FirstOrDefault();
+
+        if (!string.IsNullOrWhiteSpace(idempotencyKey))
+        {
+            var cacheKey = IdempotencyCacheKey(GetUserId(), idempotencyKey);
+            if (_cache.TryGetValue<Guid>(cacheKey, out var existingRouteId))
+            {
+                return await GetRoute(existingRouteId, cancellationToken);
+            }
+        }
+
+        var result = await BuildRouteAsync(request, persist: true, cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(idempotencyKey) &&
+            result is CreatedAtActionResult { Value: RouteDetailResponse detail })
+        {
+            _cache.Set(IdempotencyCacheKey(GetUserId(), idempotencyKey), detail.Id, IdempotencyWindow);
+        }
+
+        return result;
+    }
+
+    private static string IdempotencyCacheKey(Guid userId, string idempotencyKey) =>
+        $"route-idempotency:{userId}:{idempotencyKey}";
 
     /// <summary>
     /// Rotayı HESAPLAR ama KAYDETMEZ (R-121).
@@ -116,6 +183,7 @@ public class RoutesController : ControllerBase
     [ProducesResponseType<RouteDetailResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status504GatewayTimeout)]
     public Task<IActionResult> PreviewRoute(
         [FromBody] CreateRouteRequest request,
         CancellationToken cancellationToken)
@@ -157,107 +225,142 @@ public class RoutesController : ControllerBase
         if (errors.Count > 0)
             return ApiProblem.Validation(errors);
 
-        // ─── Konutlar veritabanında var mı? ───
-        var properties = await _context.Properties
-            .AsNoTracking()
-            .Where(p => propertyIds.Contains(p.Id))
-            .ToDictionaryAsync(p => p.Id, cancellationToken);
+        // ─── Toplam istek üst sınırı ───
+        //
+        // Akış İKİ ayrı OSRM çağrısı içeriyor (/table, sonra TSP çıktısına
+        // bağlı /route) — her biri kendi zaman aşımına sahip olsa da (bkz.
+        // OsrmOptions.TimeoutSeconds), TOPLAM bekleme süresi ikisinin
+        // toplamına kadar çıkabilirdi. Bu, kullanıcının GERÇEKTEN gördüğü
+        // (istek başından yanıta kadar) süreyi tek bir üst sınıra bağlar.
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(RequestTimeout);
+        var ct = timeoutCts.Token;
 
-        if (properties.Count != propertyIds.Count)
-            return ApiProblem.Build(
-                422,
-                "Bazı konutlar bulunamadı",
-                "ROUTE_VALIDATION_ERROR",
-                "İstekteki konut id'lerinden en az biri veritabanında yok.");
-
-        // ─── Koordinat listesi: [başlangıç, konutlar...] (istek sırası korunur) ───
-        var coordinates = new List<OsrmCoordinate> { new(start!.Lon, start.Lat) };
-        coordinates.AddRange(propertyIds.Select(id => new OsrmCoordinate(
-            properties[id].Geom.X,
-            properties[id].Geom.Y)));
-
-        var profile = RoutingProfile.ForMode(mode);
-
-        // ─── OSRM süre matrisi (başlangıç + konutlar) ───
-        var table = await _osrm.GetTableAsync(coordinates, profile, cancellationToken);
-        if (table is null)
-            return ApiProblem.OsrmUnavailable();
-
-        int nodeCount = coordinates.Count;
-        var cost = new double[nodeCount, nodeCount];
-        for (int i = 0; i < nodeCount; i++)
+        try
         {
-            for (int j = 0; j < nodeCount; j++)
+            // ─── Konutlar veritabanında var mı? ───
+            var properties = await _context.Properties
+                .AsNoTracking()
+                .Where(p => propertyIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id, ct);
+
+            if (properties.Count != propertyIds.Count)
+                return ApiProblem.Build(
+                    422,
+                    "Bazı konutlar bulunamadı",
+                    "ROUTE_VALIDATION_ERROR",
+                    "İstekteki konut id'lerinden en az biri veritabanında yok.");
+
+            // ─── Koordinat listesi: [başlangıç, konutlar...] (istek sırası korunur) ───
+            var coordinates = new List<OsrmCoordinate> { new(start!.Lon, start.Lat) };
+            coordinates.AddRange(propertyIds.Select(id => new OsrmCoordinate(
+                properties[id].Geom.X,
+                properties[id].Geom.Y)));
+
+            var profile = RoutingProfile.ForMode(mode);
+
+            // ─── OSRM süre matrisi (başlangıç + konutlar) ───
+            var table = await _osrm.GetTableAsync(coordinates, profile, ct);
+            if (table is null)
+                return ApiProblem.OsrmUnavailable();
+
+            int nodeCount = coordinates.Count;
+            var cost = new double[nodeCount, nodeCount];
+            for (int i = 0; i < nodeCount; i++)
             {
-                cost[i, j] = table.Durations[i]?[j] ?? double.PositiveInfinity;
+                for (int j = 0; j < nodeCount; j++)
+                {
+                    cost[i, j] = table.Durations[i]?[j] ?? double.PositiveInfinity;
+                }
             }
-        }
 
-        // ─── TSP: sabit başlangıç → en kısa ziyaret sırası ───
-        // Node 0 her zaman başlangıç koordinatıdır.
-        var tsp = TravelingSalesman.SolveFixedStart(cost, startIndex: 0);
-        var orderedCoordinates = tsp.Path.Select(idx => coordinates[idx]).ToList();
-
-        // ─── OSRM tam rota: geometri + bacak adımları ───
-        var routeResult = await _osrm.GetRouteAsync(orderedCoordinates, profile, cancellationToken);
-        if (routeResult is null)
-            return ApiProblem.OsrmUnavailable();
-
-        // ─── Rota nesnesi (önizlemede de kurulur, yalnızca KAYDEDİLMEZ) ───
-        var route = new RouteEntity
-        {
-            Id = Guid.NewGuid(),
-            UserId = GetUserId(),
-            Name = string.IsNullOrWhiteSpace(request.Name) ? "Önizleme" : request.Name.Trim(),
-            ScheduledAt = persist ? request.ScheduledAt : null,
-            StartGeom = new Point(start.Lon, start.Lat) { SRID = 4326 },
-            StartLabel = start.Label,
-            Mode = mode,
-            TotalDistanceM = (int)Math.Round(routeResult.Distance),
-            TotalDurationS = (int)Math.Round(routeResult.Duration),
-            Geometry = BuildLineString(routeResult.Geometry),
-            Steps = JsonDocument.Parse(JsonSerializer.Serialize(
-                new RouteStepsEnvelopeDto { Legs = BuildLegs(routeResult) },
-                JsonSerializerOptions.Web)),
-            CreatedAt = DateTime.UtcNow,
-        };
-
-        // Duraklar: path[0] başlangıçtır; path[i] (i≥1) konut indeksidir.
-        // OSRM leg[i-1] = path[i-1] → path[i] bacak (mesafe/süre durakta saklanır).
-        for (int i = 1; i < tsp.Path.Length; i++)
-        {
-            int legIndex = i - 1;
-            route.Stops.Add(new RouteStop
+            // ─── TSP: sabit başlangıç → en kısa ziyaret sırası ───
+            // Node 0 her zaman başlangıç koordinatıdır.
+            TravelingSalesman.TspResult tsp;
+            try
             {
-                Seq = (short)i,
-                PropertyId = propertyIds[tsp.Path[i] - 1],
-                ScoreSnapshot = null, // skor snapshot'ı Faz 2'de (scoring entegrasyonu)
-                LegDistanceM = legIndex < routeResult.Legs.Count
-                    ? (int)Math.Round(routeResult.Legs[legIndex].Distance)
-                    : null,
-                LegDurationS = legIndex < routeResult.Legs.Count
-                    ? (int)Math.Round(routeResult.Legs[legIndex].Duration)
-                    : null,
-                VisitedAt = null,
-            });
-        }
+                tsp = TravelingSalesman.SolveFixedStart(cost, startIndex: 0);
+            }
+            catch (InvalidOperationException)
+            {
+                // OSRM'in bildiği yol ağında seçilen konutları birbirine
+                // bağlayan bir yol yok (örn. kopuk bir bölge) — bu sunucu
+                // hatası değil, kullanıcı farklı konut/başlangıç seçerek
+                // çözebilir. Eskiden bu istisna hiçbir yerde yakalanmıyordu,
+                // çıplak bir 500 olarak dönüyordu.
+                return ApiProblem.RouteUnreachable();
+            }
 
-        if (!persist)
+            var orderedCoordinates = tsp.Path.Select(idx => coordinates[idx]).ToList();
+
+            // ─── OSRM tam rota: geometri + bacak adımları ───
+            var routeResult = await _osrm.GetRouteAsync(orderedCoordinates, profile, ct);
+            if (routeResult is null)
+                return ApiProblem.OsrmUnavailable();
+
+            // ─── Rota nesnesi (önizlemede de kurulur, yalnızca KAYDEDİLMEZ) ───
+            var route = new RouteEntity
+            {
+                Id = Guid.NewGuid(),
+                UserId = GetUserId(),
+                Name = string.IsNullOrWhiteSpace(request.Name) ? "Önizleme" : request.Name.Trim(),
+                ScheduledAt = persist ? request.ScheduledAt : null,
+                StartGeom = new Point(start.Lon, start.Lat) { SRID = 4326 },
+                StartLabel = start.Label,
+                Mode = mode,
+                TotalDistanceM = (int)Math.Round(routeResult.Distance),
+                TotalDurationS = (int)Math.Round(routeResult.Duration),
+                Geometry = BuildLineString(routeResult.Geometry),
+                Steps = JsonDocument.Parse(JsonSerializer.Serialize(
+                    new RouteStepsEnvelopeDto { Legs = BuildLegs(routeResult) },
+                    JsonSerializerOptions.Web)),
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            // Duraklar: path[0] başlangıçtır; path[i] (i≥1) konut indeksidir.
+            // OSRM leg[i-1] = path[i-1] → path[i] bacak (mesafe/süre durakta saklanır).
+            for (int i = 1; i < tsp.Path.Length; i++)
+            {
+                int legIndex = i - 1;
+                route.Stops.Add(new RouteStop
+                {
+                    Seq = (short)i,
+                    PropertyId = propertyIds[tsp.Path[i] - 1],
+                    ScoreSnapshot = null, // skor snapshot'ı Faz 2'de (scoring entegrasyonu)
+                    LegDistanceM = legIndex < routeResult.Legs.Count
+                        ? (int)Math.Round(routeResult.Legs[legIndex].Distance)
+                        : null,
+                    LegDurationS = legIndex < routeResult.Legs.Count
+                        ? (int)Math.Round(routeResult.Legs[legIndex].Duration)
+                        : null,
+                    VisitedAt = null,
+                });
+            }
+
+            if (!persist)
+            {
+                // Önizleme: hiçbir şey yazılmıyor. `Id` boşaltılıyor ki istemci
+                // yanlışlıkla `GET /routes/{id}` çağırmasın ya da kaydedilmiş
+                // sansın.
+                route.Id = Guid.Empty;
+                var preview = await BuildDetailAsync(route, ct);
+                preview.IsSaved = false;
+                return Ok(preview);
+            }
+
+            _context.Routes.Add(route);
+            await _context.SaveChangesAsync(ct);
+
+            var detail = await BuildDetailAsync(route, ct);
+            return CreatedAtAction(nameof(GetRoute), new { id = route.Id }, detail);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            // Önizleme: hiçbir şey yazılmıyor. `Id` boşaltılıyor ki istemci
-            // yanlışlıkla `GET /routes/{id}` çağırmasın ya da kaydedilmiş
-            // sansın.
-            route.Id = Guid.Empty;
-            var preview = await BuildDetailAsync(route, cancellationToken);
-            preview.IsSaved = false;
-            return Ok(preview);
+            // İstemci iptal ETMEDİ — kendi üst sınırımız (RequestTimeout)
+            // tetiklendi. İstemci gerçekten iptal ettiyse (sekme kapandı vb.)
+            // burada bir yanıt üretmenin anlamı yok, o durumda yeniden fırlatılır.
+            return ApiProblem.RouteTimeout();
         }
-
-        _context.Routes.Add(route);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        var detail = await BuildDetailAsync(route, cancellationToken);
-        return CreatedAtAction(nameof(GetRoute), new { id = route.Id }, detail);
     }
 
     // DELETE: /api/v1/routes/{id}
