@@ -211,14 +211,31 @@ export function ExplorePage() {
   const topNearestFallback = topResponse?.nearestFallback ?? null;
 
   const queryClient = useQueryClient();
+
+  /**
+   * `POST /routes` çift tıklama/kayıt korumasını backend `Idempotency-Key`
+   * header'ıyla yapıyor (5dk pencere, aynı anahtarla ikinci istek yeniden
+   * kaydetmez, ilk sonucu döner) — ama bu header'ı ÜRETEN taraf istemci.
+   * Her yeni önizleme (bkz. `routeMutation.onSuccess`) farklı bir rotadır,
+   * bu yüzden yeni bir anahtar alır; aynı önizlemeyi kaydetmeye yönelik
+   * art arda "Kaydet" tıklamaları aynı anahtarı paylaşır.
+   */
+  const routeIdempotencyKeyRef = useRef(crypto.randomUUID());
+
   const routeMutation = useMutation({
     mutationFn: (body: CreateRouteRequest) =>
       api.post<RouteDetail>('/routes/preview', body),
-    onSuccess: (data) => setActiveRoute(data),
+    onSuccess: (data) => {
+      routeIdempotencyKeyRef.current = crypto.randomUUID();
+      setActiveRoute(data);
+    },
   });
 
   const saveRouteMutation = useMutation({
-    mutationFn: (body: CreateRouteRequest) => api.post<RouteDetail>('/routes', body),
+    mutationFn: (body: CreateRouteRequest) =>
+      api.post<RouteDetail>('/routes', body, {
+        headers: { 'Idempotency-Key': routeIdempotencyKeyRef.current },
+      }),
     onSuccess: (data) => {
       setActiveRoute(data);
       void queryClient.invalidateQueries({ queryKey: ['routes'] });
@@ -486,10 +503,16 @@ export function ExplorePage() {
       });
       return;
     }
+    // Dar ekranda çekmece VE konut paneli aynı anda "açık" kalırsa ikisi de
+    // aynı alt-sayfa (bottom sheet) düzenini paylaştığı için üst üste biner
+    // (konut paneli üstte görünür ama çekmece DOM'da hâlâ açık kalır —
+    // klavye/screen-reader gezinmesi görünmeyen çekmeceye düşebilir).
+    if (!wideScreen) setDrawerOpen(false);
     setSelectedPropertyId(id);
   }
 
   function handleTopSelect(property: PropertySummary) {
+    if (!wideScreen) setDrawerOpen(false);
     setSelectedPropertyId(property.id);
     setMapFocus({
       id: property.id,

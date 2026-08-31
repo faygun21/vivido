@@ -75,6 +75,16 @@ public class AnchorsController : ControllerBase
             return ValidationProblem(ModelState);
         }
 
+        // RoutesController'daki başlangıç koordinatı kontrolüyle aynı desen —
+        // aksi halde sınır dışı bir değer PostGIS'te SaveChangesAsync'te
+        // patlayıp anlamsız bir INTERNAL_ERROR'a düşer ya da sessizce kabul
+        // edilip koridor/skor geometrisini bozar.
+        if (request.Lat is < -90 or > 90 || request.Lon is < -180 or > 180)
+        {
+            ModelState.AddModelError(nameof(request.Lat), "Geçerli bir koordinat girin.");
+            return ValidationProblem(ModelState);
+        }
+
         var profile = await FindProfileAsync();
         if (profile is null) return ApiProblem.ProfileNotFound();
 

@@ -86,6 +86,22 @@ public class ProfilesController : ControllerBase
          * İki değer de girilmişse minimum kira,
          * maksimum kiradan büyük olamaz.
          */
+        if (request.MinMonthlyBudget is <= 0)
+        {
+            ModelState.AddModelError(
+                nameof(request.MinMonthlyBudget),
+                "Minimum kira 0'dan büyük olmalı."
+            );
+        }
+
+        if (request.MaxMonthlyBudget is <= 0)
+        {
+            ModelState.AddModelError(
+                nameof(request.MaxMonthlyBudget),
+                "Maksimum kira 0'dan büyük olmalı."
+            );
+        }
+
         if (
             request.MinMonthlyBudget is not null &&
             request.MaxMonthlyBudget is not null &&
@@ -96,7 +112,10 @@ public class ProfilesController : ControllerBase
                 nameof(request.MinMonthlyBudget),
                 "Minimum kira, maksimum kiradan büyük olamaz."
             );
+        }
 
+        if (!ModelState.IsValid)
+        {
             return ValidationProblem(ModelState);
         }
 
