@@ -110,7 +110,8 @@ basarsoft/
 │       ├── Vivido.Application/      → Use-case handler, DTO, validation
 │       ├── Vivido.Domain/           → Entity
 │       ├── Vivido.Infrastructure/   → EF Core, OsrmClient, Redis
-│       └── Vivido.Scoring/          → ★ SAF skorlama motoru (I/O YOK)
+│       ├── Vivido.Scoring/          → ★ SAF skorlama motoru (I/O YOK)
+│       └── Vivido.RouteOptimization/→ ★ SAF TSP çözücü — Held-Karp (I/O YOK)
 ├── web/                           → React + Vite
 ├── mobile/                        → Flutter (K-08)
 ├── packages/shared/               → TS tipleri + üretilmiş API istemcisi
@@ -123,6 +124,8 @@ basarsoft/
 ```
 
 > **Değişmez kural:** `Vivido.Scoring` **hiçbir I/O yapmaz**. Girdi `ScoringInput`, çıktı `ScoreResult`. Bu sayede skorlama motoru veritabanı olmadan, milisaniyelerde, yüzlerce vaka ile test edilebilir.
+>
+> Aynı kural `Vivido.RouteOptimization` için de geçerli (2026-08-28'de `Vivido.Scoring`'ten ayrıldı — rota sıralama konut skorlamasıyla ilgisiz bir alan, aynı projede durması "SAF SKORLAMA motoru" tanımını bulanıklaştırıyordu).
 
 ### 4.3 Docker Compose servisleri
 

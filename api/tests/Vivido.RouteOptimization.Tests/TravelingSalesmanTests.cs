@@ -1,7 +1,7 @@
 using FluentAssertions;
-using Vivido.Scoring;
+using Vivido.RouteOptimization;
 
-namespace Vivido.Scoring.Tests;
+namespace Vivido.RouteOptimization.Tests;
 
 /// <summary>
 /// Held-Karp TSP çözücüsünün doğruluğu — plan dokümanı docs/01-PROJE-PLANI.md §13.3:

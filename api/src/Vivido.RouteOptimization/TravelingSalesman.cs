@@ -1,4 +1,4 @@
-namespace Vivido.Scoring;
+namespace Vivido.RouteOptimization;
 
 using System;
 
@@ -13,7 +13,12 @@ using System;
 /// tararken Held-Karp 4608 duruma iner; üstüne tek bir permütasyonu bile
 /// atlamaz — kesin optimum garantisi vardır.
 ///
-/// Vivido.Scoring "saf proje" kuralına uyar: girdi maliyet matrisi, çıktı yol — I/O yok.
+/// ⭐ NEDEN AYRI PROJE (2026-08-28): önceden `Vivido.Scoring` içindeydi —
+/// oraya "saf, I/O'suz" olma şartını paylaştığı için taşınmıştı, ama
+/// `Vivido.Scoring` planda açıkça "SAF SKORLAMA motoru" diye tanımlı
+/// (docs/01-PROJE-PLANI.md §4.2); rota sıralama konut skorlamasıyla
+/// ilgisiz bir alan. Kendi projesine ayrıldı — aynı "girdi/çıktı, I/O yok"
+/// kuralını burada, doğru isim altında sürdürüyor.
 /// </summary>
 public static class TravelingSalesman
 {
