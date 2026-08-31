@@ -12,6 +12,9 @@ namespace Vivido.Api.Controllers;
 [Authorize(Policy = "AdminOnly")]
 public class AdminController : ControllerBase
 {
+    private const int DefaultPageSize = 50;
+    private const int MaxPageSize = 200;
+
     private readonly VividoDbContext _db;
 
     public AdminController(VividoDbContext db)
@@ -21,11 +24,23 @@ public class AdminController : ControllerBase
 
     // Tüm kullanıcıları listele
     [HttpGet("users")]
-    public async Task<IActionResult> GetUsers()
+    public async Task<IActionResult> GetUsers(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = DefaultPageSize,
+        CancellationToken ct = default)
     {
-        var users = await _db.Users
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
+
+        var query = _db.Users
             .AsNoTracking()
-            .OrderByDescending(u => u.CreatedAt)
+            .OrderByDescending(u => u.CreatedAt);
+
+        var totalCount = await query.CountAsync(ct);
+
+        var users = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(u => new
             {
                 u.Id,
@@ -35,7 +50,11 @@ public class AdminController : ControllerBase
                 u.IsActive,
                 u.CreatedAt
             })
-            .ToListAsync();
+            .ToListAsync(ct);
+
+        Response.Headers["X-Total-Count"] = totalCount.ToString();
+        Response.Headers["X-Page"] = page.ToString();
+        Response.Headers["X-Page-Size"] = pageSize.ToString();
 
         return Ok(users);
     }

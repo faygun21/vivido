@@ -1,9 +1,13 @@
 using System.Net.Http.Headers;
 using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
+using Vivido.Api;
 using Vivido.Api.Services;
 using Vivido.Application.Abstractions;
 using Vivido.Application.dtos.location;
@@ -39,6 +43,14 @@ builder.Services.AddDbContext<VividoDbContext>(options =>
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddMemoryCache();
+
+// Beklenmeyen (kodun öngörmediği) hatalar için ProblemDetails üretimini
+// etkinleştirir — aşağıdaki UseExceptionHandler ile birlikte çalışır.
+builder.Services.AddProblemDetails();
+
+// Statik/nadiren değişen anonim uçlar (POI kategorileri vb.) için —
+// bkz. PoisController.GetCategories.
+builder.Services.AddResponseCaching();
 
 // Scoring
 builder.Services.AddScoped<PropertyScoringService>();
@@ -143,6 +155,21 @@ Console.WriteLine(
 
 builder.Services.AddScoped<AuthCodeService>();
 
+// ─── JWT yapılandırması ───
+//
+// ⭐ ValidateOnStart(): Jwt:Key eksik/kısa ya da Issuer/Audience boşsa
+// uygulama AÇILIRKEN çöker — eskiden bu değerler kullanım anında (ilk
+// login isteğinde) okunuyordu, yanlış yapılandırma canlıdaki ilk
+// kullanıcıyı etkiliyordu. Artık deploy başarısız olur, kullanıcı hiç
+// etkilenmez.
+builder.Services
+    .AddOptions<JwtOptions>()
+    .Bind(builder.Configuration.GetSection(JwtOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
+
 // ─── JWT DOĞRULAMA ───
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -155,13 +182,11 @@ builder.Services
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
 
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
+            ValidIssuer = jwtOptions.Issuer,
+            ValidAudience = jwtOptions.Audience,
 
             IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(
-                    builder.Configuration["Jwt:Key"]!
-                )
+                Encoding.UTF8.GetBytes(jwtOptions.Key)
             )
         };
     });
@@ -180,6 +205,40 @@ builder.Services.AddAuthorization(options =>
 // Sağlık kontrolleri
 builder.Services.AddHealthChecks()
     .AddNpgSql(connectionString!, name: "database");
+
+// ─── RATE LIMITING ───
+//
+// Öncesinde HİÇBİR uçta istek sınırı yoktu: /auth/login şifre denemesini
+// hiç kısıtlamıyordu (kaba kuvvet), [AllowAnonymous] harita/POI uçları da
+// (kimlik doğrulama istemedikleri için) sınırsız DB/PostGIS yüküne açıktı.
+// IP başına iki ayrı politika:
+//   "auth"       → /auth/* (kayıt, giriş, kod doğrulama) — dar pencere
+//   "public-map" → [AllowAnonymous] harita/POI uçları — daha geniş pencere
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    static string ClientKey(HttpContext ctx) =>
+        ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+    options.AddPolicy("auth", ctx => RateLimitPartition.GetFixedWindowLimiter(
+        ClientKey(ctx),
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+        }));
+
+    options.AddPolicy("public-map", ctx => RateLimitPartition.GetFixedWindowLimiter(
+        ClientKey(ctx),
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 120,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+        }));
+});
 
 // ─── CORS ───
 const string DevCors = "dev";
@@ -214,6 +273,35 @@ builder.Services.AddCors(o =>
 
 var app = builder.Build();
 
+// ─── Merkezi hata yönetimi ───
+//
+// Controller'lardaki try/catch + ApiProblem.* çağrıları yalnızca ÖNGÖRÜLEN
+// hataları (validasyon, "bulunamadı" vb.) kapsıyordu — öngörülmeyen HER hata
+// (bir null-ref, EF Core istisnası, hiç düşünülmemiş bir kenar durumu) çıplak,
+// açıklamasız bir 500 olarak dönüyordu. Bu son bir ağ: hiçbir controller
+// yakalamadıysa buraya düşer, detay sızdırmadan INTERNAL_ERROR döner ve tam
+// istisna loglanır.
+//
+// ⚠️ Burada istisna TİPİNE göre özel ApiProblem'lere dallanmıyoruz —
+// örn. InvalidOperationException onlarca farklı (rotayla ilgisiz) yerden de
+// gelebilir; öyle bir eşleme yanlış senaryoda yanlış hata koduna yol açardı.
+// Rotaya özgü ROUTE_UNREACHABLE, kaynağında (RoutesController) hedefli bir
+// try/catch ile üretiliyor — bkz. oradaki not.
+app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
+{
+    var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+
+    context.RequestServices
+        .GetRequiredService<ILogger<Program>>()
+        .LogError(exception, "Beklenmeyen hata: {Path}", context.Request.Path);
+
+    var problem = ApiProblem.InternalError();
+
+    context.Response.ContentType = "application/problem+json";
+    context.Response.StatusCode = problem.StatusCode!.Value;
+    await context.Response.WriteAsJsonAsync(problem.Value);
+}));
+
 // ─── Boru hattı ───
 if (app.Environment.IsDevelopment())
 {
@@ -241,6 +329,9 @@ else if (allowedOrigins.Length > 0)
 // Authentication önce, Authorization sonra
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseRateLimiter();
+app.UseResponseCaching();
 
 app.UseSerilogRequestLogging();
 

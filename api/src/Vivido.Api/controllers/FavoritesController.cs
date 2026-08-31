@@ -38,6 +38,9 @@ public class FavoritesController : ControllerBase
         return Guid.Parse(userIdStr!);
     }
 
+    private const int DefaultPageSize = 50;
+    private const int MaxPageSize = 100;
+
     // GET: /api/v1/profile/favorites
     /// <summary>
     /// Favori konutlar — kart basmaya yetecek kadar bilgiyle.
@@ -46,16 +49,31 @@ public class FavoritesController : ControllerBase
     /// yazmak zorundaydı. Artık kira, oda, adres ve skor da geliyor.
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetFavorites(CancellationToken ct = default)
+    public async Task<IActionResult> GetFavorites(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = DefaultPageSize,
+        CancellationToken ct = default)
     {
         var userId = GetUserId();
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
 
-        var favorites = await _context.FavoriteProperties
+        var query = _context.FavoriteProperties
             .AsNoTracking()
             .Where(f => f.UserId == userId)
-            .OrderByDescending(f => f.CreatedAt) // En son eklenen en üstte
+            .OrderByDescending(f => f.CreatedAt); // En son eklenen en üstte
+
+        var totalCount = await query.CountAsync(ct);
+
+        var favorites = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(f => new { f.PropertyId, f.CreatedAt })
             .ToListAsync(ct);
+
+        Response.Headers["X-Total-Count"] = totalCount.ToString();
+        Response.Headers["X-Page"] = page.ToString();
+        Response.Headers["X-Page-Size"] = pageSize.ToString();
 
         if (favorites.Count == 0)
             return Ok(Array.Empty<FavoriteResponse>());

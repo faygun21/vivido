@@ -16,8 +16,17 @@ public sealed class OsrmOptions
     /// <summary>OSRM /table üst sınırı (osrm-routed --max-table-size, varsayılan 200).</summary>
     public int MaxTableSize { get; set; } = 200;
 
-    /// <summary>OSRM istek zaman aşımı (saniye).</summary>
-    public int TimeoutSeconds { get; set; } = 30;
+    /// <summary>
+    /// OSRM istek zaman aşımı (saniye).
+    ///
+    /// Eskiden 30sn'ydi — Çankaya ölçeğinde bir /table ya da /route isteği
+    /// normalde milisaniyeler sürer; 30sn "OSRM hiç yanıt vermiyor"
+    /// durumunu çok geç fark ettiriyordu (kullanıcı "Rota Oluştur"a bastıktan
+    /// sonra donmuş gibi bekliyordu). 10sn, gerçek bir yavaşlığı normal bir
+    /// gecikmeden ayırt etmeye yetecek kadar geniş, kullanıcıyı gereksiz
+    /// bekletmeyecek kadar dar.
+    /// </summary>
+    public int TimeoutSeconds { get; set; } = 10;
 }
 
 /// <summary>Ulaşım modu → OSRM URL profili eşlemesi.</summary>

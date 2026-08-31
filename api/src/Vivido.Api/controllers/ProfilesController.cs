@@ -261,21 +261,20 @@ public class ProfilesController : ControllerBase
 
         /*
          * =========================================================================
-         * YENİ EKLENEN KISIM: Cache Invalidation (Önbellek Temizliği)
+         * Cache Invalidation (Önbellek Temizliği)
          * Kullanıcının tercihleri / sıralaması güncellendiğinde, bu profile ait
          * daha önce hesaplanmış eski mülk skoru cache'lerini siliyoruz ki
          * yeni tercihlerle yeniden hesaplama yapılabilsin.
+         *
+         * ExecuteDeleteAsync: satırları önce belleğe (ToListAsync) çekip
+         * sonra RemoveRange ile silmek yerine doğrudan tek bir SQL
+         * `DELETE ... WHERE` çalıştırır — çok skorlanmış kullanıcılarda
+         * gereksiz bellek/round-trip'i önler, sıfır satır olsa da güvenli.
          * =========================================================================
          */
-        var existingCaches = await _context.ScoreCaches
+        await _context.ScoreCaches
             .Where(sc => sc.ProfileId == profile.Id)
-            .ToListAsync();
-
-        if (existingCaches.Any())
-        {
-            _context.ScoreCaches.RemoveRange(existingCaches);
-            await _context.SaveChangesAsync();
-        }
+            .ExecuteDeleteAsync();
 
         var anchors = await _context.Anchors
             .Where(a => a.ProfileId == profile.Id)

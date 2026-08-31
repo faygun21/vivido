@@ -65,6 +65,36 @@ public static class ApiProblem
         "OSRM_UNAVAILABLE",
         "OSRM (Routing) servisine ulaşılamadı ya da yanıt vermedi. Lütfen kısa bir süre sonra yeniden deneyin.");
 
+    /// <summary>
+    /// Seçilen konutlar arasında (OSRM'in bildiği yol ağına göre) hiçbir
+    /// bağlantı yok — Held-Karp'ın <c>InvalidOperationException</c> fırlattığı
+    /// tek durum. 500 değil 422: istemcinin hatası değilse de, "farklı
+    /// konutlar seçin" ile çözülebilecek bir durum — sunucu hatası değil.
+    /// </summary>
+    public static ObjectResult RouteUnreachable() => Build(
+        422,
+        "Seçilen konutlar arasında bir rota kurulamadı",
+        "ROUTE_UNREACHABLE",
+        "Seçilen konutlardan bazılarına yol ağı üzerinden ulaşılamıyor. Farklı bir başlangıç noktası ya da konut seçimi deneyin.");
+
+    /// <summary>Rota hesaplama, sunucunun kendi üst sınırı içinde tamamlanamadı (bkz. RoutesController).</summary>
+    public static ObjectResult RouteTimeout() => Build(
+        504,
+        "Rota hesaplama zaman aşımına uğradı",
+        "ROUTE_TIMEOUT",
+        "Rota servisi beklenenden uzun sürdü. Lütfen kısa bir süre sonra yeniden deneyin.");
+
+    /// <summary>
+    /// Beklenmeyen (kodun öngörmediği) bir hata — global exception handler
+    /// tarafından kullanılır. Detay kasıtlı olarak İÇERMEZ: iç hata mesajı
+    /// (SQL, stack trace vb.) istemciye asla sızdırılmaz, yalnızca loglanır.
+    /// </summary>
+    public static ObjectResult InternalError() => Build(
+        500,
+        "Beklenmeyen bir hata oluştu",
+        "INTERNAL_ERROR",
+        "Sorun devam ederse lütfen destek ekibiyle iletişime geçin.");
+
     // ─── Kimlik doğrulama (K-09) ───
 
     public static ObjectResult EmailAlreadyExists(string email) => Build(

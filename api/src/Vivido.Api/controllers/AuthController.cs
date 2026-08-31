@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Vivido.Application.DTOs.Auth;
 using Vivido.Domain.Entities;
 using Vivido.Infrastructure.Data;
 using Vivido.Api.Services;
+using Vivido.Api.services;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -12,11 +14,14 @@ namespace Vivido.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/auth")]
+// Kaba kuvvet koruması: kayıt/giriş/kod uçları IP başına sınırlı — bkz.
+// Program.cs "auth" rate limiter policy'si.
+[EnableRateLimiting("auth")]
 public class AuthController : ControllerBase
 {
     private readonly VividoDbContext _context;
     private readonly JwtService _jwtService;
-    private readonly IConfiguration _config;
+    private readonly JwtOptions _jwtOptions;
     private readonly AuthCodeService _codes;
     private readonly AuthOptions _authOptions;
     private readonly ILogger<AuthController> _logger;
@@ -25,7 +30,7 @@ public class AuthController : ControllerBase
     public AuthController(
         VividoDbContext context,
         JwtService jwtService,
-        IConfiguration config,
+        IOptions<JwtOptions> jwtOptions,
         AuthCodeService codes,
         IOptions<AuthOptions> authOptions,
         ILogger<AuthController> logger,
@@ -33,7 +38,7 @@ public class AuthController : ControllerBase
     {
         _context = context;
         _jwtService = jwtService;
-        _config = config;
+        _jwtOptions = jwtOptions.Value;
         _codes = codes;
         _authOptions = authOptions.Value;
         _logger = logger;
@@ -509,10 +514,7 @@ public class AuthController : ControllerBase
         var rawRefreshToken =
             _jwtService.GenerateRefreshToken();
 
-        var expiresIn =
-            int.Parse(
-                _config["Jwt:AccessTokenMinutes"]!
-            ) * 60;
+        var expiresIn = _jwtOptions.AccessTokenMinutes * 60;
 
         _context.RefreshTokens.Add(
             new RefreshToken
@@ -523,11 +525,7 @@ public class AuthController : ControllerBase
                     HashToken(rawRefreshToken),
 
                 ExpiresAt =
-                    DateTime.UtcNow.AddDays(
-                        double.Parse(
-                            _config["Jwt:RefreshTokenDays"]!
-                        )
-                    )
+                    DateTime.UtcNow.AddDays(_jwtOptions.RefreshTokenDays)
             }
         );
 

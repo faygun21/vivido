@@ -1,17 +1,19 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Vivido.Api.services;
 
 namespace Vivido.Api.Services;
 
 public class JwtService
 {
-    private readonly IConfiguration _config;
+    private readonly JwtOptions _options;
 
-    public JwtService(IConfiguration config)
+    public JwtService(IOptions<JwtOptions> options)
     {
-        _config = config;
+        _options = options.Value;
     }
 
     // Kısa ömürlü Access Token üretir
@@ -19,7 +21,7 @@ public class JwtService
     {
         // .env / config içindeki gizli anahtarı okuyoruz
         var key = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(_config["Jwt:Key"]!)
+            Encoding.UTF8.GetBytes(_options.Key)
         );
 
         var creds = new SigningCredentials(
@@ -56,12 +58,10 @@ public class JwtService
         };
 
         var token = new JwtSecurityToken(
-            issuer: _config["Jwt:Issuer"],
-            audience: _config["Jwt:Audience"],
+            issuer: _options.Issuer,
+            audience: _options.Audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(
-                double.Parse(_config["Jwt:AccessTokenMinutes"]!)
-            ),
+            expires: DateTime.UtcNow.AddMinutes(_options.AccessTokenMinutes),
             signingCredentials: creds
         );
 
