@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -35,8 +36,10 @@ const _anchorCorridorSourceId = 'vivido-anchor-corridor';
 const _anchorCorridorFillLayerId = 'vivido-anchor-corridor-fill';
 const _anchorCorridorLineLayerId = 'vivido-anchor-corridor-line';
 const _routeSourceId = 'vivido-active-route';
+const _traveledRouteSourceId = 'vivido-traveled-route';
 const _routeCasingLayerId = 'vivido-route-casing';
 const _routeLineLayerId = 'vivido-route-line';
+const _traveledRouteLayerId = 'vivido-traveled-route-line';
 const _districtSourceId = 'vivido-district';
 const _districtFillLayerId = 'vivido-district-fill';
 const _districtLineLayerId = 'vivido-district-line';
@@ -88,6 +91,12 @@ class CankayaMap extends StatefulWidget {
     this.onPropertyTap,
     this.route,
     this.userLocation,
+    this.followUserLocation = false,
+    this.userBearing,
+    this.followTarget,
+    this.followBearing,
+    this.traveledUpToIndex,
+    this.onCameraFollowInterrupted,
     super.key,
   });
 
@@ -110,6 +119,12 @@ class CankayaMap extends StatefulWidget {
   /// Kullanıcının canlı konumu. null ise nokta çizilmez — konum istenmemiş
   /// ya da alınamamış demektir.
   final UserLocation? userLocation;
+  final bool followUserLocation;
+  final double? userBearing;
+  final Geographic? followTarget;
+  final double? followBearing;
+  final int? traveledUpToIndex;
+  final VoidCallback? onCameraFollowInterrupted;
 
   @override
   State<CankayaMap> createState() => _CankayaMapState();
@@ -129,12 +144,51 @@ class _CankayaMapState extends State<CankayaMap> {
         !identical(oldWidget.highlightedPois, widget.highlightedPois) ||
         !identical(oldWidget.properties, widget.properties) ||
         !identical(oldWidget.anchorCorridor, widget.anchorCorridor) ||
-        !identical(oldWidget.route, widget.route)) {
+        !identical(oldWidget.route, widget.route) ||
+        oldWidget.traveledUpToIndex != widget.traveledUpToIndex) {
       unawaited(_updateMapSources());
     }
-    if (!identical(oldWidget.route, widget.route) && widget.route != null) {
+    if (!identical(oldWidget.route, widget.route) &&
+        widget.route != null &&
+        !widget.followUserLocation &&
+        widget.followTarget == null) {
       unawaited(_fitRoute());
     }
+    final oldLocation = oldWidget.userLocation;
+    final location = widget.userLocation;
+    if (widget.followUserLocation &&
+        location != null &&
+        (oldLocation?.latitude != location.latitude ||
+            oldLocation?.longitude != location.longitude ||
+            oldWidget.userBearing != widget.userBearing)) {
+      _followUser();
+    }
+    if (widget.followTarget != null &&
+        (oldWidget.followTarget != widget.followTarget ||
+            oldWidget.followBearing != widget.followBearing)) {
+      _followUser();
+    }
+  }
+
+  void _followUser() {
+    final controller = _mapController;
+    final location = widget.userLocation;
+    final target =
+        widget.followTarget ??
+        (location == null
+            ? null
+            : Geographic(lon: location.longitude, lat: location.latitude));
+    if (controller == null || target == null) return;
+    unawaited(
+      controller.animateCamera(
+        center: target,
+        zoom: 16.5,
+        bearing: widget.followBearing ?? widget.userBearing ?? 0,
+        pitch: 45,
+        padding: const EdgeInsets.only(bottom: 90),
+        nativeDuration: const Duration(milliseconds: 900),
+      ),
+    );
   }
 
   Future<void> _updateMapSources() async {
@@ -162,6 +216,13 @@ class _CankayaMapState extends State<CankayaMap> {
         style.updateGeoJsonSource(
           id: _routeSourceId,
           data: _routeFeatureCollection(widget.route),
+        ),
+        style.updateGeoJsonSource(
+          id: _traveledRouteSourceId,
+          data: _traveledRouteFeatureCollection(
+            widget.route,
+            widget.traveledUpToIndex,
+          ),
         ),
       ]);
     } on Object {
@@ -259,14 +320,15 @@ class _CankayaMapState extends State<CankayaMap> {
       if (geojson == null) {
         final raw = await rootBundle.loadString(_districtAssetPath);
         final parsed = jsonDecode(raw) as Map<String, Object?>;
-        final features = (parsed['features'] as List<Object?>? ?? const [])
-            .whereType<Map<String, Object?>>()
-            .where((feature) {
-              final type =
-                  (feature['geometry'] as Map<String, Object?>?)?['type'];
-              return type == 'Polygon' || type == 'MultiPolygon';
-            })
-            .toList();
+        final features =
+            (parsed['features'] as List<Object?>? ?? const [])
+                .whereType<Map<String, Object?>>()
+                .where((feature) {
+                  final type =
+                      (feature['geometry'] as Map<String, Object?>?)?['type'];
+                  return type == 'Polygon' || type == 'MultiPolygon';
+                })
+                .toList();
         geojson = jsonEncode({
           'type': 'FeatureCollection',
           'features': features,
@@ -487,7 +549,9 @@ class _CankayaMapState extends State<CankayaMap> {
             lat: widget.userLocation!.latitude,
           ),
           size: const Size(26, 26),
-          child: const _UserLocationDot(),
+          child: _UserLocationMarker(
+            bearing: widget.followBearing ?? widget.userBearing,
+          ),
         ),
       for (final anchor in widget.anchors)
         Marker(
@@ -577,13 +641,23 @@ class _CankayaMapState extends State<CankayaMap> {
           onMapCreated: (controller) {
             _mapController = controller;
             _focusOnResult();
+            if (widget.followUserLocation || widget.followTarget != null) {
+              _followUser();
+            }
           },
           onStyleLoaded: (style) {
             _styleController = style;
             unawaited(_loadMapIcons());
             unawaited(_loadDistrictBoundary());
             unawaited(_updateMapSources());
-            if (widget.route != null) unawaited(_fitRoute());
+            if (widget.route != null &&
+                !widget.followUserLocation &&
+                widget.followTarget == null) {
+              unawaited(_fitRoute());
+            } else if (widget.followUserLocation ||
+                widget.followTarget != null) {
+              _followUser();
+            }
             _reportBounds();
           },
           options: MapOptions(
@@ -597,6 +671,9 @@ class _CankayaMapState extends State<CankayaMap> {
           onEvent: (event) {
             if (event is MapEventClick) {
               _handleMapClick(event);
+            } else if (event is MapEventStartMoveCamera &&
+                event.reason == CameraChangeReason.apiGesture) {
+              widget.onCameraFollowInterrupted?.call();
             } else if (event is MapEventCameraIdle) {
               _reportBounds();
             }
@@ -640,28 +717,43 @@ Feature<Polygon> _polygonFeature({
 /// Vurgu rengi (terracotta) BİLEREK kullanılmadı: o renk konut ve rota
 /// öğelerinin rengi. Kullanıcının kendi konumu bir içerik değil, bir
 /// referans noktası; ayrı bir renkte olması onu içerikten ayırıyor.
-class _UserLocationDot extends StatelessWidget {
-  const _UserLocationDot();
+class _UserLocationMarker extends StatelessWidget {
+  const _UserLocationMarker({this.bearing});
+
+  final double? bearing;
 
   @override
-  Widget build(BuildContext context) => Center(
-    child: Container(
-      width: 18,
-      height: 18,
-      decoration: BoxDecoration(
-        color: const Color(0xFF1D74F5),
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 3),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+  Widget build(BuildContext context) {
+    if (bearing != null) {
+      return Transform.rotate(
+        angle: bearing! * math.pi / 180,
+        child: const Icon(
+          Icons.navigation,
+          color: Color(0xFF1D74F5),
+          size: 26,
+          shadows: [Shadow(color: Colors.white, blurRadius: 4)],
+        ),
+      );
+    }
+    return Center(
+      child: Container(
+        width: 18,
+        height: 18,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1D74F5),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 3),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.25),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _AnchorPin extends StatelessWidget {
@@ -760,9 +852,10 @@ String _poiFeatureCollection(List<PoiMapItem> pois) => jsonEncode({
           // listesi büyüdükçe stil okunamaz hâle gelirdi. Tanımsız
           // kategorilerde bilinen bir id'ye düşüyoruz — MapLibre var
           // olmayan bir `icon-image` gördüğünde o simgeyi hiç çizmez.
-          'iconId': poiCategoryIconAssets.containsKey(poi.categoryCode)
-              ? _poiIconId(poi.categoryCode)
-              : _poiFallbackIconId,
+          'iconId':
+              poiCategoryIconAssets.containsKey(poi.categoryCode)
+                  ? _poiIconId(poi.categoryCode)
+                  : _poiFallbackIconId,
         },
         'geometry': {
           'type': 'Point',
@@ -799,6 +892,29 @@ String _routeFeatureCollection(RouteDetail? route) => jsonEncode({
       },
   ],
 });
+
+String _traveledRouteFeatureCollection(RouteDetail? route, int? endIndex) {
+  final geometry = route?.geometry ?? const <List<double>>[];
+  final safeEnd =
+      endIndex == null || geometry.isEmpty
+          ? -1
+          : endIndex.clamp(0, geometry.length - 1);
+  final traveled =
+      safeEnd < 1
+          ? const <List<double>>[]
+          : geometry.take(safeEnd + 1).toList(growable: false);
+  return jsonEncode({
+    'type': 'FeatureCollection',
+    'features': [
+      if (route != null && traveled.length >= 2)
+        {
+          'type': 'Feature',
+          'properties': {'id': '${route.id}-traveled'},
+          'geometry': {'type': 'LineString', 'coordinates': traveled},
+        },
+    ],
+  });
+}
 
 String _anchorCorridorFeatureCollection(AnchorCorridor? corridor) =>
     jsonEncode({
@@ -875,6 +991,10 @@ String get _mapStyle => jsonEncode({
       'data': {'type': 'FeatureCollection', 'features': <Object>[]},
     },
     _routeSourceId: {
+      'type': 'geojson',
+      'data': {'type': 'FeatureCollection', 'features': <Object>[]},
+    },
+    _traveledRouteSourceId: {
       'type': 'geojson',
       'data': {'type': 'FeatureCollection', 'features': <Object>[]},
     },
@@ -1013,6 +1133,13 @@ String get _mapStyle => jsonEncode({
       'source': _routeSourceId,
       'layout': {'line-cap': 'round', 'line-join': 'round'},
       'paint': {'line-color': '#2563eb', 'line-width': 5, 'line-opacity': 0.95},
+    },
+    {
+      'id': _traveledRouteLayerId,
+      'type': 'line',
+      'source': _traveledRouteSourceId,
+      'layout': {'line-cap': 'round', 'line-join': 'round'},
+      'paint': {'line-color': '#94A3B8', 'line-width': 5, 'line-opacity': 0.9},
     },
     // ── Konut kümesi ────────────────────────────────────────────────────
     // Eski hâlde daireler ÇOK BÜYÜKTÜ (16–32 px yarıçap) ve içleri boştu:

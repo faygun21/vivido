@@ -290,6 +290,29 @@ void main() {
       expect(controller.draft, hasLength(2));
     });
 
+    test('navigasyon rotasını canlı konumdan yeniden hesaplar', () async {
+      final gateway = _FakeRoutesGateway();
+      final controller = RoutesController(gateway);
+      addTearDown(controller.dispose);
+      final savedRoute = RouteDetail.fromJson(_routeDetailJson);
+
+      final navigationRoute = await controller.prepareNavigation(
+        route: savedRoute,
+        liveStart: const RouteStart(
+          latitude: 39.87,
+          longitude: 32.85,
+          label: 'Canlı konumum',
+        ),
+      );
+
+      expect(navigationRoute, isNotNull);
+      expect(gateway.previewCallCount, 1);
+      expect(gateway.previewedPropertyIds, savedRoute.propertyIds);
+      expect(gateway.previewedStart?.latitude, 39.87);
+      expect(gateway.previewedStart?.longitude, 32.85);
+      expect(controller.activeRoute, isNull);
+    });
+
     test('durak eklenince rota YENIDEN optimize edilir', () async {
       final gateway = _FakeRoutesGateway();
       final controller = RoutesController(gateway);
@@ -515,6 +538,7 @@ class _FakeRoutesGateway implements RoutesGateway {
 
   int previewCallCount = 0;
   List<int>? previewedPropertyIds;
+  RouteStart? previewedStart;
 
   @override
   Future<RouteDetail> previewRoute({
@@ -524,6 +548,7 @@ class _FakeRoutesGateway implements RoutesGateway {
   }) async {
     previewCallCount++;
     previewedPropertyIds = propertyIds;
+    previewedStart = start;
     final templateStops = _routeDetailJson['stops']! as List<Object?>;
     return RouteDetail.fromJson({
       ..._routeDetailJson,

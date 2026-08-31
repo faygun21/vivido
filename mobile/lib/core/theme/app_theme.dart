@@ -165,21 +165,24 @@ abstract final class AppTheme {
         iconTheme: WidgetStateProperty.resolveWith(
           (states) => IconThemeData(
             size: 24,
-            color: states.contains(WidgetState.selected)
-                ? AppColors.accent
-                : AppColors.inkMuted,
+            color:
+                states.contains(WidgetState.selected)
+                    ? AppColors.accent
+                    : AppColors.inkMuted,
           ),
         ),
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => TextStyle(
             fontFamily: _fontFamily,
             fontSize: 11.5,
-            fontWeight: states.contains(WidgetState.selected)
-                ? FontWeight.w600
-                : FontWeight.w500,
-            color: states.contains(WidgetState.selected)
-                ? AppColors.accent
-                : AppColors.inkMuted,
+            fontWeight:
+                states.contains(WidgetState.selected)
+                    ? FontWeight.w600
+                    : FontWeight.w500,
+            color:
+                states.contains(WidgetState.selected)
+                    ? AppColors.accent
+                    : AppColors.inkMuted,
           ),
         ),
       ),

@@ -33,11 +33,7 @@ void main() {
         const Color(0xFFE27250),
         reason: '--accent-secondary',
       );
-      expect(
-        AppColors.inputBg,
-        const Color(0xFFECEAE6),
-        reason: '--input-bg',
-      );
+      expect(AppColors.inputBg, const Color(0xFFECEAE6), reason: '--input-bg');
     });
 
     test('vurgu rengi eski yeşil tohum değerine geri dönmemiş', () {
@@ -147,9 +143,10 @@ void main() {
     test('içinde çizilebilir bir poligon var', () {
       final raw = File('assets/geo/cankaya.geojson').readAsStringSync();
       final parsed = jsonDecode(raw) as Map<String, Object?>;
-      final features = (parsed['features'] as List<Object?>)
-          .whereType<Map<String, Object?>>()
-          .toList();
+      final features =
+          (parsed['features'] as List<Object?>)
+              .whereType<Map<String, Object?>>()
+              .toList();
 
       final polygons = features.where((f) {
         final type = (f['geometry'] as Map<String, Object?>?)?['type'];

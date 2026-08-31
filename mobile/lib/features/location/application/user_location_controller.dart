@@ -108,15 +108,32 @@ class UserLocationController extends ChangeNotifier {
         return null;
       }
 
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          // Rota başlangıcı için sokak hassasiyeti yeterli. `best` istemek
-          // GPS'i uzun süre çalıştırıp pili yiyor ve kapalı alanda hiç
-          // dönmeyebiliyor.
-          accuracy: LocationAccuracy.medium,
-          timeLimit: Duration(seconds: 12),
-        ),
-      );
+      Position? position;
+      try {
+        position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            // Rota başlangıcı için sokak hassasiyeti yeterli. `best` istemek
+            // GPS'i uzun süre çalıştırıp pili yiyor ve kapalı alanda hiç
+            // dönmeyebiliyor.
+            accuracy: LocationAccuracy.medium,
+          ),
+        ).timeout(const Duration(seconds: 15));
+      } on Object {
+        // Özellikle emülatör ve kapalı alanlarda fused provider ilk konumu
+        // geç üretebilir. Kullanıcıyı gereksiz yere bloke etmemek için yalnızca
+        // yakın zamanda alınmış son konumu kabul ediyoruz; eski bir koordinat
+        // rota başlangıcı olarak kullanılmamalı.
+        final cached = await Geolocator.getLastKnownPosition();
+        final age =
+            cached == null ? null : DateTime.now().difference(cached.timestamp);
+        if (cached != null &&
+            age != null &&
+            age <= const Duration(minutes: 5)) {
+          position = cached;
+        } else {
+          rethrow;
+        }
+      }
 
       location = UserLocation(
         latitude: position.latitude,

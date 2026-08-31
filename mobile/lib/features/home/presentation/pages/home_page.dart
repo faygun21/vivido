@@ -179,6 +179,7 @@ class _HomePageState extends State<HomePage> {
                 onShowOnMainMap: () => setState(() => _selectedIndex = 0),
                 userLocation: _userLocation,
                 searchController: _searchController,
+                offline: _networkStatus.isOffline,
               ),
               _ => _ProfileView(
                 controller: widget.controller,
