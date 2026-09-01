@@ -7,15 +7,31 @@
   color: var(--ink);
 }
 
+/* Harita üstündeki diğer kontrollerle (`.map-fab`, `.top-panel-toggle`)
+   AYNI malzeme: yarı saydam + bulanık. Gölge de aynı ölçekten —
+   `0 4px 16px rgb(0 0 0 / 0.18)` sert siyahtı ve krem paletin üstünde
+   mavimsi duruyordu. */
 .location-search-form {
   display: flex;
   align-items: center;
   gap: 0.35rem;
   padding: 0.35rem;
-  border: 1px solid var(--line);
-  border-radius: 0.65rem;
-  background: var(--surface);
-  box-shadow: 0 4px 16px rgb(0 0 0 / 0.18);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  background: var(--material-thin);
+  backdrop-filter: var(--material-blur);
+  -webkit-backdrop-filter: var(--material-blur);
+  box-shadow: var(--shadow-sm), var(--material-edge);
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+
+/* Kutunun tamamı odak halkasını taşır — `input`un kendisi kenarlıksız
+   olduğu için tek tek odak göstergesi verilemiyordu. */
+.location-search-form:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring), var(--shadow-md);
 }
 
 .location-search-icon {
@@ -57,22 +73,31 @@
 .location-search-empty {
   margin: 0.35rem 0 0;
   padding: 0.55rem 0.7rem;
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
   background: var(--surface);
-  box-shadow: 0 3px 12px rgb(0 0 0 / 0.12);
-  font-size: 0.85rem;
+  box-shadow: var(--shadow-md);
+  font-size: var(--fs-sm);
+  animation: v-fade-up var(--dur-fast) var(--ease-out) backwards;
 }
 
-.location-search-error { color: #b3261e; }
+.location-search-error {
+  color: var(--bad);
+  border-left: 3px solid var(--bad);
+}
 
+/* Sonuç listesi arama kutusunun ALTINDAN açılır — `transform-origin`
+   üstte, yani geldiği yer tetikleyicisi. Merkezden büyüyen bir liste
+   hangi kutuya ait olduğunu anlatmaz. */
 .location-search-results {
   margin-top: 0.35rem;
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 0.6rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
   background: var(--surface);
-  box-shadow: 0 4px 16px rgb(0 0 0 / 0.18);
+  box-shadow: var(--shadow-lg);
+  transform-origin: top center;
+  animation: v-scale-in var(--dur-base) var(--ease-out) backwards;
 }
 
 .location-search-results ul {
@@ -83,7 +108,7 @@
   list-style: none;
 }
 
-.location-search-results li + li { border-top: 1px solid var(--line); }
+.location-search-results li + li { border-top: 1px solid var(--line-faint); }
 
 .location-search-results li button {
   display: flex;
@@ -93,11 +118,24 @@
   gap: 0.75rem;
   padding: 0.6rem;
   border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
   text-align: left;
+  transition: background-color var(--dur-fast) var(--ease-out);
 }
 
 .location-search-results li button:hover,
-.location-search-results li button.is-selected { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.location-search-results li button.is-selected {
+  background: var(--accent-soft-strong);
+}
+
+/* Klavyeyle gezilen seçenek renkten BAŞKA bir işaret de taşımalı:
+   ok tuşlarıyla listede ilerleyen kullanıcı, fareyle üstüne gelinen
+   satırla klavyeyle seçili satırı ayırt edebilmeli. */
+.location-search-results li button.is-selected {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
 .location-search-results li span { overflow: hidden; text-overflow: ellipsis; }
 .location-search-results li small { flex: none; color: var(--ink-muted); }
 
@@ -116,17 +154,10 @@
   font-size: 1rem;
 }
 
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
+/* `.sr-only` BURADAN KALDIRILDI — `index.css`'te uygulama geneli bir
+   tanımı var ve ikisi ayrışmıştı: buradaki artık kullanımdan kalkmış
+   `clip: rect(...)` kullanıyordu, ötekisi `clip-path`. Aynı sınıfın
+   iki tanımı, yükleme sırasına göre farklı davranır. */
 
 @media (max-width: 560px) {
   .location-search { width: calc(100% - 4.7rem); }

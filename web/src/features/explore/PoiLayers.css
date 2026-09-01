@@ -27,37 +27,73 @@
   margin: 0.5rem 0 0.25rem;
 }
 
-/* ─── R-110 — MapLibre popup ─── */
+/* ─── R-110 — MapLibre popup ───
+   MapLibre'ın varsayılan balonu beyaz, keskin köşeli ve sert siyah
+   gölgeli; krem paletin üstünde yabancı duruyordu. */
 
 .maplibregl-popup-content {
-  border-radius: 10px;
-  padding: 10px 12px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  border-radius: var(--r-md);
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--line-soft);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  font-family: var(--font-sans);
+  /* Balon tıklanan noktadan büyür — `transform-origin` MapLibre'ın
+     yerleşim sınıfına göre değişiyor, varsayılan (alt uç) en sık
+     kullanılan. */
+  animation: v-scale-in var(--dur-base) var(--ease-out) backwards;
 }
+
+/* Sivri uç da kenarlığı taşımalı; yoksa balon "kesilmiş" görünür. */
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: var(--surface); }
+.maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: var(--surface); }
+.maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: var(--surface); }
+.maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: var(--surface); }
+
+.maplibregl-popup-close-button {
+  padding: 0 0.35rem;
+  border: 0;
+  background: none;
+  color: var(--ink-muted);
+  font-size: 1.05rem;
+  line-height: 1.4;
+  border-radius: var(--r-xs);
+}
+
+.maplibregl-popup-close-button:hover {
+  background: var(--input-bg);
+  color: var(--ink);
+}
+
+.vivido-popup { padding-right: 0.6rem; }
 
 .vivido-popup-title {
   font-weight: 700;
-  font-size: 0.95rem;
-  margin-bottom: 2px;
+  font-size: var(--fs-sm);
+  line-height: 1.3;
+  letter-spacing: var(--ls-h3);
+  color: var(--ink);
+  margin-bottom: 0.2rem;
 }
 
 .vivido-popup-category {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.85rem;
-  margin-bottom: 2px;
+  gap: 0.4rem;
+  font-size: var(--fs-xs);
+  color: var(--ink-muted);
 }
 
 .vivido-popup-dot {
-  width: 8px;
-  height: 8px;
+  width: 0.5rem;
+  height: 0.5rem;
   border-radius: 50%;
   display: inline-block;
+  flex: none;
 }
 
 .vivido-popup-meta {
-  font-size: 0.8rem;
+  font-size: var(--fs-xs);
   color: var(--ink-muted);
 }
 

@@ -4,7 +4,49 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
     <title>Vivido — Kiralık ev bul, skorla, rotanı kur</title>
+    <meta
+      name="description"
+      content="Yaşam tarzına göre puanlanmış kiralık evleri Ankara Çankaya haritasında keşfet, gezmek istediklerini seç, en kısa ziyaret rotanı kur ve telefonunda navigasyonla gez."
+    />
+
+    <!-- Tarayıcı kabuğu (mobil adres çubuğu, PWA) uygulamanın zeminiyle
+         aynı kremi alsın; varsayılan beyaz şerit sayfanın üstünde
+         görünür bir dikiş bırakıyor. -->
+    <meta name="theme-color" content="#F9F4ED" />
+
+    <!--
+      Fontu ÖN YÜKLE.
+
+      CSS'teki `@font-face` ancak stil dosyası indirilip ayrıştırıldıktan
+      SONRA keşfedilir; o ana kadar tarayıcı fontu istemez bile. Bu iki
+      satır isteği belge ayrıştırılırken başlatır ve ilk metin boyamasını
+      bir tur öne çeker.
+
+      Yalnızca `latin` + 400/600: ilk ekranda (giriş formu) yazan her şey
+      bu ikisinden çiziliyor. Diğer altı dosya `@font-face` üzerinden
+      ihtiyaç anında iner — hepsini ön yüklemek bant genişliğini asıl
+      önemli isteklerden çalardı.
+
+      `crossorigin` ZORUNLU: font istekleri aynı kaynaktan bile olsa CORS
+      kipinde yapılır, bayrak olmadan tarayıcı ön yüklemeyi kullanamaz ve
+      dosyayı İKİ KEZ indirir.
+    -->
+    <link
+      rel="preload"
+      href="/fonts/poppins-latin-400.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fonts/poppins-latin-600.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
   </head>
   <body>
     <div id="root"></div>

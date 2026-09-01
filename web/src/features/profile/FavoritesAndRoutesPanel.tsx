@@ -43,18 +43,44 @@ export function FavoritesPanel() {
     <div className="info-card">
       <h2>Favori Konutlarım</h2>
       {isLoading ? (
-        <p className="muted">Favoriler yükleniyor…</p>
+        /*
+          Düz "Favoriler yükleniyor…" metni yerine kart iskeleti.
+
+          Metin, gelecek içeriğin ŞEKLİ hakkında hiçbir şey söylemez;
+          liste dolunca sayfa aniden zıplar. İskelet, gelecek satırların
+          yerini şimdiden ayırır — yükleme bitince yerleşim oynamaz ve
+          bekleme daha kısa hissedilir.
+        */
+        <ul className="favorite-list" aria-busy="true" aria-label="Favoriler yükleniyor">
+          {[0, 1, 2].map((row) => (
+            <li key={row} className="favorite-card favorite-card--skeleton" aria-hidden="true">
+              <span className="skeleton favorite-skeleton-score" />
+              <span className="favorite-skeleton-body">
+                <span className="skeleton favorite-skeleton-line" />
+                <span className="skeleton favorite-skeleton-line favorite-skeleton-line--short" />
+                <span className="skeleton favorite-skeleton-line favorite-skeleton-line--tiny" />
+              </span>
+            </li>
+          ))}
+        </ul>
       ) : favorites?.length ? (
-        <ul className="favorite-list">
+        <ul className="favorite-list anim-stagger">
           {favorites.map((favorite) => (
             <FavoriteCard key={favorite.propertyId} favorite={favorite} />
           ))}
         </ul>
       ) : (
-        <p className="muted">
-          Henüz favori konut yok. <Link to="/explore">Keşfet</Link> ekranındaki{' '}
-          <strong>En uygun evler</strong> listesinden kalp simgesine basarak ekleyebilirsin.
-        </p>
+        /* Boş durum bir HATA DEĞİL: ne olduğunu, neden olduğunu ve
+           çıkış yolunu birlikte söylüyor. Düz gri bir cümle "burada
+           bir şey ters gitti" gibi okunuyordu. */
+        <div className="empty-state">
+          <span className="empty-state-icon" aria-hidden="true">♡</span>
+          <p className="empty-state-title">Henüz favori konut yok</p>
+          <p className="empty-state-text">
+            <Link to="/explore">Keşfet</Link> ekranındaki <strong>En uygun evler</strong>{' '}
+            listesinden kalp simgesine basarak eklemeye başlayabilirsin.
+          </p>
+        </div>
       )}
     </div>
   );
@@ -110,17 +136,30 @@ export function RoutesPanel() {
   }
 
   return (
-    <section className="panel-container">
-      <div className="info-card">
-        <h2>Kayıtlı Rotalarım</h2>
-        <p className="muted">
-          Bir rotaya tıklayınca haritada çizgi, numaralı duraklar ve metrikler açılır.
-        </p>
+    <article className="pcard">
+      <header className="pcard-head">
+        <span className="pcard-icon" aria-hidden="true">🗺</span>
+        <div className="pcard-head-text">
+          <h2>Kayıtlı Rotalarım</h2>
+          <p>Bir rotaya tıklayınca haritada çizgi, numaralı duraklar ve metrikler açılır.</p>
+        </div>
 
+        {routes && routes.length > 0 && (
+          <span className="pcard-count">{routes.length}</span>
+        )}
+      </header>
+
+      <div className="pcard-body">
         {isRoutesLoading ? (
-          <p className="muted">Rotalar yükleniyor…</p>
+          <ul className="item-list" aria-busy="true" aria-label="Rotalar yükleniyor">
+            {[0, 1].map((row) => (
+              <li key={row} className="saved-route-item" aria-hidden="true">
+                <span className="skeleton favorite-skeleton-line" />
+              </li>
+            ))}
+          </ul>
         ) : routes?.length ? (
-          <ul className="item-list">
+          <ul className="item-list anim-stagger">
             {routes.map((route) => {
               const loading = loadingRouteId === route.id;
               const deleting = deletingRouteId === route.id;
@@ -193,7 +232,14 @@ export function RoutesPanel() {
             })}
           </ul>
         ) : (
-          <p className="muted">Henüz oluşturulmuş bir rota yok.</p>
+          <div className="empty-state">
+            <span className="empty-state-icon" aria-hidden="true">🗺</span>
+            <p className="empty-state-title">Henüz oluşturulmuş bir rota yok</p>
+            <p className="empty-state-text">
+              <Link to="/explore">Keşfet</Link> ekranından 2–8 ev seçip{' '}
+              <strong>Rota Oluştur</strong> ile en kısa ziyaret sıranı planlayabilirsin.
+            </p>
+          </div>
         )}
 
         {openError && (
@@ -202,7 +248,7 @@ export function RoutesPanel() {
           </p>
         )}
       </div>
-    </section>
+    </article>
   );
 }
 

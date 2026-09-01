@@ -719,26 +719,78 @@ function toPoiFeatureCollection(pois: Poi[], categoryNames?: Record<string, stri
   };
 }
 
+/**
+ * POI tıklaması alınan TÜM katmanlar.
+ *
+ * ⚠️ Eskiden yalnızca `poi-nokta` bağlıydı ve bu üç ayrı arıza üretiyordu:
+ *
+ * 1. `poi-nokta`nın `minzoom`u 14.5, `poi-daire`ninki 13. Aradaki
+ *    yakınlaştırma bandında renkli daireler GÖRÜNÜYOR ama tıklanacak
+ *    sembol katmanı henüz çizilmiyordu — kullanıcı POI'ye basıyor,
+ *    hiçbir şey olmuyordu.
+ *
+ * 2. Ev seçilince beliren "güçlü yön" POI'lerine (`poi-vurgu-*`) hiç
+ *    tıklama bağlanmamıştı. Oysa kullanıcının bir POI'nin adını en çok
+ *    merak ettiği an tam olarak bu: "bu ev markete 4 dk" deniyor,
+ *    "hangi market?" sorusunun cevabı haritada duruyor ama açılmıyordu.
+ *
+ * 3. Sembolün tıklama alanı ikonun kendisi kadar (icon-size 0.3 ≈ 15px);
+ *    dairenin kenarına basmak ıskalıyordu. Daire katmanı hem daha büyük
+ *    hem daha erken çiziliyor — asıl hedef o olmalı.
+ *
+ * Sıra ÖNEMLİ: `queryRenderedFeatures` üstteki katmanı önce döndürsün
+ * diye vurgu katmanları başta.
+ */
+const POI_CLICK_LAYERS = [
+  'poi-vurgu-ikon',
+  'poi-vurgu-daire',
+  'poi-nokta',
+  'poi-daire',
+] as const;
+
 function wirePoiInteractions(
   map: MapLibreMap,
   categoryNames: { current: Record<string, string> },
 ): void {
-  map.on('mouseenter', 'poi-nokta', () => { map.getCanvas().style.cursor = 'pointer'; });
-  map.on('mouseleave', 'poi-nokta', () => { map.getCanvas().style.cursor = ''; });
+  for (const layerId of POI_CLICK_LAYERS) {
+    map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = ''; });
+  }
 
-  map.on('click', 'poi-nokta', (e) => {
-    const feature = e.features?.[0];
-    if (!feature || !map) return;
+  // Tek bir genel tıklama: katman başına ayrı dinleyici bağlansaydı,
+  // üst üste binen daire + ikon katmanları aynı POI için İKİ popup
+  // açardı.
+  map.on('click', (e) => {
+    const hits = map.queryRenderedFeatures(e.point, {
+      layers: POI_CLICK_LAYERS.filter((id) => map.getLayer(id)),
+    });
+
+    const feature = hits[0];
+    if (!feature) return;
+
     const props = feature.properties as Record<string, unknown>;
-    const name = typeof props.name === 'string' && props.name ? props.name : 'İsimsiz hizmet noktası';
     const categoryCode = String(props.category ?? '');
     const categoryName = categoryNames.current[categoryCode] ?? categoryCode;
+
+    // POI'lerin ~%32'sinin OSM'de adı yok. Eskiden hepsine "İsimsiz
+    // hizmet noktası" yazılıyordu — kullanıcıya hiçbir şey söylemeyen,
+    // üstelik hata gibi okunan bir metin. Adı yoksa kategori adı başlık
+    // olur ("Market"), alt satır da adres yerine konumu anlatır.
+    const rawName = typeof props.name === 'string' ? props.name.trim() : '';
+    const hasName = rawName !== '';
+
     const coordinates = (feature.geometry as { coordinates?: [number, number] }).coordinates;
     if (!coordinates) return;
 
-    new Popup({ offset: 18, closeButton: false })
+    new Popup({ offset: 18, closeButton: true, maxWidth: '260px' })
       .setLngLat(coordinates)
-      .setHTML(poiPopupHtml(name, categoryName, categoryCode))
+      .setHTML(
+        poiPopupHtml(
+          hasName ? rawName : categoryName,
+          hasName ? categoryName : 'Bu noktanın haritada kayıtlı adı yok',
+          categoryCode,
+        ),
+      )
       .addTo(map);
   });
 }
@@ -930,9 +982,19 @@ export function CankayaMap({
 
         map.on('click', (e) => {
           if (!map) return;
-          const hits = map.queryRenderedFeatures(e.point, {
-            layers: ['poi-nokta', 'konut-kumeleri', 'konut-noktalar-arkaplan', 'konut-noktalar'],
-          });
+          // ⚠️ Bu liste POI katmanlarının TAMAMINI içermeli. Eskiden
+          // yalnızca `poi-nokta` vardı; bir POI dairesine basmak "boş
+          // haritaya tıklandı" sayılıyor ve nokta seçme kipinde
+          // kullanıcının tam olarak bir POI'nin üstüne anchor pini
+          // bırakmasına yol açıyordu.
+          const interactive = [
+            ...POI_CLICK_LAYERS,
+            'konut-kumeleri',
+            'konut-noktalar-arkaplan',
+            'konut-noktalar',
+          ].filter((id) => map?.getLayer(id));
+
+          const hits = map.queryRenderedFeatures(e.point, { layers: interactive });
           if (hits.length > 0) return;
 
           clickHandlerRef.current?.({ lat: e.lngLat.lat, lon: e.lngLat.lng });
