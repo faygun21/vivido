@@ -26,6 +26,7 @@ import { AnchorPanel } from '@/features/anchors/AnchorPanel';
 import { BudgetInput } from './ui/BudgetInput';
 import { ApiError, api } from '@/shared/api/client';
 import { useSessionQuery } from '@/shared/api/sessionQuery';
+import { personaVisual } from '@/shared/persona/personaVisuals';
 
 import type {
   Persona,
@@ -45,25 +46,9 @@ const CATEGORY_LABELS: Record<string, string> = {
   health: 'ASM / hastane',
 };
 
-// API'den gelen persona kodlarına göre lokal SVG ikonlarını eşleştiriyoruz
-const PERSONA_UI_DATA: Record<string, { mainIcon: string; subIcons: string[] }> = {
-  student: {
-    mainIcon: '/kep.svg',
-    subIcons: ['/bus.svg', '/school.svg', '/cafe.svg'],
-  },
-  remote_worker: {
-    mainIcon: '/pc.svg',
-    subIcons: ['/cafe.svg', '/sport_kahve.svg', '/park.svg'],
-  },
-  family_kids: {
-    mainIcon: '/family.svg',
-    subIcons: ['/school.svg', '/avm.svg', '/park.svg'],
-  },
-  elderly: {
-    mainIcon: '/glasses.svg',
-    subIcons: ['/hastane.svg', '/avm.svg', '/park.svg'],
-  },
-};
+/* Persona ikonları `@/shared/persona/personaVisuals`'ta — bu tablo
+   burada, `LifestyleSelection`'da ve (eksik olduğu için) profil
+   sayfasında olmak üzere üç ayrı yerde tutuluyordu. */
 
 export function OnboardingPage() {
   const navigate = useNavigate();
@@ -210,108 +195,122 @@ export function OnboardingPage() {
     !selectedPersona || 
     budgetRangeIsInvalid;
 
-  return (
-    <div style={{
-      backgroundColor: '#FDFBF7',
-      minHeight: '100vh',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      color: '#2a2825',
-      paddingBottom: '80px'
-    }}>
-      <div style={{ 
-        maxWidth: '800px', 
-        margin: '0 auto', 
-        padding: '60px 24px 24px' 
-      }}>
-        
-        {/* ÜST BAŞLIK */}
-        <div style={{ marginBottom: '56px' }}>
-          <h1 style={{ fontSize: '2.8rem', fontFamily: '"Playfair Display", serif', fontWeight: 'bold', color: '#1c1917', marginBottom: '12px' }}>
-            Profil
-          </h1>
-        </div>
+  /*
+    Bu sayfa baştan sona satır içi `style` nesneleriyle yazılmıştı ve
+    uygulamanın ÜÇÜNCÜ paletini taşıyordu:
 
-        {/* 1. PROFIL BİLGİLERİ */}
-        <section style={{ marginBottom: '56px' }}>
-          <h2 style={{ fontSize: '1.4rem', fontFamily: '"Playfair Display", serif', color: '#3d3832', fontWeight: 600, marginBottom: '20px' }}>
-            1. Profil Bilgileri
+    - Vurgu `#c86f38`. Token `--accent: #C0421D`, sihirbaz `#C26927`.
+      Aynı üründe üç ayrı "marka turuncusu" vardı; kullanıcı Profil'e
+      girip çıkarken rengin değiştiğini görüyordu.
+    - Başlıklar `"Playfair Display", serif` — bu font Poppins gibi
+      HİÇ YÜKLENMİYORDU, tarayıcı sessizce genel bir serif'e düşüyordu
+      (Windows'ta Times New Roman). Yani "zarif serif başlık" niyeti
+      hiçbir makinede görünmedi.
+    - Kabuk `fontFamily: 'system-ui'` diyerek Poppins'i ayrıca eziyordu.
+
+    Hepsi token'lara taşındı; yapı ve davranış aynı kaldı.
+  */
+  return (
+    <div className="profile-edit">
+      <div className="profile-edit-inner">
+        <header className="profile-edit-head">
+          <h1>Profil</h1>
+          <p className="muted">
+            Seçimlerin skorlamayı doğrudan etkiler — değiştirdiğinde konut
+            sıralaman yeniden hesaplanır.
+          </p>
+        </header>
+
+        {/* 1. PROFİL BİLGİLERİ */}
+        <section className="profile-section">
+          <h2 className="profile-section-title">
+            <span className="profile-section-num">1</span>
+            Profil Bilgileri
           </h2>
           <div className="wizard-two-col">
-            <div>
-              <label htmlFor="firstName" style={{ display: 'block', marginBottom: '8px', fontWeight: 500, fontSize: '14px', color: '#57534e' }}>Ad</label>
+            <div className="field">
+              <label className="profile-label" htmlFor="firstName">Ad</label>
               <input
                 id="firstName"
                 type="text"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 placeholder="Adınız"
-                style={{ width: '100%', padding: '14px', border: '1px solid #d6d3d1', borderRadius: '12px', fontSize: '16px', backgroundColor: '#fff', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
               />
             </div>
-            <div>
-              <label htmlFor="lastName" style={{ display: 'block', marginBottom: '8px', fontWeight: 500, fontSize: '14px', color: '#57534e' }}>Soyad</label>
+            <div className="field">
+              <label className="profile-label" htmlFor="lastName">Soyad</label>
               <input
                 id="lastName"
                 type="text"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 placeholder="Soyadınız"
-                style={{ width: '100%', padding: '14px', border: '1px solid #d6d3d1', borderRadius: '12px', fontSize: '16px', backgroundColor: '#fff', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
               />
             </div>
           </div>
         </section>
 
         {/* 2. YAŞAM TARZI (PERSONA) */}
-        <section style={{ marginBottom: '56px' }}>
-          <h2 style={{ fontSize: '1.4rem', fontFamily: '"Playfair Display", serif', color: '#3d3832', fontWeight: 600, marginBottom: '20px' }}>
-            2. Yaşam tarzına en uygun profili seç
+        <section className="profile-section">
+          <h2 className="profile-section-title">
+            <span className="profile-section-num">2</span>
+            Yaşam tarzına en uygun profili seç
           </h2>
-          
+
           {personasLoading ? (
-            <p style={{ color: '#7a736a' }}>Profiller yükleniyor...</p>
+            <div className="wizard-persona-grid" aria-busy="true" aria-label="Profiller yükleniyor">
+              {[0, 1, 2, 3].map((row) => (
+                <div key={row} className="skeleton persona-skeleton" aria-hidden="true" />
+              ))}
+            </div>
           ) : (
-            <div className="wizard-persona-grid" style={{ gap: '20px' }}>
+            <div
+              className="wizard-persona-grid wizard-persona-grid--roomy anim-stagger"
+              role="radiogroup"
+              aria-label="Yaşam tarzı profili"
+            >
               {personas.map((persona) => {
                 const isSelected = selectedPersona === persona.code;
-                const uiData = PERSONA_UI_DATA[persona.code] || PERSONA_UI_DATA['student'];
+                const uiData = personaVisual(persona.code);
                 return (
-                  <div
+                  /* `<div onClick>` DEĞİL `<button role="radio">`:
+                     kartlar klavyeyle seçilemiyor, Tab sırasına hiç
+                     girmiyordu. */
+                  <button
                     key={persona.code}
+                    type="button"
+                    role="radio"
+                    aria-checked={isSelected}
                     onClick={() => {
                       setSelectedPersona(persona.code as PersonaCode);
                       setShouldScrollToCriteria(true);
                     }}
-                    style={{
-                      position: 'relative', padding: '24px', borderRadius: '16px', cursor: 'pointer',
-                      transition: 'all 0.2s ease', border: isSelected ? '2px solid #c86f38' : '1px solid #e7e5e4',
-                      backgroundColor: isSelected ? '#FAF6F0' : '#F7F4EE',
-                      boxShadow: isSelected ? '0 4px 12px rgba(200, 111, 56, 0.08)' : 'none',
-                      display: 'flex', flexDirection: 'column',
-                    }}
+                    className={`wizard-persona wizard-persona--stacked${
+                      isSelected ? ' is-selected' : ''
+                    }`}
                   >
                     {isSelected && (
-                      <div style={{ position: 'absolute', top: '16px', right: '16px', width: '24px', height: '24px', backgroundColor: '#c86f38', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
-                        <Check size={14} strokeWidth={3} />
-                      </div>
+                      <span className="wizard-persona-check" aria-hidden="true">
+                        <Check strokeWidth={3} />
+                      </span>
                     )}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
-                      <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: isSelected ? '#EBDAD0' : '#EAE6DF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <img src={uiData.mainIcon} alt={persona.displayNameTr} style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
-                      </div>
-                      <h3 style={{ fontFamily: '"Playfair Display", serif', fontWeight: 'bold', fontSize: '1.2rem', margin: 0, color: isSelected ? '#c86f38' : '#2a2825' }}>
-                        {persona.displayNameTr}
-                      </h3>
-                    </div>
-                    <p style={{ color: '#57534e', fontSize: '14px', lineHeight: '1.5', margin: '0 0 24px 0', paddingBottom: '20px', borderBottom: '1px solid rgba(0,0,0,0.06)', flex: 1 }}>
-                      {persona.descriptionTr}
-                    </p>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      {uiData.subIcons.map((subIcon, idx) => (
-                        <img key={idx} src={subIcon} alt="sub-icon" style={{ width: '18px', height: '18px', objectFit: 'contain', opacity: 0.6 }} />
+
+                    <span className="persona-stacked-head">
+                      <span className="wizard-persona-icon">
+                        <img src={uiData.mainIcon} alt="" />
+                      </span>
+                      <span className="wizard-persona-title">{persona.displayNameTr}</span>
+                    </span>
+
+                    <span className="persona-stacked-desc">{persona.descriptionTr}</span>
+
+                    <span className="wizard-persona-subicons" aria-hidden="true">
+                      {uiData.subIcons.map((subIcon) => (
+                        <img key={subIcon} src={subIcon} alt="" />
                       ))}
-                    </div>
-                  </div>
+                    </span>
+                  </button>
                 );
               })}
             </div>
@@ -320,17 +319,19 @@ export function OnboardingPage() {
 
         {/* 3. YAŞAM KRİTERLERİ */}
         {selectedPersona && categoryWeights.length > 0 && (
-          <section ref={criteriaSectionRef} style={{ marginBottom: '56px', scrollMarginTop: '40px' }}>
-            <h2 style={{ fontSize: '1.4rem', fontFamily: '"Playfair Display", serif', color: '#3d3832', fontWeight: 600, marginBottom: '8px' }}>
-              3. Yaşam Kriterleri ve Önem Sırası
+          <section ref={criteriaSectionRef} className="profile-section profile-section--anchor">
+            <h2 className="profile-section-title">
+              <span className="profile-section-num">3</span>
+              Yaşam Kriterleri ve Önem Sırası
             </h2>
-            <p style={{ color: '#7a736a', fontSize: '15px', marginBottom: '24px' }}>
-              Seçtiğin profile göre başlangıç sırası otomatik getirildi. Kriterleri sürükleyerek senin için en önemli olanı en üste taşı.
+            <p className="profile-section-desc">
+              Seçtiğin profile göre başlangıç sırası otomatik getirildi. Kriterleri
+              sürükleyerek senin için en önemli olanı en üste taşı.
             </p>
 
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleCriteriaDragEnd}>
               <SortableContext items={categoryWeights.map((item) => item.categoryCode)} strategy={verticalListSortingStrategy}>
-                <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '12px', maxWidth: '600px' }}>
+                <ol className="pref-list pref-list--wide">
                   {categoryWeights.map((item, index) => (
                     <SortableCriterion key={item.categoryCode} item={item} index={index} />
                   ))}
@@ -341,14 +342,15 @@ export function OnboardingPage() {
         )}
 
         {/* 4. BÜTÇE */}
-        <section style={{ marginBottom: '56px' }}>
-          <h2 style={{ fontSize: '1.4rem', fontFamily: '"Playfair Display", serif', color: '#3d3832', fontWeight: 600, marginBottom: '20px' }}>
-            {selectedPersona ? '4.' : '3.'} Aylık kira bütçen nedir?
+        <section className="profile-section">
+          <h2 className="profile-section-title">
+            <span className="profile-section-num">{selectedPersona ? '4' : '3'}</span>
+            Aylık kira bütçen nedir?
           </h2>
           {/* Tek çocuklu bir `1fr 1fr` grid, `BudgetInput`'u yarım genişlikte
               sıkıştırıyordu (2. sütun hep boş kalıyordu) — kaldırıldı;
               `BudgetInput` zaten kendi iki alanını içeride yönetiyor. */}
-          <div style={{ maxWidth: '500px' }}>
+          <div className="profile-budget">
             <BudgetInput
               minValue={minMonthlyBudget}
               maxValue={maxMonthlyBudget}
@@ -357,48 +359,44 @@ export function OnboardingPage() {
             />
           </div>
           {budgetRangeIsInvalid && (
-            <p style={{ color: '#b91c1c', marginTop: '12px', fontSize: '14px', fontWeight: 500 }}>
+            <p className="profile-inline-error" role="alert">
               Minimum kira, maksimum kiradan büyük olamaz.
             </p>
           )}
         </section>
 
         {/* 5. ANCHOR (ÖNEMLİ KONUMLAR) */}
-        <section style={{ marginBottom: '56px' }}>
-          <h2 style={{ fontSize: '1.4rem', fontFamily: '"Playfair Display", serif', color: '#3d3832', fontWeight: 600, marginBottom: '8px' }}>
-            {selectedPersona ? '5.' : '4.'} Önemli Konumlar (Anchor)
+        <section className="profile-section">
+          <h2 className="profile-section-title">
+            <span className="profile-section-num">{selectedPersona ? '5' : '4'}</span>
+            Önemli Konumlar (Anchor)
           </h2>
-          <p style={{ color: '#7a736a', fontSize: '15px', marginBottom: '24px' }}>
-            Sana yakın olmasını istediğin spesifik yerleri (iş yeri, okul vb.) ekleyebilirsin.
+          <p className="profile-section-desc">
+            Sana yakın olmasını istediğin spesifik yerleri (iş yeri, okul vb.)
+            ekleyebilirsin.
           </p>
           <AnchorPanel />
         </section>
 
-        {/* ALT KAYDET BUTONU */}
-        <div style={{ borderTop: '1px solid #e7e5e4', paddingTop: '32px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '12px' }}>
+        {/* KAYDET — sayfanın altına YAPIŞIK.
+            Sayfa beş bölüm uzunluğunda; kullanıcı kriterleri sürükledikten
+            sonra kaydetmek için en alta inmek zorundaydı ve "kaydettim mi"
+            sorusu ekranda hiçbir yerde cevaplanmıyordu. */}
+        <div className="profile-save-bar">
           {error && (
-            <p style={{ color: '#b91c1c', fontSize: '14px', margin: 0, fontWeight: 500 }}>{error}</p>
+            <p className="profile-inline-error" role="alert">
+              {error}
+            </p>
           )}
           <button
+            type="button"
+            className="btn-primary profile-save"
             onClick={() => mutation.mutate()}
             disabled={formIsInvalid || mutation.isPending}
-            style={{
-              padding: '16px 40px',
-              backgroundColor: formIsInvalid || mutation.isPending ? '#d6d3d1' : '#c86f38',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '12px',
-              fontSize: '16px',
-              fontWeight: '600',
-              cursor: formIsInvalid || mutation.isPending ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s ease',
-              boxShadow: formIsInvalid ? 'none' : '0 4px 12px rgba(200, 111, 56, 0.2)'
-            }}
           >
-            {mutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}
+            {mutation.isPending ? 'Kaydediliyor…' : 'Kaydet'}
           </button>
         </div>
-
       </div>
     </div>
   );
@@ -415,23 +413,20 @@ function SortableCriterion({ item, index }: { item: PersonaCategoryWeight; index
       ref={setNodeRef}
       {...attributes}
       {...listeners}
+      className={`pref-item${isDragging ? ' is-dragging' : ''}`}
+      // Yalnızca dnd-kit'in her karede ürettiği iki değer satır içi kalıyor.
       style={{
-        display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 20px',
-        backgroundColor: '#fff', border: '1px solid #e7e5e4', borderRadius: '12px',
-        boxShadow: isDragging ? '0 8px 16px rgba(200, 111, 56, 0.15)' : '0 2px 4px rgba(0,0,0,0.02)',
-        opacity: isDragging ? 0.9 : 1,
-        transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${isDragging ? 1.02 : 1})` : undefined,
-        transition: transition || 'box-shadow 0.2s, transform 0.2s',
-        cursor: isDragging ? 'grabbing' : 'grab', userSelect: 'none', zIndex: isDragging ? 10 : 1
+        transform: transform
+          ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
+          : undefined,
+        transition,
       }}
     >
-      <GripVertical size={20} color="#a8a29e" />
-      <strong style={{ minWidth: '24px', fontSize: '15px', color: '#c86f38' }}>{index + 1}.</strong>
-      <div style={{ flex: 1 }}>
-        <strong style={{ fontWeight: 500, fontSize: '15px', color: '#44403c' }}>
-          {CATEGORY_LABELS[item.categoryCode] ?? item.categoryCode}
-        </strong>
-      </div>
+      <span className="pref-rank" aria-hidden="true">{index + 1}</span>
+      <GripVertical className="pref-grip" aria-hidden="true" />
+      <span className="pref-title">
+        {CATEGORY_LABELS[item.categoryCode] ?? item.categoryCode}
+      </span>
     </li>
   );
 }

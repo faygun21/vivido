@@ -1,49 +1,123 @@
-:root {
-  --bg: #F9F4ED;
-  --surface: #FFFFFF;
-  --ink: #333333;
-  --ink-muted: #737373;
-  --line: #A79D93;
-  --accent: #C0421D;
-  --accent-secondary: #E27250;
-  --accent-ink: #FFFFFF;
-  --input-bg: #ECEAE6;
-
-  --header-h: 3.75rem;
-  --footer-h: 2.75rem;
-
-  --shadow-sm: 0 1px 2px rgb(51 51 51 / 0.06), 0 1px 3px rgb(51 51 51 / 0.08);
-  --shadow-md: 0 4px 14px rgb(51 51 51 / 0.10);
-  --shadow-lg: 0 10px 34px rgb(51 51 51 / 0.16);
-
-  font-family: "Poppins", system-ui, -apple-system, sans-serif;
-  line-height: 1.6;
-  color: var(--ink);
-  background: var(--bg);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #F9F4ED;
-    --surface: #FFFFFF;
-    --ink: #333333;
-    --ink-muted: #737373;
-    --line: #A79D93;
-    --accent: #C0421D;
-    --accent-secondary: #E27250;
-    --accent-ink: #FFFFFF;
-    --input-bg: #ECEAE6;
-  }
-}
+/* Sıra önemli: `@import` her zaman en üstte olmalı, yoksa tarayıcı
+   yok sayar. fonts → tokens → motion; her katman bir öncekine dayanır. */
+@import './styles/fonts.css';
+@import './styles/tokens.css';
+@import './styles/motion.css';
 
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
   min-height: 100vh;
+  font-size: var(--fs-body);
+  letter-spacing: var(--ls-body);
+  /* ⚠️ Burada `overflow-x: hidden` YOK ve olmamalı. Taşan içeriği
+     kırpmak cazip görünüyor ama `body`ye overflow vermek onu bir
+     kaydırma kabı yapar ve `.app-header`ın `position: sticky`si
+     viewport yerine ona göre hesaplanır — başlık yapışmayı bırakır.
+     Taşan içerik KENDİ kabında kaymalı (bkz. `.admin-table-wrap`). */
 }
 
-a { color: var(--accent); }
+/* ── Başlık ölçeği ──
+   Tracking ve leading boyutla birlikte değişir: 32px'lik bir başlıkta
+   doğru görünen harf aralığı 14px'lik gövde metninde çok sıkı,
+   11px'lik bir etikette okunamaz olur. Tek `letter-spacing` değeri
+   bir yerde mutlaka yanlıştır. */
+h1, h2, h3, h4 {
+  font-weight: 700;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: var(--fs-h1);
+  line-height: var(--lh-h1);
+  letter-spacing: var(--ls-h1);
+}
+
+h2 {
+  font-size: var(--fs-h2);
+  line-height: var(--lh-h2);
+  letter-spacing: var(--ls-h2);
+}
+
+h3 {
+  font-size: var(--fs-h3);
+  line-height: var(--lh-h3);
+  letter-spacing: var(--ls-h3);
+}
+
+/* Paragraf uzunluğu okunabilirliğin yarısıdır: 75 karakterden uzun
+   satırlarda göz bir sonraki satırın başını kaybeder. */
+p { text-wrap: pretty; }
+
+a {
+  color: var(--accent);
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+/* ── Odak halkası — TEK kaynak ──
+   Eskiden `.field input` kendi `box-shadow`unu, `.login-input` sadece
+   `border-color` değişimini kullanıyordu, düğmelerin hiçbirinde odak
+   göstergesi YOKTU. Klavyeyle gezen kullanıcı ekranda kayboluyordu.
+
+   `:focus-visible` (`:focus` değil): fareyle tıklanan düğme halka
+   göstermez, Tab'la gelinen gösterir. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+
+/* ── Basma geri bildirimi — genel ──
+   Projedeki hiçbir düğmede `:active` yoktu; dokunmatik ekranda
+   `:hover` çalışmadığı için basma anında EKRANDA HİÇBİR ŞEY OLMUYORDU.
+   `:where()` sıfır özgüllük taşır, bileşenlerin kendi kuralları bunu
+   tek satırla ezebilir. */
+:where(button, [role='button'], .cta, .btn-secondary):not(:disabled) {
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+
+:where(button, [role='button'], .cta, .btn-secondary):not(:disabled):active {
+  transform: scale(0.97);
+  transition-duration: var(--dur-instant);
+}
+
+/* Dokunmatikte gri vurgu dikdörtgeni yuvarlak köşeleri bozar; kendi
+   `:active` durumumuz zaten daha iyi bir geri bildirim veriyor. */
+button, a, [role='button'] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* Kaydırma çubuğu — krem zemine oturan ince, nötr bir çubuk.
+   Tarayıcı varsayılanı (parlak beyaz + mavi-gri) paletin dışında. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+/* Yalnızca ekran okuyucu için. Görsel bir işaretin (renk, tik, konum)
+   anlattığı şeyi metne dökmek gerektiğinde — `display: none` DEĞİL,
+   o ekran okuyucudan da gizler. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
 
 /* ─── Kabuk ─── */
 
@@ -62,6 +136,10 @@ a { color: var(--accent); }
   overflow: hidden;
 }
 
+/* Başlık şeridi YÜZEN bir katman: içerik altından kayıp geçer.
+   Opak bir şerit ekranın üstünden sabit bir dilim koparıyordu; yarı
+   saydam + bulanık bir yüzey aynı ayrımı yaparken sayfanın devam
+   ettiğini de gösterir. */
 .app-header {
   position: sticky;
   top: 0;
@@ -72,8 +150,10 @@ a { color: var(--accent); }
   gap: 1rem;
   height: var(--header-h);
   padding: 0 1.25rem;
-  background: var(--bg);
-  border-bottom: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: var(--material-blur);
+  -webkit-backdrop-filter: var(--material-blur);
+  border-bottom: 1px solid var(--line-soft);
 }
 
 .brand {
@@ -86,13 +166,21 @@ a { color: var(--accent); }
   font-size: 1.15rem;
   letter-spacing: -0.02em;
   text-decoration: none;
+  transition: opacity var(--dur-fast) var(--ease-out);
 }
 
+.brand:hover { opacity: 0.72; }
+.brand:active { opacity: 0.55; }
+
 .brand-logo {
-  height: 3rem; 
+  height: 3rem;
   width: auto;
   flex: none;
   object-fit: contain;
+  /* Logo bir marka varlığı — global `svg { max-width: 1.25rem }`
+     kuralının kapsamı dışında tutulmalı (bkz. ikon bölümü). */
+  max-width: none;
+  max-height: none;
 }
 
 .app-nav {
@@ -126,8 +214,8 @@ a { color: var(--accent); }
   justify-content: center;
   width: 2.4rem;
   height: 2.4rem;
-  border: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
-  border-radius: 0.7rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
   background: var(--surface);
   color: var(--ink);
   font-size: 1.35rem;
@@ -139,49 +227,90 @@ a { color: var(--accent); }
 .nav-hamburger:hover { background: var(--input-bg); }
 
 .nav-btn {
+  /* Aktif sekmenin alt çizgisi (`::after`) buna göre konumlanır. */
+  position: relative;
   display: inline-flex;
   align-items: center;
   padding: 0.5rem 0.9rem;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: transparent;
   color: var(--ink);
-  font-size: 0.9rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 .nav-btn:hover { background: var(--input-bg); }
 
 .nav-btn.is-active {
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  background: var(--accent-soft);
+  border-color: var(--accent-edge);
   color: var(--accent);
+}
+
+/* Aktif sekmenin altındaki ince çizgi. Rengi düğmenin dolgusundan
+   BAĞIMSIZ okunur bir işaret: yalnızca zemin tonuyla ayrışan bir
+   sekme, kontrastı düşük ekranlarda kaybolur. */
+.nav-btn.is-active::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -0.55rem;
+  width: 1.1rem;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  transform: translateX(-50%) scaleX(0);
+  transform-origin: center;
+  animation: nav-underline var(--dur-base) var(--ease-out) forwards;
+}
+
+@keyframes nav-underline {
+  to { transform: translateX(-50%) scaleX(1); }
 }
 
 .nav-btn--primary {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-ink);
+  box-shadow: var(--shadow-accent);
 }
 
-.nav-btn--primary:hover { background: #a53818; border-color: #a53818; }
+.nav-btn--primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.nav-btn--primary:active { background: var(--accent-active); }
 
 .nav-btn--quiet { color: var(--ink-muted); }
+.nav-btn--quiet:hover { color: var(--ink); }
 
 .guest-chip {
   display: inline-flex;
   align-items: center;
+  gap: 0.35rem;
   padding: 0.35rem 0.75rem;
-  border: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
-  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
   background: var(--input-bg);
   color: var(--ink-muted);
-  font-size: 0.78rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
+}
+
+/* Misafir olduğunu anlatan nabız. Kullanıcı "neden skorları
+   göremiyorum" diye sormadan önce durumunu fark etsin. */
+.guest-chip::before {
+  content: '';
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--warn);
+  flex: none;
 }
 
 .user-email {
@@ -201,6 +330,18 @@ a { color: var(--accent); }
   padding: 2rem 1.5rem;
 }
 
+/* Sayfa girişi.
+   Yönlendirme sonrası içerik tek karede "patlıyordu"; bu, geçişin
+   nereden nereye olduğuna dair hiçbir ipucu bırakmaz. 8px'lik yükselme
+   + solma, yeni bir yüzeyin geldiğini anlatmaya yeter.
+
+   Harita ekranı DIŞARIDA (`.app-main--full`): MapLibre'ın tuvali bir
+   `transform` altındayken tarayıcı katmanı yeniden rasterize eder ve
+   ilk saniyede karo çizimi kekeler. */
+.app-main:not(.app-main--full) > * {
+  animation: v-fade-up var(--dur-page) var(--ease-out) backwards;
+}
+
 /* Okuma genişliği sınırı harita ekranında geçersiz. */
 .app-main--full {
   max-width: none;
@@ -214,45 +355,830 @@ a { color: var(--accent); }
   height: var(--footer-h);
   display: flex;
   align-items: center;
-  border-top: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
+  border-top: 1px solid var(--line-soft);
   background: var(--bg);
   color: var(--ink-muted);
-  font-size: 0.78rem;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
 }
 
-/* ─── Onboarding sihirbazı (Lifestyle/Preferences/Budget) ───
-   Üçü de aynı `position:fixed` + `overflow:hidden` kabuğu KULLANIYORDU —
+/* ═══════════════════════════════════════════════════════════════════
+   ONBOARDING SİHİRBAZI (Yaşam Tarzı → Tercihler → Bütçe)
+
+   Bu üç sayfa baştan sona SATIR İÇİ `style` nesneleriyle yazılmıştı ve
+   uygulamanın paletinden tamamen kopuktu:
+
+   - Vurgu rengi `#C26927` idi, oysa token `--accent: #C0421D`. Aynı
+     kayıt akışında kullanıcı İKİ FARKLI marka rengi görüyordu — giriş
+     ekranı kiremit kırmızı, hemen sonraki adım turuncu-kahve.
+   - Zemin `#FDFBF7`, oysa `--bg: #F9F4ED`.
+   - Başlıklar `fontFamily: 'serif'`, kabuk `font-family: sans-serif`,
+     uygulamanın geri kalanı Poppins. Tek akışta ÜÇ font ailesi.
+   - Yirmi dört ayrı yerde aynı altı hex kodu elle tekrarlanıyordu.
+
+   Hepsi token'lara taşındı. Renk DEĞİŞMEDİ diye bir şey yok: sihirbaz
+   artık uygulamanın gerçek vurgu rengini kullanıyor — paletin kendisine
+   dokunulmadı, sihirbaz palete geri getirildi.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Üçü de `position:fixed` + `overflow:hidden` kabuğu KULLANIYORDU —
    içerik viewport'tan uzunsa (küçük telefon, klavye açıkken, yazı boyutu
-   büyütülmüşse) "Devam Et" düğmesine ulaşmanın hiçbir yolu yoktu, kaçış
-   noktası da body scroll'u da kapalıydı (2026-08-28). Normal akışlı,
-   gerektiğinde kayan bir kabukla değiştirildi. */
+   büyütülmüşse) "Devam Et" düğmesine ulaşmanın hiçbir yolu yoktu
+   (2026-08-28). Normal akışlı, gerektiğinde kayan kabukla değiştirildi. */
 .wizard-shell {
   min-height: 100vh;
-  background-color: #FDFBF7;
+  background: var(--bg);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   gap: 1.5rem;
-  padding: 24px 32px;
-  font-family: sans-serif;
-  box-sizing: border-box;
+  padding: 1.5rem 2rem;
+  font-family: var(--font-sans);
 }
 
 @media (max-width: 640px) {
-  .wizard-shell { padding: 20px 16px; }
+  .wizard-shell { padding: 1.25rem 1rem; }
 }
 
-/* Persona kartları — sihirbazda VE tekli onboarding formunda aynı 2
-   sütunlu düzen kullanılıyordu, hiçbirinde mobil karşılığı yoktu. */
+.wizard-shell > * { animation: v-fade-up var(--dur-page) var(--ease-out) backwards; }
+.wizard-shell > *:nth-child(2) { animation-delay: 70ms; }
+.wizard-shell > *:nth-child(3) { animation-delay: 130ms; }
+
+/* ── Adım göstergesi ── */
+.wizard-steps {
+  max-width: 32rem;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.wizard-steps-track {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Adımları birleştiren çizgi — ilk ve son yuvarlağın MERKEZİNDE
+   başlayıp biter, kenarında değil; aksi halde çizgi yuvarlakların
+   dışına taşıp kopuk duruyordu. */
+.wizard-steps-track::before {
+  content: '';
+  position: absolute;
+  left: 1.875rem;
+  right: 1.875rem;
+  top: 0.875rem;
+  height: 2px;
+  background: var(--line-soft);
+}
+
+/* Tamamlanan kısmı boyayan ilerleme. Genişlik `--progress` ile
+   bileşenden geliyor ve DEĞİŞİNCE ANİMASYONLANIYOR: kullanıcı bir
+   sonraki adıma geçtiğinde çizginin uzadığını görür, ilerlemeyi
+   hisseder. */
+.wizard-steps-track::after {
+  content: '';
+  position: absolute;
+  left: 1.875rem;
+  top: 0.875rem;
+  width: calc((100% - 3.75rem) * var(--progress, 0));
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+.wizard-step {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.wizard-step-dot {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  border: 2px solid var(--line-soft);
+  background: var(--bg);
+  color: var(--ink-muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  transition:
+    background-color var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out),
+    color var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out);
+}
+
+.wizard-step-dot svg { width: 0.85rem; height: 0.85rem; }
+
+.wizard-step--done .wizard-step-dot {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.wizard-step--active .wizard-step-dot {
+  border-color: var(--accent);
+  color: var(--accent);
+  /* Halka odak değil DURUM göstergesi: "buradasın". */
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+.wizard-step-label {
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: var(--ls-xs);
+  color: var(--ink-muted);
+  white-space: nowrap;
+  transition: color var(--dur-base) var(--ease-out);
+}
+
+.wizard-step--active .wizard-step-label,
+.wizard-step--done .wizard-step-label { color: var(--accent); }
+
+/* ── Başlık bloğu ── */
+.wizard-body {
+  max-width: 45rem;
+  margin: 0 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.wizard-title {
+  font-size: var(--fs-h1);
+  line-height: var(--lh-h1);
+  letter-spacing: var(--ls-h1);
+  font-weight: 700;
+  color: var(--ink);
+  text-align: center;
+  margin: 0 0 0.35rem;
+}
+
+.wizard-subtitle {
+  color: var(--ink-muted);
+  text-align: center;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  max-width: 34rem;
+  margin: 0 0 1.25rem;
+}
+
+/* ── Persona kartları ──
+   Sihirbazda VE tekli onboarding formunda aynı 2 sütunlu düzen
+   kullanılıyordu, hiçbirinde mobil karşılığı yoktu. */
 .wizard-persona-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 14px;
+  gap: 0.875rem;
   width: 100%;
+  margin-bottom: 0.875rem;
 }
 
 @media (max-width: 480px) {
   .wizard-persona-grid { grid-template-columns: 1fr; }
+}
+
+.wizard-persona {
+  position: relative;
+  display: flex;
+  gap: 0.75rem;
+  padding: 1.05rem 1.15rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
+  background: var(--surface-sunken);
+  text-align: left;
+  cursor: pointer;
+  /* `transition: all` DEĞİL. `all`, `width`/`height` gibi yerleşim
+     tetikleyen özellikleri de kapsar ve her karede yeniden hesap
+     ettirir — kart ızgarasında görünür kekemelik yapıyordu. */
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.wizard-persona:hover {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.wizard-persona:active { transform: scale(0.99); }
+
+.wizard-persona.is-selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+  box-shadow: var(--shadow-sm), 0 0 0 1px var(--accent);
+}
+
+/* Seçim işareti — kullanıcının hareketinden SONRA geldiği için
+   hafif taşan yay uygun: seçim bir "yerine oturma" hissi taşır. */
+.wizard-persona-check {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  display: grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  animation: v-scale-in var(--dur-base) var(--ease-spring) backwards;
+}
+
+.wizard-persona-check svg { width: 0.7rem; height: 0.7rem; }
+
+.wizard-persona-icon {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--input-bg);
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.wizard-persona.is-selected .wizard-persona-icon {
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+}
+
+.wizard-persona-icon img { width: 1.25rem; height: 1.25rem; object-fit: contain; }
+
+/* Kart bir `<button>`, içindekiler `<span>` — satır içi kutular blok
+   gibi davranmak zorunda, yoksa `margin`/`width` hiç uygulanmaz. */
+.wizard-persona-text {
+  display: block;
+  padding-right: 1rem;
+  min-width: 0;
+}
+
+.wizard-persona-title {
+  display: block;
+  font-size: var(--fs-h3);
+  font-weight: 700;
+  letter-spacing: var(--ls-h3);
+  color: var(--ink);
+  margin: 0 0 0.2rem;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.wizard-persona.is-selected .wizard-persona-title { color: var(--accent); }
+
+.wizard-persona-desc {
+  display: block;
+  color: var(--ink-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  margin: 0 0 0.5rem;
+  font-weight: 400;
+}
+
+.wizard-persona-subicons { display: flex; align-items: center; gap: 0.6rem; }
+
+.wizard-persona-subicons img {
+  width: 1rem;
+  height: 1rem;
+  object-fit: contain;
+  opacity: 0.6;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+
+.wizard-persona.is-selected .wizard-persona-subicons img { opacity: 0.9; }
+
+/* ── Alt gezinme ── */
+.wizard-foot {
+  max-width: 45rem;
+  margin: 0 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line-soft);
+}
+
+.wizard-foot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.wizard-back {
+  padding: 0.55rem 1.35rem;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-soft);
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wizard-back:hover { background: var(--input-bg); border-color: var(--line-strong); }
+
+.wizard-next {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.4rem;
+  border-radius: var(--r-sm);
+  border: none;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-accent);
+}
+
+.wizard-next:hover:not(:disabled) { background: var(--accent-hover); }
+.wizard-next:active:not(:disabled) { background: var(--accent-active); }
+
+.wizard-next:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.wizard-next svg { width: 1rem; height: 1rem; }
+
+/* Kaydederken ok yerini dönen bir göstergeye bırakır — "Kaydediliyor…"
+   metni tek başına ilerleme olduğunu değil, sadece bir söz verildiğini
+   anlatır. */
+.wizard-spinner {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--accent-ink) 35%, transparent);
+  border-top-color: var(--accent-ink);
+  animation: v-spin 0.7s linear infinite;
+}
+
+@keyframes v-spin { to { transform: rotate(360deg); } }
+
+.wizard-skip {
+  background: none;
+  border: none;
+  padding: 0.35rem;
+  color: var(--ink-muted);
+  font-size: var(--fs-xs);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.wizard-skip:hover { color: var(--accent); }
+
+.wizard-error {
+  margin: 0;
+  text-align: center;
+  color: var(--bad);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  animation: v-shake 0.36s var(--ease-in-out);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PROFİL DÜZENLEME (OnboardingPage)
+
+   Beş bölümlük uzun bir form. Bölümler NUMARALI çünkü kullanıcı
+   yukarıdan aşağı bir sırayı takip ediyor; numara hem konumu hem
+   kalan işi anlatıyor.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.profile-edit {
+  background: var(--bg);
+  min-height: 100vh;
+  color: var(--ink);
+  padding-bottom: 5rem;
+}
+
+.profile-edit-inner {
+  max-width: 50rem;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 1.5rem;
+}
+
+.profile-edit-head { margin-bottom: 2.75rem; }
+
+.profile-edit-head h1 {
+  font-size: var(--fs-display);
+  line-height: var(--lh-display);
+  letter-spacing: var(--ls-display);
+  margin: 0 0 0.4rem;
+}
+
+.profile-edit-head p { margin: 0; max-width: 34rem; }
+
+.profile-section { margin-bottom: 3rem; }
+.profile-section--anchor { scroll-margin-top: 2.5rem; }
+
+.profile-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: var(--fs-h2);
+  line-height: var(--lh-h2);
+  letter-spacing: var(--ls-h2);
+  font-weight: 700;
+  margin: 0 0 0.5rem;
+}
+
+/* Bölüm numarası başlığın İÇİNDE bir rozet — "1." biçiminde düz metin
+   olarak yazıldığında başlıkla aynı ağırlıkta okunuyor ve sıra bilgisi
+   başlığın kendisiymiş gibi duruyordu. */
+.profile-section-num {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-section-desc {
+  color: var(--ink-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  max-width: 38rem;
+  margin: 0 0 1.25rem;
+}
+
+.profile-section-title + .wizard-two-col,
+.profile-section-title + .wizard-persona-grid { margin-top: 1.1rem; }
+
+.profile-label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.profile-budget { max-width: 31rem; }
+
+/* ── Kira aralığı girdisi ── */
+.budget-input { margin: 0.5rem 0 0; }
+
+.budget-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+.budget-input-row .field { flex: 1; min-width: 0; }
+
+.budget-input-row input {
+  /* `number` alanlarında sayı hizası SAĞA: para birimleri sağdan
+     hizalanınca büyüklük tek bakışta karşılaştırılabilir. */
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-input-sep {
+  flex: none;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+
+/* Geçersiz aralıkta İKİ alan da işaretlenir — hata ikisinin
+   İLİŞKİSİNDE, tek bir alanda değil. */
+.field input.is-invalid,
+.field input.is-invalid:focus-visible {
+  border-color: var(--bad);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bad) 18%, transparent);
+}
+
+@media (max-width: 480px) {
+  .budget-input-row { flex-direction: column; align-items: stretch; }
+  .budget-input-sep { display: none; }
+}
+
+.profile-inline-error {
+  margin: 0.75rem 0 0;
+  color: var(--bad);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  animation: v-fade-in var(--dur-fast) var(--ease-out) backwards;
+}
+
+/* Kaydet çubuğu sayfanın altına YAPIŞIR. Beş bölümlük bir formda
+   düğmenin en dipte olması, kullanıcıyı her değişiklikten sonra
+   sayfanın sonuna inmeye zorluyordu. Yarı saydam zemin, altından
+   geçen içeriğin görünmesini sağlar — çubuk sayfayı kesmiyor. */
+.profile-save-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.9rem;
+  margin: 0 -1.5rem -1.5rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--line-soft);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: var(--material-blur);
+  -webkit-backdrop-filter: var(--material-blur);
+}
+
+.profile-save-bar .profile-inline-error { margin: 0; }
+
+.profile-save {
+  flex: none;
+  padding: 0.85rem 2.25rem;
+  font-size: var(--fs-body);
+  border-radius: var(--r-md);
+}
+
+/* Persona kart iskeleti — gerçek kartla AYNI yükseklikte, yoksa
+   yükleme bitince sayfa zıplar. */
+.persona-skeleton { height: 9.5rem; border-radius: var(--r-lg); }
+
+/* Profil sayfasındaki persona kartları dikey düzende (ikon+başlık
+   üstte, açıklama altta) ve daha ferah — sihirbazdaki sıkışık yatay
+   düzenden farklı bir bağlam. */
+.wizard-persona-grid--roomy { gap: 1.25rem; }
+
+.wizard-persona--stacked {
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.4rem;
+}
+
+.persona-stacked-head {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.wizard-persona--stacked .wizard-persona-icon { width: 3rem; height: 3rem; }
+.wizard-persona--stacked .wizard-persona-icon img { width: 1.4rem; height: 1.4rem; }
+.wizard-persona--stacked .wizard-persona-title { margin: 0; font-size: 1.08rem; }
+
+.persona-stacked-desc {
+  display: block;
+  flex: 1;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--line-faint);
+  color: var(--ink-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-weight: 400;
+}
+
+.pref-list--wide { max-width: 37.5rem; }
+
+/* ── Sihirbaz gövde varyantları ── */
+.wizard-body--stretch { align-items: stretch; }
+.wizard-body--center { text-align: center; }
+
+.wizard-head-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.65rem;
+}
+
+.wizard-title--left { text-align: left; margin-bottom: 0; }
+
+.wizard-hint {
+  color: var(--ink-muted);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+/* ═══ Tercih sıralaması ═══ */
+
+.pref-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.pref-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 1rem;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-xs);
+  cursor: grab;
+  user-select: none;
+  /* dnd-kit işaretçi olaylarını kendisi yönetir; tarayıcının kaydırma
+     jesti devreye girerse sürükleme yarıda kopar. */
+  touch-action: none;
+  z-index: 1;
+}
+
+.pref-item:hover { border-color: var(--line-strong); background: var(--surface); }
+
+/* Sürüklenen öğe kaldırılmış gibi durmalı: daha kalın gölge, hafif
+   büyüme, kesikli vurgu kenarı. Yalnızca opaklık düşürmek "bozuldu"
+   gibi okunuyordu. */
+.pref-item.is-dragging {
+  cursor: grabbing;
+  background: var(--surface);
+  border-style: dashed;
+  border-color: var(--accent);
+  box-shadow: var(--shadow-lg);
+  z-index: 10;
+}
+
+/* Sıra numarası — kriterin ağırlığını taşıyan asıl bilgi. */
+.pref-rank {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.pref-grip {
+  flex: none;
+  width: 1.05rem;
+  height: 1.05rem;
+  color: var(--ink-muted);
+  opacity: 0.7;
+}
+
+.pref-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 50%;
+  background: var(--input-bg);
+}
+
+.pref-icon img { width: 1rem; height: 1rem; object-fit: contain; }
+
+.pref-title {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ink);
+  min-width: 0;
+}
+
+/* ═══ Bütçe adımı ═══ */
+
+.budget-readout {
+  font-size: var(--fs-display);
+  line-height: var(--lh-display);
+  letter-spacing: var(--ls-display);
+  font-weight: 700;
+  color: var(--accent);
+  /* Kaydırıcı sürüklenirken sayı her karede değişir; orantılı
+     rakamlarda "1" dar olduğu için tüm satır sağa sola oynuyordu. */
+  font-variant-numeric: tabular-nums;
+  margin: 0 0 1.4rem;
+}
+
+.budget-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding: 1.4rem 1.75rem;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-xs);
+}
+
+@media (max-width: 480px) {
+  .budget-card { padding: 1.15rem 1rem; }
+}
+
+/* İki kaydırıcının ortak sonucunu gösteren şerit. */
+.budget-band {
+  position: relative;
+  height: 0.4rem;
+  border-radius: var(--r-pill);
+  background: var(--input-bg);
+  overflow: hidden;
+}
+
+.budget-band-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--r-pill);
+  background: linear-gradient(
+    90deg,
+    var(--accent-secondary),
+    var(--accent)
+  );
+  /* Sürükleme SIRASINDA geçiş istemiyoruz — parmakla 1:1 gitmeli.
+     Süre `--dur-instant` kadar kısa: klavye okuyla tek adım
+     atıldığında hareketi göstermeye yeter, sürüklerken gecikme
+     hissettirmez. */
+  transition:
+    left var(--dur-instant) linear,
+    width var(--dur-instant) linear;
+}
+
+.budget-field { display: flex; flex-direction: column; gap: 0.5rem; text-align: left; }
+
+.budget-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.budget-value {
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-divider { height: 1px; background: var(--line-faint); }
+
+/* Kaydırıcı — tarayıcı varsayılanı yerine paletin parçası.
+   `accent-color` tek satırla dolgu ve tutamağı boyar; kalan kurallar
+   yalnızca yükseklik ve tutamak boyutu için. */
+.budget-range {
+  width: 100%;
+  height: 1.25rem;
+  accent-color: var(--accent);
+  cursor: pointer;
+  background: transparent;
+}
+
+.budget-range::-webkit-slider-runnable-track {
+  height: 0.35rem;
+  border-radius: var(--r-pill);
+  background: var(--input-bg);
+}
+
+.budget-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: -0.4rem;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+/* Tutamak parmağın altındayken büyür — dokunma hedefi genişler ve
+   "yakaladım" geri bildirimi verir. */
+.budget-range:active::-webkit-slider-thumb { transform: scale(1.15); }
+
+.budget-range::-moz-range-track {
+  height: 0.35rem;
+  border-radius: var(--r-pill);
+  background: var(--input-bg);
+}
+
+.budget-range::-moz-range-thumb {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 /* Ad/Soyad gibi yan yana iki alan — dar ekranda alt alta düşer. */
@@ -298,6 +1224,11 @@ a { color: var(--accent); }
   .nav-btn { justify-content: center; }
   .guest-chip { justify-content: center; }
   .user-email { display: block; max-width: none; text-align: center; }
+
+  /* Aktif sekmenin altındaki çizgi yalnızca YATAY şeritte anlamlı.
+     Dikey açılır menüde düğmeler tam genişlikte ve alt alta; çizgi
+     bir sonraki satırın üstüne düşüp ayraç gibi görünüyordu. */
+  .nav-btn.is-active::after { display: none; }
 }
 
 /* ─── Admin paneli ─── 48px yatay dolgu + 4 sabit sütunluk istatistik
@@ -312,18 +1243,19 @@ a { color: var(--accent); }
    güncelleniyor.
    ═══════════════════════════════════════════════════════════════════ */
 
-.admin-page { padding: 40px 48px; }
+.admin-page { padding: 2.5rem 3rem; }
 
 .admin-head h1 {
   margin: 0;
-  font-size: 1.6rem;
-  letter-spacing: -0.02em;
+  font-size: var(--fs-h1);
+  line-height: var(--lh-h1);
+  letter-spacing: var(--ls-h1);
 }
 
 .admin-sub {
   margin: 0.4rem 0 0;
   color: var(--ink-muted);
-  font-size: 0.9rem;
+  font-size: var(--fs-sm);
 }
 
 .admin-toolbar {
@@ -338,65 +1270,89 @@ a { color: var(--accent); }
   max-width: 22rem;
   padding: 0.6rem 0.9rem;
   border: 1px solid transparent;
-  border-radius: 0.9rem;
+  border-radius: var(--r-md);
   background: var(--input-bg);
   color: var(--ink);
   font: inherit;
-  font-size: 0.9rem;
+  font-size: var(--fs-sm);
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 
 .admin-search:focus {
   outline: none;
   border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: var(--focus-ring);
 }
 
 .admin-count {
   color: var(--ink-muted);
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .admin-error {
   margin-bottom: 0.9rem;
   padding: 0.7rem 0.9rem;
-  border: 1px solid #9a3412;
-  border-radius: 0.9rem;
-  background: color-mix(in srgb, #9a3412 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--bad) 28%, transparent);
+  border-left: 3px solid var(--bad);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--bad) 7%, var(--surface));
   color: var(--ink);
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
+  animation: v-fade-up var(--dur-base) var(--ease-out) backwards;
 }
 
 /* Dar ekranda tabloyu SAYFA değil kendi kabı kaydırır. */
 .admin-table-wrap {
   overflow-x: auto;
-  border: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
-  border-radius: 1.1rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
   background: var(--surface);
+  box-shadow: var(--shadow-xs);
 }
 
 .admin-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
 }
 
+/* Zemin AÇIKÇA veriliyor: satır vurgusu (`tr:hover`) hücrenin altından
+   geçtiğinde başlık satırı da boyanmasın. */
 .admin-table th {
   padding: 0.75rem 0.9rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--line) 40%, transparent);
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--surface);
   color: var(--ink-muted);
-  font-size: 0.78rem;
+  /* Versal harfler doğal boşluklarını kaybeder — büyük harfli
+     etiketlerde belirgin pozitif tracking olmadan kelime bir blok
+     gibi okunur. */
+  font-size: var(--fs-micro);
   font-weight: 600;
   text-align: left;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--ls-micro);
   white-space: nowrap;
 }
 
 .admin-table td {
   padding: 0.7rem 0.9rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--line) 22%, transparent);
+  border-bottom: 1px solid var(--line-faint);
   vertical-align: middle;
 }
+
+/* Fare altındaki satır boyanır: geniş bir tabloda gözün satırı
+   soldan sağa takip etmesi için tek gereken şey bu. */
+.admin-table tbody tr {
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.admin-table tbody tr:hover { background: var(--surface-sunken); }
 
 .admin-table tbody tr:last-child td { border-bottom: none; }
 
@@ -424,20 +1380,49 @@ a { color: var(--accent); }
   justify-content: flex-end;
 }
 
+/* Rozetler DOLU değil TONLU: bir tabloda yan yana üç dolu renkli
+   hap, satırın asıl içeriğinden (ad, e-posta) daha çok dikkat
+   çekiyordu. Yumuşak zemin + koyu metin aynı bilgiyi verirken
+   hiyerarşiyi bozmuyor. */
 .admin-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   padding: 0.2rem 0.55rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
   font-weight: 600;
   white-space: nowrap;
 }
 
+/* Renk tek başına işaret değil: her rozet ayrıca bir NOKTA taşıyor,
+   böylece kırmızı-yeşil ayırt edemeyen kullanıcı da durumu şekilden
+   okuyabiliyor. */
+.admin-badge::before {
+  content: '';
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
 /* Doğrulama bekleyen kullanıcı GÖZE ÇARPMALI: elle doğrulama düğmesinin
    var olma sebebi bu satırları bulabilmek. */
-.admin-badge--warn { background: #b45309; color: #fff; }
-.admin-badge--admin { background: var(--accent); color: var(--accent-ink); }
-.admin-badge--off { background: #9a3412; color: #fff; }
+.admin-badge--warn {
+  background: color-mix(in srgb, var(--warn) 14%, var(--surface));
+  color: color-mix(in srgb, var(--warn) 85%, #000);
+}
+
+.admin-badge--admin {
+  background: var(--accent-soft-strong);
+  color: var(--accent);
+}
+
+.admin-badge--off {
+  background: color-mix(in srgb, var(--bad) 12%, var(--surface));
+  color: color-mix(in srgb, var(--bad) 85%, #000);
+}
 
 .admin-pager {
   display: flex;
@@ -458,17 +1443,21 @@ a { color: var(--accent); }
 
 .admin-card {
   padding: 1rem 1.1rem 1.1rem;
-  border: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
-  border-radius: 1.1rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
   background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  transition: box-shadow var(--dur-base) var(--ease-out);
 }
+
+.admin-card:hover { box-shadow: var(--shadow-sm); }
 
 .admin-card-title {
   margin: 0 0 0.6rem;
-  font-size: 0.78rem;
+  font-size: var(--fs-micro);
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--ls-micro);
   color: var(--ink-muted);
 }
 
@@ -497,8 +1486,22 @@ a { color: var(--accent); }
   flex: none;
 }
 
-.admin-dot--ok { background: #15803d; }
-.admin-dot--down { background: #9a3412; }
+.admin-dot--ok {
+  background: var(--ok);
+  /* Sağlıklı servis "canlı" görünür. Nabız 1.8 sn'de bir — 0.2 Hz
+     eşiğinin (5 sn/tur) çok üstünde, yani vestibüler tetikleyici
+     bandın dışında. */
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 55%, transparent);
+  animation: v-dot-pulse 1.8s var(--ease-out) infinite;
+}
+
+@keyframes v-dot-pulse {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 45%, transparent); }
+  70%  { box-shadow: 0 0 0 0.4rem color-mix(in srgb, var(--ok) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 0%, transparent); }
+}
+
+.admin-dot--down { background: var(--bad); }
 
 .admin-figures {
   display: grid;
@@ -506,15 +1509,19 @@ a { color: var(--accent); }
   gap: 0.6rem;
 }
 
+/* Rakam bir ÖLÇÜM — `tabular-nums` olmadan aynı hanedeki iki değer
+   farklı genişlikte çizilir ve sütunlar hizasını kaybeder. */
 .admin-figure-value {
-  font-size: 1.15rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
 }
 
 .admin-figure-label {
   color: var(--ink-muted);
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
 }
 
 .admin-bars { display: grid; gap: 0.35rem; }
@@ -524,18 +1531,36 @@ a { color: var(--accent); }
   grid-template-columns: 4.2rem 1fr 3.2rem;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.8rem;
+  font-size: var(--fs-xs);
 }
 
 .admin-bar-track {
   height: 0.55rem;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--input-bg);
   overflow: hidden;
 }
 
-.admin-bar-fill { height: 100%; border-radius: 999px; }
-.admin-bar-value { color: var(--ink-muted); text-align: right; }
+/* Çubuk soldan büyüyerek dolar: sabit duran bir çubuk "ölçüldü" mü
+   "yüklendi" mi belli etmiyordu. `scaleX` yerleşim tetiklemez —
+   `width` animasyonu her karede yeniden hesap ettirirdi. */
+.admin-bar-fill {
+  height: 100%;
+  border-radius: var(--r-pill);
+  transform-origin: left center;
+  animation: v-bar-grow var(--dur-slow) var(--ease-out) backwards;
+}
+
+@keyframes v-bar-grow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+.admin-bar-value {
+  color: var(--ink-muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 
 /* ─── Kullanıcı detayı ─── */
 
@@ -607,28 +1632,384 @@ a { color: var(--accent); }
   text-decoration: none;
 }
 
-.anchor-panel {
+/* ═══════════════════════════════════════════════════════════════════
+   PROFİL SAYFASI
+
+   Sayfa üç adet düz beyaz kutudan ibaretti: her biri bir `h2` + birkaç
+   satır gri metin. İçerideki bilgi (persona, bütçe, kriter sırası)
+   skorlamayı DOĞRUDAN belirlediği hâlde ekranda hiçbir ağırlığı yoktu —
+   "Persona: Öğrenci" satırı, altındaki açıklama cümlesiyle aynı
+   boyutta ve aynı renkteydi.
+
+   Yeni dil: her kart bir ikonlu başlık şeridi + gövde + (gerekiyorsa)
+   eylem ayağı taşıyor. Kartın kendisi krem zeminden beyazla ayrışıyor,
+   başlık şeridi ise gövdeden hafif bir ton farkıyla.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.profile { display: grid; gap: 1.25rem; }
+
+/* ── Kimlik başlığı ── */
+.profile-hero {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+/* Baş harfler. Boş bir daire "fotoğraf yüklenemedi" gibi okunur;
+   iki harf kimliği taşımaya yeter ve her zaman vardır. */
+.profile-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background: linear-gradient(
+    140deg,
+    var(--accent-secondary),
+    var(--accent)
+  );
+  color: var(--accent-ink);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: var(--shadow-accent);
+}
+
+.profile-hero-text { min-width: 0; }
+
+.profile-hero-text h1 {
+  margin: 0;
+  font-size: var(--fs-h1);
+  line-height: var(--lh-h1);
+  letter-spacing: var(--ls-h1);
+}
+
+.profile-hero-meta {
+  margin: 0.15rem 0 0;
+  color: var(--ink-muted);
+  font-size: var(--fs-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-hero-persona { color: var(--accent); font-weight: 600; }
+
+/* ── Kart kabuğu ── */
+.pcard {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: box-shadow var(--dur-base) var(--ease-out);
+}
+
+.pcard:hover { box-shadow: var(--shadow-md); }
+
+/* Başlık şeridi gövdeden bir ton koyu: kartın "neyle ilgili olduğu"
+   ile "ne içerdiği" görsel olarak ayrılıyor ve uzun kartlarda başlık
+   metnin içinde kaybolmuyor. */
+.pcard-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 1.1rem 1.25rem;
+  background: var(--surface-sunken);
+  border-bottom: 1px solid var(--line-faint);
+}
+
+.pcard-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--line-faint);
+  box-shadow: var(--shadow-xs);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.pcard-icon img { width: 1.3rem; height: 1.3rem; object-fit: contain; }
+
+.pcard-head-text { flex: 1; min-width: 0; }
+
+.pcard-head-text h2 {
+  margin: 0;
+  font-size: var(--fs-h3);
+  line-height: var(--lh-h3);
+  letter-spacing: var(--ls-h3);
+  font-weight: 700;
+}
+
+.pcard-head-text p {
+  margin: 0.2rem 0 0;
+  color: var(--ink-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+}
+
+.pcard-count {
+  display: grid;
+  place-items: center;
+  flex: none;
+  min-width: 1.6rem;
+  height: 1.6rem;
+  padding: 0 0.4rem;
+  border-radius: var(--r-pill);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.pcard-body { padding: 1.15rem 1.25rem; }
+
+.pcard-foot {
+  display: flex;
+  justify-content: flex-start;
+  padding: 0 1.25rem 1.15rem;
+}
+
+.pcard-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--ink-muted);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--ls-micro);
+}
+
+/* ── Kapasite göstergesi (1 / 3) ── */
+.capacity {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
+  flex: none;
+}
+
+.capacity-dots { display: flex; gap: 0.25rem; }
+
+.capacity-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--line-soft);
+  transition: background-color var(--dur-base) var(--ease-out);
+}
+
+.capacity-dot.is-filled { background: var(--accent); }
+
+.capacity-text {
+  color: var(--ink-muted);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Persona özeti ── */
+.persona-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.persona-summary-main { flex: 1; min-width: 12rem; }
+
+.persona-summary-name {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: var(--ls-h3);
+  color: var(--ink);
+}
+
+.persona-summary-desc {
+  margin: 0.25rem 0 0;
+  color: var(--ink-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  max-width: 32rem;
+}
+
+/* Bütçe bir ÖLÇÜM — kendi kutusunda, kendi ölçeğinde. `dt`/`dd` satırı
+   olarak yazıldığında yanındaki açıklama cümlesiyle aynı ağırlıkta
+   okunuyordu. */
+.persona-budget {
+  display: grid;
+  gap: 0.15rem;
+  flex: none;
+  padding: 0.7rem 0.95rem;
+  border: 1px solid var(--line-faint);
+  border-radius: var(--r-md);
+  background: var(--surface-sunken);
+}
+
+.persona-budget-label {
+  color: var(--ink-muted);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--ls-micro);
+}
+
+.persona-budget-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.persona-summary-skeleton { height: 5.5rem; border-radius: var(--r-md); }
+
+/* ── Öncelik sırası rozetleri ── */
+.persona-criteria {
+  margin-top: 1.1rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--line-faint);
+}
+
+.criteria-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.criteria-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem 0.3rem 0.35rem;
+  border: 1px solid var(--line-faint);
+  border-radius: var(--r-pill);
+  background: var(--surface-sunken);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.criteria-chip img { width: 0.9rem; height: 0.9rem; object-fit: contain; }
+
+/* Sıra numarası GÖRÜNÜR: birinci kriterin skora katkısı sonuncunun
+   katıyken, liste bunu yalnızca soldan sağa dizilimle anlatıyordu. */
+.criteria-chip-rank {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* İlk üç kriter skoru belirgin biçimde daha çok etkiliyor — rozetleri
+   de öyle görünsün. Sonrakiler nötr kalır. */
+.criteria-chip:nth-child(-n + 3) {
+  border-color: var(--accent-edge);
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+
+.criteria-chip--more {
+  padding-left: 0.7rem;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+
+/* ── Anchor paneli ──
+   Profil sayfasında `.pcard` kabuğunu alır; onboarding sihirbazında
+   (başlıksız kullanım) kendi eski kabuğunda kalır. */
+.anchor-panel:not(.pcard) {
   margin-top: 2rem;
   padding: 1.25rem;
-  border: 1px solid var(--line);
-  border-radius: 1.25rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-xl);
   background: var(--surface);
+  box-shadow: var(--shadow-xs);
 }
 
 .anchor-panel h2 {
   margin-top: 0;
-  font-size: 1.05rem;
+  font-size: var(--fs-h3);
+  letter-spacing: var(--ls-h3);
+}
+
+.pcard.anchor-panel .pcard-head h2 { margin: 0; }
+
+/* Harita ve ipucu TEK yüzey: eskiden harita kutusu bitiyor, ipucu ayrı
+   bir paragraf olarak altta duruyordu ve haritayla ilgili olduğu belli
+   olmuyordu. */
+.anchor-map-frame {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.anchor-map-frame .anchor-map {
+  border: 0;
+  border-radius: 0;
+  margin-bottom: 0;
+}
+
+.anchor-map-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.6rem 0.85rem;
+  border-top: 1px solid var(--line-faint);
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+/* Kapasite dolduğunda ipucu bir DURUM bildirir, bir davet değil. */
+.anchor-map-frame.is-full .anchor-map-hint {
+  background: color-mix(in srgb, var(--ok) 7%, var(--surface));
+  border-top-color: color-mix(in srgb, var(--ok) 22%, transparent);
+  color: color-mix(in srgb, var(--ok) 80%, #000);
+}
+
+@media (max-width: 560px) {
+  .profile-hero { gap: 0.75rem; }
+  .profile-avatar { width: 2.9rem; height: 2.9rem; font-size: 1.05rem; }
+  .pcard-head { padding: 0.95rem 1rem; }
+  .pcard-body { padding: 1rem; }
+  .pcard-foot { padding: 0 1rem 1rem; }
+  .persona-budget { width: 100%; }
 }
 
 button {
   font: inherit;
   padding: 0.35rem 0.8rem;
   border: 1px solid var(--line);
-  border-radius: 0.4rem;
+  border-radius: var(--r-xs);
   background: var(--surface);
   color: var(--ink);
   cursor: pointer;
-  transition: all 0.2s ease;
+  /* `transition: all` DEĞİL — `all`, `width`/`height`/`padding` gibi
+     yerleşim tetikleyen her özelliği de animasyonlar ve her karede
+     yeniden hesap ettirir. Buradaki geçiş zaten `:where(button …)`
+     temel kuralında tanımlı (transform + renk + gölge). */
 }
 
 /* ── Formlar ── */
@@ -643,50 +2024,93 @@ button {
 }
 
 .field { display: grid; gap: 0.35rem; position: relative; }
-.field > span { font-size: 0.9rem; font-weight: 600; display: none; }
+
+/*
+  ⚠️ Bu satır `display: none` idi ve HER form etiketini gizliyordu.
+
+  İki ayrı sorun yaratıyordu:
+
+  1. `display: none` erişilebilirlik ağacından da siler. Ekran okuyucu
+     alanın ne olduğunu söyleyemiyordu.
+  2. `VerifyEmailPage`'in e-posta alanının `placeholder`ı bile YOK —
+     ekranda tamamen etiketsiz, boş bir kutu duruyordu.
+
+  Ayrıca yer tutucuyu etiket yerine kullanmak yerleşik bir kullanılabilirlik
+  hatası: kullanıcı yazmaya başlayınca alanın ne olduğu kaybolur ve formu
+  gözden geçirirken geri getirmenin yolu yoktur.
+*/
+/* `:not([class])` ZORUNLU: `.field`in doğrudan çocukları arasında
+   `.field-error` ve `.field-ok` de var. Düz `.field > span` seçicisi
+   (özgüllük 0,1,1) o sınıfları (0,1,0) EZER ve hata metnini kırmızı
+   yerine normal mürekkep rengine boyardı. */
+.field > span:not([class]) {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Etiketin içindeki parantezli açıklama etiketle aynı ağırlıkta
+   okunmasın. */
+.field > span > .muted { font-weight: 400; }
 
 .field input,
 .field select {
   font: inherit;
   padding: 1rem 1.25rem;
   border: 1px solid var(--line);
-  border-radius: 1.25rem;
+  border-radius: var(--r-xl);
   background: var(--input-bg);
   color: var(--ink);
   width: 100%;
-  transition: all 0.2s;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 
 .field input::placeholder {
   color: var(--ink-muted);
 }
 
+.field input:hover,
+.field select:hover { border-color: var(--line-strong); }
+
+/* Odaklanan alan ZEMİN de değiştirir: yalnızca kenarlık rengi,
+   gri-üstü-gri bir formda kolayca gözden kaçıyordu. */
 .field input:focus-visible,
 .field select:focus-visible {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  background: var(--surface);
+  box-shadow: var(--focus-ring);
 }
 
 .btn-primary {
   padding: 1rem 1.25rem;
   border: none;
-  border-radius: 1.25rem;
+  border-radius: var(--r-xl);
   background: var(--accent);
   color: var(--accent-ink);
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
+  letter-spacing: var(--ls-h3);
+  box-shadow: var(--shadow-accent);
 }
-.btn-primary:hover {
-  background: #a53818;
+
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-primary:active:not(:disabled) { background: var(--accent-active); }
+
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
 }
-.btn-primary:disabled { opacity: 0.65; cursor: not-allowed; }
 
 .btn-secondary {
   display: inline-block;
   padding: 1rem 1.25rem;
   border: 1px solid var(--line);
-  border-radius: 1.25rem;
+  border-radius: var(--r-xl);
   background: var(--input-bg);
   color: var(--ink);
   text-decoration: none;
@@ -695,57 +2119,88 @@ button {
 }
 
 .btn-secondary:hover {
-  background: #e0deda;
+  background: color-mix(in srgb, var(--line) 22%, var(--input-bg));
+  border-color: var(--line);
 }
 
 .btn-icon {
   padding: 0.2rem 0.45rem;
   line-height: 1;
   color: var(--ink-muted);
+  border-color: transparent;
+  background: transparent;
 }
-.btn-icon:hover { color: var(--accent); }
 
-.form-error {
+.btn-icon:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* Geri bildirim kutuları — ikisi de aynı iskelet, yalnızca rengi ve
+   soldaki şeridi farklı. Şerit, renk körlüğü olan kullanıcı için
+   ikinci bir işaret: durum yalnızca zemin tonundan anlaşılmamalı. */
+.form-error,
+.notice {
   margin: 0;
   padding: 0.8rem 1rem;
-  border-radius: 1rem;
-  background: #fdeceb;
-  color: #7f1d1d;
-  border: 1px solid #f5c2c0;
-  font-size: 0.9rem;
-  text-align: center;
+  border-radius: var(--r-lg);
+  border: 1px solid;
+  border-left-width: 3px;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-align: left;
+}
+
+.form-error {
+  background: color-mix(in srgb, var(--bad) 7%, var(--surface));
+  border-color: color-mix(in srgb, var(--bad) 28%, transparent);
+  border-left-color: var(--bad);
+  color: color-mix(in srgb, var(--bad) 82%, #000);
+  /* Hata İLK GÖRÜNDÜĞÜNDE dikkat çeker. Sürekli tekrarlayan bir
+     animasyon değil, tek seferlik bir uyarı. */
+  animation:
+    v-fade-up var(--dur-base) var(--ease-out) backwards,
+    v-shake 0.36s var(--ease-in-out) var(--dur-base);
 }
 
 .notice {
-  padding: 0.8rem 1rem;
-  border: 1px solid #fef3c7;
-  border-radius: 1rem;
-  background: #fffbeb;
-  color: #92400e;
-  font-size: 0.92rem;
-  text-align: center;
+  background: color-mix(in srgb, var(--warn) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--warn) 28%, transparent);
+  border-left-color: var(--warn);
+  color: color-mix(in srgb, var(--warn) 85%, #000);
+  animation: v-fade-up var(--dur-base) var(--ease-out) backwards;
 }
 
 .row-actions { display: flex; gap: 0.5rem; align-items: center; }
 
 /* ── Form yardımcı metinleri ── */
 .field-hint {
-  font-size: 0.8rem;
+  font-size: var(--fs-xs);
   color: var(--ink-muted);
   font-weight: 400;
 }
 
-.field-error {
-  font-size: 0.8rem;
-  color: #b3261e;
+/* Hata ve onay satırları bir SİMGE de taşır: "Parolalar uyuşmuyor" ile
+   "Parolalar eşleşiyor" yalnızca renkle ayrılıyordu ve kırmızı-yeşil
+   ayırt edemeyen kullanıcı için ikisi aynı satırdı. */
+.field-error,
+.field-ok {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
+  animation: v-fade-in var(--dur-fast) var(--ease-out) backwards;
 }
 
-.field-ok {
-  font-size: 0.8rem;
-  color: var(--accent);
-  font-weight: 600;
-}
+.field-error { color: var(--bad); }
+.field-error::before { content: '✕'; }
+
+/* Onay YEŞİL, vurgu rengi değil. `--accent` kiremit kırmızısı; "doğru"
+   anlamına gelen bir satırı hata renginin komşusuyla boyamak, tam da
+   ayırt edilmesi gereken yerde iki durumu birbirine yaklaştırıyordu. */
+.field-ok { color: var(--ok); }
+.field-ok::before { content: '✓'; }
 
 .form-links {
   margin: 0;
@@ -758,12 +2213,47 @@ button {
 }
 
 /* Diğer harita ve anchor bileşenlerinin stilleri */
-.info-card { padding: 1rem 1.1rem; border: 1px solid var(--line); border-radius: 1.25rem; background: var(--surface); margin-bottom: 1rem; }
-.info-card h2 { margin: 0 0 0.6rem; font-size: 1rem; }
-.kv { display: grid; grid-template-columns: auto 1fr; gap: 0.3rem 1rem; margin: 0 0 0.8rem; font-size: 0.92rem; }
+/* Kart kenarlığı `--line`ın TAMAMI değil yumuşatılmışı: dolu bir
+   kahve-gri çizgi, kartın içeriğinden daha çok dikkat çekiyor ve
+   sayfayı ızgara kâğıdı gibi gösteriyordu. */
+.info-card {
+  padding: 1.15rem 1.25rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  margin-bottom: 1rem;
+}
+
+.info-card h2 {
+  margin: 0 0 0.7rem;
+  font-size: var(--fs-h3);
+  letter-spacing: var(--ls-h3);
+}
+
+.profile-routes { margin-top: 2rem; }
+
+.kv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.4rem 1.25rem;
+  margin: 0 0 0.9rem;
+  font-size: var(--fs-body);
+}
+
 .kv dt { color: var(--ink-muted); }
 .kv dd { margin: 0; font-weight: 600; }
-.data-badge { display: inline-block; padding: 0.25rem 0.6rem; border-radius: 999px; background: var(--line); color: var(--surface); font-size: 0.78rem; }
+
+.data-badge {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--r-pill);
+  background: var(--input-bg);
+  color: var(--ink-muted);
+  border: 1px solid var(--line-soft);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
 .map-wrap { position: relative; width: 100%; }
 .map-canvas { position: absolute; inset: 0; }
 .map-pin { display: grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--accent); color: var(--accent-ink); border: 2px solid #fff; box-shadow: 0 1px 4px rgb(0 0 0 / 0.35); font-size: 0.8rem; font-weight: 700; cursor: default; }
@@ -771,55 +2261,146 @@ button {
 .map-pin--property:hover { background: #c2410c; }
 .map-pin--analysis { background: #f59e0b; color: #7c2d12; cursor: grab; touch-action: none; }
 .map-pin--analysis:active { cursor: grabbing; }
-/* Kullanıcının anlık konumu */
+/* Kullanıcının anlık konumu.
+   Nokta CANLI olduğunu hareketle söyler: sabit bir mavi daire, son
+   bilinen konum ile o anki konum arasındaki farkı anlatmıyordu.
+   Nabız ayrı bir katmanda (`::before`) çünkü noktanın kendisi
+   ölçeklenirse kenarlığı da büyür ve titrer. */
 .user-location-marker {
+  position: relative;
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #2563eb;
-  border: 3px solid white;
-  box-shadow: 0 0 0 8px rgb(37 99 235 / 20%);
+  background: var(--live);
+  border: 3px solid #fff;
+  box-shadow: 0 1px 4px rgb(var(--shadow-tint) / 0.35);
 }
 
-.anchor-map { height: 320px; border: 1px solid var(--line); border-radius: 1rem; overflow: hidden; margin-bottom: 0.5rem; }
-.anchor-form { display: grid; gap: 0.75rem; padding: 0.9rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--surface); margin-bottom: 1rem; }
+.user-location-marker::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: var(--live);
+  animation: v-pulse-ring 2s var(--ease-out) infinite;
+  /* Nabız halkası noktanın ALTINDA kalmalı, üstünü örtmemeli. */
+  z-index: -1;
+}
+
+.anchor-map { height: 320px; border: 1px solid var(--line-soft); border-radius: var(--r-lg); overflow: hidden; margin-bottom: 0.5rem; }
+.anchor-form { display: grid; gap: 0.75rem; padding: 0.9rem; border: 1px solid var(--line-soft); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow-xs); margin-bottom: 1rem; }
 .anchor-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
-.anchor-item { display: flex; align-items: center; gap: 0.7rem; padding: 0.6rem 0.75rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--surface); }
+
+.anchor-item {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.anchor-item:hover { border-color: var(--line-strong); box-shadow: var(--shadow-xs); }
+
 .anchor-grip { cursor: grab; color: var(--ink-muted); touch-action: none; user-select: none; }
-.anchor-order { display: grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 0.8rem; font-weight: 700; flex: none; }
+.anchor-grip:active { cursor: grabbing; }
+
+.anchor-order { display: grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: var(--fs-xs); font-weight: 700; font-variant-numeric: tabular-nums; flex: none; }
 .anchor-body { display: grid; gap: 0.1rem; flex: 1; min-width: 0; }
 .code-input { font-size: 1.6rem !important; font-weight: 700; letter-spacing: 0.45em; text-align: center; font-variant-numeric: tabular-nums; padding-left: 0.45em !important; }
 
-/* ─── İkon Boyutlandırması ─── */
-svg {
+/* ═══════════════════════════════════════════════════════════════════
+   İKON ÖLÇEĞİ
+
+   Buradaki kural `svg { max-width: 1.25rem }` şeklinde, ÖZGÜLLÜĞÜ
+   OLAN bir tip seçicisiydi. Sonuç: sayfadaki HER SVG kırpılıyordu —
+   marka logosu, illüstrasyon, gelecekte eklenecek herhangi bir grafik
+   dahil. `.login-icon svg { width: 100% }` kuralı zaten bunun
+   etrafından dolaşmak için yazılmıştı; kural kendi yamasını
+   doğurmuştu.
+
+   `:where()` sarmalayıcısı özgüllüğü SIFIRA indirir: kural varsayılan
+   olarak geçerli kalır ama tek bir sınıf onu bastırabilir — logo ve
+   illüstrasyonlar için ayrı bir `!important` savaşına gerek kalmaz.
+
+   Neden tavan gerekiyor: `lucide-react` ikonları öntanımlı 24px
+   çizer, arayüzün geri kalanı 16–20px ölçekte. Tavan olmadan her
+   ikon fazla büyük gelir.
+   ═══════════════════════════════════════════════════════════════════ */
+:where(svg) {
   max-width: 1.25rem;
   max-height: 1.25rem;
 }
 
-button svg, 
-.btn-icon svg {
+:where(button, .btn-icon) svg {
   max-width: 1.5rem;
   max-height: 1.5rem;
 }
 
-/* ─── GİRİŞ EKRANI ─── */
+/* Tavandan MUAF: marka varlıkları ve harita kütüphanesinin kendi
+   kontrolleri. MapLibre ikonlarını kendi ölçüsünde çizer; kırpılınca
+   +/− düğmeleri boş kutuya döner. */
+.brand-logo,
+.login-logo,
+.illustration,
+.maplibregl-ctrl svg,
+.maplibregl-ctrl-attrib svg {
+  max-width: none;
+  max-height: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   GİRİŞ / KAYIT EKRANI
+
+   Uygulamanın ilk yüzeyi. Sol yarı marka (video), sağ yarı iş (form).
+   ═══════════════════════════════════════════════════════════════════ */
+
 .login-page-wrapper {
   display: flex;
-  flex-direction: row !important; 
+  flex-direction: row !important;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   width: 100%;
   background-color: var(--bg);
   align-items: stretch;
 }
 
+/* Düz bir turuncu dikdörtgen yerine derinliği olan bir yüzey.
+   Gradyan İKİ marka tonu arasında (`--accent-secondary` → `--accent`);
+   yeni renk yok, mevcut ikisi arasında geçiş var. Işık sol üstten
+   gelir — video kartının gölgesiyle aynı yön. */
 .login-left {
+  position: relative;
   flex: 1;
   display: flex;
-  background-color: var(--accent-secondary);
+  background:
+    radial-gradient(
+      120% 100% at 15% 0%,
+      color-mix(in srgb, var(--accent-secondary) 88%, #fff) 0%,
+      var(--accent-secondary) 42%,
+      color-mix(in srgb, var(--accent) 82%, var(--accent-secondary)) 100%
+    );
   padding: 2.5rem;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+}
+
+/* Çok ince bir doku: düz bir renk alanı büyük ekranda "boş" okunur.
+   Opaklık %4 — fark edilmesi değil, yüzeyin ölü görünmemesi amaç. */
+.login-left::before {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgb(255 255 255 / 0.10) 0, transparent 38%),
+    radial-gradient(circle at 78% 72%, rgb(255 255 255 / 0.07) 0, transparent 34%);
+  pointer-events: none;
 }
 
 .login-right {
@@ -828,16 +2409,23 @@ button svg,
   align-items: center;
   justify-content: center;
   padding: 2rem;
+  /* Formun kendisi zaten kaydırılabilir olmalı: 4 alanlı kayıt formu
+     + hata kutusu, 700px yüksekliğinde bir dizüstünde taşabiliyor. */
+  overflow-y: auto;
 }
 
 .login-video-box {
+  position: relative;
   width: 100%;
   height: 100%;
-  background-color: #fff;
-  border-radius: 1.5rem;
+  background-color: var(--surface);
+  border-radius: var(--r-xl);
   overflow: hidden;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+  /* Büyük yüzey = daha derin gölge. Üstteki ince beyaz kenar, ışığın
+     kartın kenarına vurduğunu anlatır ve kartı zeminden koparır. */
+  box-shadow: var(--shadow-xl), inset 0 1px 0 rgb(255 255 255 / 0.5);
   display: flex;
+  animation: v-fade-up var(--dur-page) var(--ease-out) backwards;
 }
 
 .login-video-box video {
@@ -854,6 +2442,20 @@ button svg,
   align-items: center;
 }
 
+/* Formun parçaları arka arkaya gelir. Kullanıcının gözü doğal olarak
+   logodan başlığa, oradan alanlara iner — animasyon bu sırayı
+   izler, tersine değil. */
+.login-form-container > * {
+  animation: v-fade-up var(--dur-page) var(--ease-out) backwards;
+}
+
+.login-form-container > *:nth-child(1) { animation-delay: 40ms; }
+.login-form-container > *:nth-child(2) { animation-delay: 90ms; }
+.login-form-container > *:nth-child(3) { animation-delay: 130ms; }
+.login-form-container > *:nth-child(4) { animation-delay: 170ms; }
+.login-form-container > *:nth-child(5) { animation-delay: 210ms; }
+.login-form-container > *:nth-child(n + 6) { animation-delay: 250ms; }
+
 .login-logo {
   height: 6rem;
   width: auto;
@@ -861,22 +2463,36 @@ button svg,
 }
 
 .login-slogan {
-  font-size: 0.95rem;
-  color: var(--ink);
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
   font-weight: 500;
+  letter-spacing: var(--ls-sm);
   margin: 0 0 0.75rem 0;
 }
 
 .login-divider {
   width: 100%;
-  border-top: 1px solid var(--line);
-  margin-bottom: 1.5rem; 
+  /* Düz bir çizgi yerine kenarlarda sönen bir ayraç: form kartının
+     içinde durduğu için kutunun kenarına dayanan sert bir çizgi
+     "kesik" gibi okunuyordu. */
+  height: 1px;
+  border: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--line-soft) 18%,
+    var(--line-soft) 82%,
+    transparent
+  );
+  margin-bottom: 1.5rem;
 }
 
 .login-title {
-  font-size: 1.8rem;
-  font-weight: 800;
-  color: #000;
+  font-size: var(--fs-h1);
+  line-height: var(--lh-h1);
+  letter-spacing: var(--ls-h1);
+  font-weight: 700;
+  color: var(--ink);
   margin-top: 0;
   margin-bottom: 1.5rem;
 }
@@ -908,33 +2524,80 @@ button svg,
 
 .login-input {
   width: 100%;
-  padding: 1rem 1.25rem;
+  /* Sağdaki ikon 1.25rem + 1.25rem kenar boşluğu kaplıyor. Eskiden
+     dolgu her yönde eşitti ve uzun bir e-posta adresi ikonun ALTINA
+     giriyordu. */
+  padding: 1rem 3.25rem 1rem 1.25rem;
   background-color: var(--input-bg);
   border: 1px solid var(--line);
-  border-radius: 1rem;
-  font-size: 0.95rem;
+  border-radius: var(--r-lg);
+  font: inherit;
+  font-size: var(--fs-body);
   color: var(--ink);
   outline: none;
-  transition: border-color 0.2s;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 
-.login-input::placeholder {
-  color: var(--ink-muted);
+/* İkonu OLMAYAN alanlarda (Ad / Soyad) sağdaki 3.25rem'lik pay bir
+   şey saklamıyor, sadece metni sıkıştırıyor. `:has()` bunu yapıyı
+   değiştirmeden çözer. */
+.login-input-group:not(:has(.login-icon)) .login-input {
+  padding-right: 1.25rem;
 }
 
+.login-input::placeholder { color: var(--ink-muted); }
+
+.login-input:hover { border-color: var(--line-strong); }
+
+/* Geçersiz alan — kenarlık RENGİ tek başına yeterli işaret değil
+   (kırmızı-yeşil renk körlüğü nüfusun ~%8'i). Yanına yumuşak bir
+   halka ve altına metin eklendi. */
+.login-input.is-invalid,
+.login-input.is-invalid:focus {
+  border-color: var(--bad);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bad) 18%, transparent);
+}
+
+.login-field-error {
+  margin-top: -0.5rem;
+  color: var(--bad);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  animation: v-fade-in var(--dur-fast) var(--ease-out) backwards;
+}
+
+/* Kayıt formu: dört alan + iki düğme. Aynı dikey ritim kullanılırsa
+   700px yüksekliğinde bir dizüstünde son düğme ekranın altında
+   kalıyor. Sıkıştırma tek yerden. */
+.login-form-container--compact .login-logo { height: 4.5rem; margin-bottom: 0.25rem; }
+.login-form-container--compact .login-slogan { margin: 0 0 0.5rem; }
+.login-form-container--compact .login-divider { margin-bottom: 1rem; }
+.login-form-container--compact .login-title { margin-bottom: 1rem; }
+.login-form-container--compact .login-or { margin: 1rem 0; }
+.login-form-container--compact .login-register-text { margin: 1.25rem 0 0; }
+
+/* `:focus` DEĞİL `:focus-visible` yeterli değil burada: metin alanına
+   fareyle tıklayan kullanıcı da nereye yazdığını görmeli. Girdi
+   alanları bu kuralın istisnasıdır. */
 .login-input:focus {
   border-color: var(--accent);
+  background-color: var(--surface);
+  box-shadow: var(--focus-ring);
 }
 
 .login-icon {
   position: absolute;
-  right: 1.25rem;
+  right: 1.15rem;
   top: 50%;
   transform: translateY(-50%);
-  width: 1.25rem; 
+  width: 1.25rem;
   height: 1.25rem;
   color: var(--line);
   pointer-events: none;
+  transition: color var(--dur-fast) var(--ease-out);
 }
 
 .login-icon svg {
@@ -942,14 +2605,21 @@ button svg,
   height: 100%;
 }
 
+/* İkon, alan odaklanınca vurgu rengine döner: odak göstergesi tek
+   bir kenarlığa değil, alanın tamamına yayılır. */
+.login-input:focus ~ .login-icon { color: var(--accent); }
+
 .login-forgot {
-  text-align: right;
-  font-size: 0.85rem;
+  align-self: flex-end;
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--accent);
   text-decoration: none;
   margin-top: -0.25rem;
+  padding: 0.15rem 0;
 }
+
+.login-forgot:hover { text-decoration: underline; text-underline-offset: 3px; }
 
 .login-submit {
   width: 100%;
@@ -957,63 +2627,76 @@ button svg,
   background-color: var(--accent);
   color: var(--accent-ink);
   border: none;
-  border-radius: 1rem;
-  font-size: 1.05rem;
+  border-radius: var(--r-lg);
+  font-size: 1.02rem;
   font-weight: 700;
+  letter-spacing: var(--ls-h3);
   cursor: pointer;
   margin-top: 0.25rem;
-  transition: background-color 0.2s;
+  box-shadow: var(--shadow-accent);
 }
 
-.login-submit:hover {
-  background-color: #a53818;
+.login-submit:hover:not(:disabled) { background-color: var(--accent-hover); }
+.login-submit:active:not(:disabled) { background-color: var(--accent-active); }
+
+/* Gönderilirken: düğme yeniden basılamaz VE bunu görsel olarak
+   söyler. Eskiden `disabled` sadece metni değiştiriyordu, düğme
+   hâlâ basılabilir görünüyordu. */
+.login-submit:disabled {
+  opacity: 0.62;
+  cursor: progress;
+  box-shadow: none;
 }
 
 .login-or {
   display: flex;
   align-items: center;
   width: 100%;
-  margin: 1.5rem 0; 
+  margin: 1.5rem 0;
 }
 
 .login-or::before,
 .login-or::after {
   content: '';
   flex: 1;
-  border-top: 1px solid var(--line);
+  height: 1px;
+  background: var(--line-soft);
 }
 
 .login-or span {
   padding: 0 0.75rem;
-  color: var(--ink);
+  color: var(--ink-muted);
   font-weight: 500;
-  font-size: 0.95rem;
+  font-size: var(--fs-sm);
 }
 
 .login-guest-btn {
   width: 100%;
   height: 54px;
-  background-color: var(--input-bg);
-  color: var(--ink-muted);
+  background-color: transparent;
+  color: var(--ink);
   border: 1px solid var(--line);
-  border-radius: 1rem;
-  font-size: 1.05rem;
+  border-radius: var(--r-lg);
+  font-size: 1.02rem;
   font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.2s;
 }
 
+/* İkincil eylem DOLU değil hayalet: dolu gri bir düğme, yanındaki
+   dolu turuncu düğmeyle aynı ağırlıkta okunuyordu ve "misafir
+   olarak devam et" ana eylemmiş gibi duruyordu. */
 .login-guest-btn:hover {
-  background-color: #e0deda;
+  background-color: var(--input-bg);
+  border-color: var(--line-strong);
 }
 
 .login-register-text {
   margin-top: 1.5rem;
-  font-size: 0.9rem;
-  color: var(--ink);
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
   font-weight: 500;
   text-align: center;
 }
@@ -1024,15 +2707,24 @@ button svg,
   text-decoration: none;
 }
 
-/* Mobil için sadece formu gösterme */
+.login-register-text a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Mobilde marka paneli gizlenir — 375px'lik bir ekranda videoya
+   ayrılan her piksel formdan çalınır. */
 @media (max-width: 768px) {
   .login-page-wrapper {
     flex-direction: column !important;
+    height: auto;
+    min-height: 100dvh;
     overflow: auto;
   }
-  .login-left {
-    display: none;
-  }
+
+  .login-left { display: none; }
+
+  .login-right { padding: 1.5rem 1.25rem 2.5rem; }
+
+  /* Logo mobilde ekranın üçte birini yiyordu. */
+  .login-logo { height: 4.25rem; }
 }
 
 .explore {
@@ -1106,6 +2798,15 @@ button svg,
   border-radius: 0.7rem !important;   /* Köşelerini menüye uyarladık */
 }
 
+/* ── Harita üstü kontroller: YÜZEN CAM ──
+   Harita canlı, renkli, hareketli bir zemin. Üzerindeki opak beyaz
+   kutular ekrana yapıştırılmış çıkartma gibi duruyordu. Yarı saydam +
+   bulanık bir yüzey altındaki haritanın rengini taşır ve aynı dünyanın
+   parçası olarak okunur.
+
+   Küçük kontroller İNCE malzeme alır (`--material-thin`), büyük
+   paneller kalın: küçük bir çipin arkasından geçen içerik okumayı
+   bozmaz, panelin arkasından geçen metin bozar. */
 .map-fab {
   display: grid;
   place-items: center;
@@ -1113,19 +2814,39 @@ button svg,
   height: 2.75rem;
   flex: none;
   padding: 0;
-  border: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
-  border-radius: 0.85rem;
-  background: var(--surface);
-  box-shadow: var(--shadow-md);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  background: var(--material-thin);
+  backdrop-filter: var(--material-blur);
+  -webkit-backdrop-filter: var(--material-blur);
+  box-shadow: var(--shadow-sm), var(--material-edge);
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.map-fab:hover { background: var(--input-bg); }
+.map-fab:hover {
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  box-shadow: var(--shadow-md), var(--material-edge);
+}
 
 .map-fab[aria-expanded="true"] {
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  border-color: var(--accent-edge);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+
+/* Hamburger çizgileri açıkken X'e döner — düğmenin ne yapacağını
+   simgenin KENDİSİ söyler, `aria-expanded` sadece ekran okuyucuya. */
+.map-fab[aria-expanded="true"] .map-fab-bars {
+  background: transparent;
+}
+
+.map-fab[aria-expanded="true"] .map-fab-bars::before {
+  top: 0;
+  transform: rotate(45deg);
+}
+
+.map-fab[aria-expanded="true"] .map-fab-bars::after {
+  top: 0;
+  transform: rotate(-45deg);
 }
 
 /* Üç çizgi: ikon paketi eklemeden, tek elemanla. */
@@ -1137,6 +2858,10 @@ button svg,
   height: 2px;
   border-radius: 2px;
   background: var(--ink);
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    top var(--dur-base) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out);
 }
 
 .map-fab-bars { position: relative; }
@@ -1152,22 +2877,35 @@ button svg,
 .map-fab-bars::after { top: 0.4rem; }
 
 /* Nokta seçme kipi bandı — kullanıcı haritaya neden tıklayacağını bilsin. */
+/* Kip bandı OPAK kalır: bir moda girildiğini söyleyen kritik bir
+   bildirim, altındaki harita okunsun diye saydamlaştırılamaz.
+   Yukarıdan inerek gelir — geldiği yön (üst şerit) ile kaybolduğu
+   yön aynı. */
 .map-banner {
   position: absolute;
   z-index: 7;
   top: 4.6rem;
   left: 50%;
-  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 0.75rem;
   padding: 0.5rem 0.6rem 0.5rem 1rem;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--accent);
   color: var(--accent-ink);
   box-shadow: var(--shadow-lg);
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
+  transform: translateX(-50%);
+  animation: v-banner-drop var(--dur-slow) var(--ease-out) backwards;
+}
+
+/* `translateX(-50%)` ortalama için ZORUNLU ve animasyonun her
+   karesinde korunmalı — yalnızca `translateY` yazan bir kare dizisi
+   bandı ekranın soluna kaydırır. */
+@keyframes v-banner-drop {
+  from { opacity: 0; transform: translate(-50%, -0.75rem) scale(0.96); }
+  to   { opacity: 1; transform: translate(-50%, 0) scale(1); }
 }
 
 .map-banner .btn-chip {
@@ -1225,12 +2963,18 @@ button svg,
   display: flex;
   flex-direction: column;
   border: 0;
-  border-left: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  border-left: 1px solid var(--line-soft);
   border-radius: 0;
-  background: var(--surface);
-  box-shadow: var(--shadow-lg);
-  overflow: hidden;
+  /* `background` İKİ KEZ yazılıydı (`--surface` sonra `--bg`); ikincisi
+     birincisini eziyordu ve okuyan herkes hangisinin geçerli olduğunu
+     denemek zorunda kalıyordu. Tek beyan, `--bg` — panelin krem zemini
+     beyaz kartlardan ayrışsın diye bilinçli seçim. */
   background: var(--bg);
+  /* Ekranın tam boyu kadar bir yüzey; gölge ölçeğinin en üstünü alır.
+     Sol kenardaki ince ışık, panelin haritanın ÜSTÜNDE durduğunu
+     anlatır. */
+  box-shadow: var(--shadow-lg), inset 1px 0 0 rgb(255 255 255 / 0.5);
+  overflow: hidden;
 }
 /* Detay listenin üstünde. */
 .property-panel { z-index: 9; }
@@ -1732,13 +3476,21 @@ button svg,
 .top-panel {
   transform: translateX(calc(100% + 1.2rem));
   visibility: hidden;
-  transition: transform 0.22s ease, visibility 0s linear 0.22s;
+  /* Kapanış `--ease-in`, açılış `--ease-out` — ikisi birbirinin
+     AYNASI. Aynı eğriyle (`ease`) gidip gelen bir panel, dönüşte
+     "geri sarılmış" gibi durur; hareketin başladığı ve bittiği yer
+     doğru olsa da hızlanma profili yanlış yönde çalışır. */
+  transition:
+    transform var(--dur-slow) var(--ease-in),
+    visibility 0s linear var(--dur-slow);
 }
 
 .explore--top-open .top-panel {
   transform: none;
   visibility: visible;
-  transition: transform 0.22s ease, visibility 0s;
+  transition:
+    transform var(--dur-slow) var(--ease-out),
+    visibility 0s;
 }
 
 .top-panel-head {
@@ -1892,17 +3644,46 @@ button svg,
 
 .top-card {
   position: relative;
-  border: 1px solid color-mix(in srgb, var(--line) 40%, transparent);
-  border-radius: 0.9rem;
+  border: 1px solid var(--line-faint);
+  border-radius: var(--r-md);
   background: var(--surface);
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 
-.top-card:hover { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+/* Üstüne gelince kart ZEMİNDEN KALKAR. Yalnızca kenarlık rengini
+   değiştirmek, uzun bir listede hangi satırın fare altında olduğunu
+   yeterince göstermiyordu. */
+.top-card:hover {
+  border-color: var(--accent-edge);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Kart tıklanırken haritanın uçması birkaç yüz ms sürüyor; o boşlukta
+   ekranda hiçbir tepki yoktu. */
+.top-card:active { transform: scale(0.985); }
 
 .top-card.is-selected {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+  box-shadow: var(--shadow-sm);
+}
+
+/* Seçili kartın sol kenarındaki şerit: liste kaydırılırken seçili
+   olanı renk tonundan değil, kenardan yakalamak daha hızlı. */
+.top-card.is-selected::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.55rem;
+  bottom: 0.55rem;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+  animation: v-fade-in var(--dur-fast) var(--ease-out) backwards;
 }
 
 /* Kartın gövdesi tek bir düğme; kalp AYRI bir düğme olarak üstte durur.
@@ -2023,6 +3804,8 @@ button svg,
 .top-card-route:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ── Panelin tetikleyicisi ── */
+/* `.map-fab` ile AYNI malzeme ve yükseklik: ikisi de harita üstünde
+   yüzen aynı sınıf kontrol, farklı görünmeleri için bir sebep yok. */
 .top-panel-toggle {
   display: inline-flex;
   align-items: center;
@@ -2031,20 +3814,25 @@ button svg,
   margin-left: auto;
   padding: 0 0.9rem;
   height: 2.75rem;
-  border: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
-  border-radius: 0.85rem;
-  background: var(--surface);
-  box-shadow: var(--shadow-md);
-  font-size: 0.88rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  background: var(--material-thin);
+  backdrop-filter: var(--material-blur);
+  -webkit-backdrop-filter: var(--material-blur);
+  box-shadow: var(--shadow-sm), var(--material-edge);
+  font-size: var(--fs-sm);
   font-weight: 600;
   white-space: nowrap;
 }
 
-.top-panel-toggle:hover { background: var(--input-bg); }
+.top-panel-toggle:hover {
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  box-shadow: var(--shadow-md), var(--material-edge);
+}
 
 .top-panel-toggle.is-active {
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  border-color: var(--accent-edge);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
   color: var(--accent);
 }
 
@@ -2077,11 +3865,17 @@ button svg,
   min-width: 1.3rem;
   height: 1.3rem;
   padding: 0 0.3rem;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--accent);
   color: var(--accent-ink);
-  font-size: 0.72rem;
+  font-size: var(--fs-micro);
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  /* Sayaç ilk belirdiğinde hafif taşarak yerine oturur: "sonuçlar
+     geldi" bilgisini metin okumadan verir. Taşma burada doğru —
+     rakam bir sonucun VARIŞINI bildiriyor, kendiliğinden açılan bir
+     menü değil. */
+  animation: v-scale-in var(--dur-base) var(--ease-spring) backwards;
 }
 
 /* ── Çekmece ── */
@@ -2100,22 +3894,28 @@ button svg,
   border-top: 0;
   border-left: 0;
   border-bottom: 0;
-  border-right: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  border-right: 1px solid var(--line-soft);
   border-radius: 0;   /* Köşelerdeki kavisler kaldırıldı, düz sidebar oldu */
   background: var(--bg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-lg), inset -1px 0 0 rgb(255 255 255 / 0.5);
   overflow: hidden;
-  
-  /* Açılıp kapanma animasyonu */
+
+  /* Açılıp kapanma — sağdaki panelle AYNI eğri ve süre. İki panel
+     ekranın iki yanından geliyor; farklı hızda hareket etselerdi
+     aynı sistemin parçası gibi durmazlardı. */
   transform: translateX(-100%);
   visibility: hidden;
-  transition: transform 0.22s ease, visibility 0s linear 0.22s;
+  transition:
+    transform var(--dur-slow) var(--ease-in),
+    visibility 0s linear var(--dur-slow);
 }
 
 .explore--drawer-open .explore-drawer {
   transform: none;
   visibility: visible;
-  transition: transform 0.22s ease, visibility 0s;
+  transition:
+    transform var(--dur-slow) var(--ease-out),
+    visibility 0s;
 }
 
 /* Panel açıkken ☰ ve arama kutusu panelin sağına kayar. */
@@ -2148,25 +3948,36 @@ button svg,
   gap: 0.2rem;
   margin: 0.75rem 0.85rem 0;
   padding: 0.25rem;
-  border-radius: 0.8rem;
+  border-radius: var(--r-md);
   background: var(--input-bg);
+  /* İçe gölge, oluğu (track) yüzeyin İÇİNE gömer; aktif sekmenin dışa
+     gölgesiyle birlikte "yükselmiş bir tuş" okuması verir. */
+  box-shadow: inset 0 1px 2px rgb(var(--shadow-tint) / 0.07);
 }
 
 .drawer-tab {
   flex: 1;
   padding: 0.45rem 0.5rem;
   border: 0;
-  border-radius: 0.6rem;
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--ink-muted);
   font: inherit;
-  font-size: 0.86rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background-color var(--dur-base) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 
 .drawer-tab:hover { color: var(--ink); }
+
+/* Sekme basılınca içeri gömülür — dört sekmelik bir denetimde
+   "hangisine bastım" geri bildirimi anlık olmalı. */
+.drawer-tab:active { transform: scale(0.96); }
 
 /* Rota sekmesindeki "3/6" — kullanıcı kapasiteyi sadece dolunca değil,
    her an, hangi sekmedeyse orada görsün (2026-08-28). Rota temasının
@@ -2321,6 +4132,212 @@ button svg,
   font-size: 0.82rem;
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   REHBER MASKOTU
+
+   Uygulamanın BEŞİNCİ turuncusunu (`#e06d3b`) taşıyordu; artık
+   `--accent`. Konum `left`/`bottom` ile animasyonlanıyordu —
+   `transition: all 0.3s` her karede yerleşim hesabı tetikliyor ve
+   MapLibre'ın tuvaliyle aynı karede yarışıyordu. Artık `transform`.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.mascot {
+  position: absolute;
+  z-index: 1000;
+  bottom: 0;
+  left: 0.95rem;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  /* Kap tıklamaları geçirir; yalnızca maskot ve balon yakalar —
+     aksi halde görünmez bir dikdörtgen haritanın üstünde
+     sürüklemeyi engelliyordu. */
+  pointer-events: none;
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+
+/* Geniş ekranda çekmecenin sağına oturur; dar ekranda alt sayfanın
+   üstünde durur. */
+.mascot--wide { bottom: 1.25rem; left: 21.45rem; }
+
+@media (max-width: 899px) {
+  .mascot:not(.mascot--wide) { bottom: calc(45% - 1.5rem); }
+}
+
+/* Panel kapalıyken ekranın dışına çekilir. `left: -200px` DEĞİL
+   `transform`: yerleşimi hiç dokundurmaz, derleyici üzerinde kayar. */
+.mascot.is-parked {
+  transform: translateX(calc(-100% - 13rem));
+  pointer-events: none;
+}
+
+.mascot-figure {
+  display: block;
+  width: 4.05rem;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  filter: drop-shadow(0 4px 8px rgb(var(--shadow-tint) / 0.18));
+  pointer-events: auto;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.mascot--wide .mascot-figure { width: 4.7rem; }
+
+/* Maskot tıklanabilir olduğunu HAREKETLE söyler — üstüne gelince
+   hafifçe yükselir. */
+.mascot-figure:hover { transform: translateY(-3px) scale(1.03); }
+.mascot-figure:active { transform: translateY(0) scale(0.97); }
+
+.mascot-bubble {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 0.65rem;
+  width: 14.4rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  pointer-events: auto;
+  /* Sivri ucun olduğu SOL ALT köşeden büyür: balonun maskottan
+     çıktığı buradan okunur. */
+  transform-origin: left bottom;
+  animation: v-scale-in var(--dur-base) var(--ease-spring) backwards;
+}
+
+.mascot--wide .mascot-bubble { left: 0.6rem; }
+
+.mascot-bubble-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.35rem;
+}
+
+.mascot-step {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: var(--ls-xs);
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.mascot-close {
+  padding: 0.1rem 0.25rem;
+  border: 0;
+  background: none;
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mascot-close:hover { color: var(--ink); }
+
+.mascot-title {
+  margin: 0 0 0.25rem;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: var(--ls-h3);
+  color: var(--ink);
+}
+
+.mascot-text {
+  margin: 0 0 0.65rem;
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+
+.mascot-progress {
+  height: 3px;
+  margin-bottom: 0.7rem;
+  border-radius: var(--r-pill);
+  background: var(--input-bg);
+  overflow: hidden;
+}
+
+.mascot-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  transition: width var(--dur-base) var(--ease-out);
+}
+
+.mascot-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.mascot-back {
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-xs);
+  background: none;
+  color: var(--ink);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mascot-back:hover { background: var(--input-bg); }
+
+.mascot-skip {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-muted);
+  font-size: var(--fs-micro);
+  cursor: pointer;
+}
+
+.mascot-skip:hover { color: var(--ink); }
+
+.mascot-next {
+  padding: 0.3rem 0.8rem;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mascot-next:hover { background: var(--accent-hover); }
+.mascot-next:active { background: var(--accent-active); }
+
+/* Sivri uç — balonun kenarlığıyla hizalı iki üçgen (dış kenarlık
+   rengi + iç zemin), yoksa uç kenarlıksız kalıp yapıştırılmış durur. */
+.mascot-arrow {
+  position: absolute;
+  bottom: -0.5rem;
+  left: 1.25rem;
+  width: 0;
+  height: 0;
+  border-left: 0.5rem solid transparent;
+  border-right: 0.5rem solid transparent;
+  border-top: 0.5rem solid var(--line-soft);
+}
+
+.mascot-arrow::after {
+  content: '';
+  position: absolute;
+  top: -0.53rem;
+  left: -0.44rem;
+  width: 0;
+  height: 0;
+  border-left: 0.44rem solid transparent;
+  border-right: 0.44rem solid transparent;
+  border-top: 0.44rem solid var(--surface);
+}
+
 /* ── Misafir paneli ── */
 
 .locked-list {
@@ -2348,19 +4365,39 @@ button svg,
    Keşfet ekranındaki kartlarla aynı dili konuşur (skor rozeti solda, adres
    iki satır, ✓/✗ gerekçe) ama sayfa akışında olduğu için biraz daha ferah. */
 
-.favorite-list { display: grid; gap: 0.6rem; margin: 0; padding: 0; list-style: none; }
+/* Kartlar sırayla belirir. Favoriler sayfası genellikle 3–10 satır;
+   listenin tamamı tek karede basılınca "yüklendi mi, boş mu" ayrımı
+   kaybolur. */
+.favorite-list {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 
 .favorite-card {
   display: flex;
   align-items: flex-start;
   gap: 0.8rem;
   padding: 0.75rem 0.85rem;
-  border: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
-  border-radius: 0.9rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
   background: var(--surface);
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 
-.favorite-card--missing { color: var(--ink-muted); font-size: 0.88rem; }
+.favorite-card:hover {
+  border-color: var(--accent-edge);
+  box-shadow: var(--shadow-sm);
+}
+
+.favorite-card:active { transform: scale(0.995); }
+
+.favorite-card--missing { color: var(--ink-muted); font-size: var(--fs-sm); }
 
 .favorite-card-main {
   display: flex;
@@ -2416,6 +4453,72 @@ button svg,
 .favorite-meta { margin-top: 0.3rem !important; font-size: 0.74rem; }
 .favorite-remove { flex: none; align-self: center; }
 .favorites-page-intro { margin-top: -0.4rem; margin-bottom: 1.25rem; }
+
+/* ── Yükleme iskeleti ──
+   Ölçüler gerçek kartın ölçüleriyle AYNI: iskelet, gelecek içeriğin
+   yerini birebir tutmazsa yükleme bitince sayfa yine zıplar ve
+   iskeletin varlık sebebi ortadan kalkar. */
+.favorite-card--skeleton { pointer-events: none; }
+.favorite-card--skeleton:hover { border-color: var(--line-soft); box-shadow: none; }
+
+.favorite-skeleton-score { width: 3rem; height: 2.6rem; flex: none; border-radius: var(--r-sm); }
+
+.favorite-skeleton-body {
+  display: grid;
+  gap: 0.4rem;
+  flex: 1;
+  min-width: 0;
+  padding-top: 0.2rem;
+}
+
+.favorite-skeleton-line { height: 0.72rem; width: 100%; }
+.favorite-skeleton-line--short { width: 68%; }
+.favorite-skeleton-line--tiny { width: 40%; height: 0.6rem; }
+
+/* ── Boş durum ──
+   Boş bir liste bir HATA DEĞİL. Düz gri bir cümle ("Henüz favori
+   konut yok.") kullanıcıya ne olduğunu söylüyor ama ne yapacağını
+   söylemiyordu; her boş durum bir sonraki adımı da göstermeli. */
+.empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 0.3rem;
+  padding: 2rem 1.25rem;
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--r-lg);
+  background: var(--surface-sunken);
+  text-align: center;
+  animation: v-fade-up var(--dur-base) var(--ease-out) backwards;
+}
+
+.empty-state-icon {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-bottom: 0.2rem;
+  border-radius: 50%;
+  background: var(--input-bg);
+  color: var(--ink-muted);
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.empty-state-title {
+  margin: 0;
+  font-size: var(--fs-h3);
+  font-weight: 700;
+  letter-spacing: var(--ls-h3);
+  color: var(--ink);
+}
+
+.empty-state-text {
+  margin: 0;
+  max-width: 28rem;
+  color: var(--ink-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
 
 /* ── Dar ekran ──
    21.5rem'lik panel telefonda haritanın üstünde yüzemez; alttan açılan
@@ -2827,26 +4930,51 @@ button svg,
 
 /* ── Kayıtlı rotalar listesi (R-123) ── */
 
+/* Rota satırı DOLU gri bir kutuydu; kartın içinde ikinci bir gri
+   dikdörtgen olarak duruyor ve tıklanabilir olduğunu söylemiyordu.
+   Beyaz zemin + kenarlık, üstüne gelince yükselme. */
 .saved-route-row {
   display: flex;
   align-items: center;
   gap: 0.6rem;
   width: 100%;
-  padding: 0.55rem 0.65rem;
-  border: 1px solid transparent;
-  border-radius: 0.7rem;
-  background: var(--input-bg);
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line-faint);
+  border-radius: var(--r-md);
+  background: var(--surface);
   color: var(--ink);
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+/* Sol kenardaki şerit rotanın "açılabilir" olduğunu söyler ve üstüne
+   gelince belirginleşir — liste uzadığında hangi satırda olduğun
+   renk tonundan değil kenardan okunur. */
+.saved-route-row::before {
+  content: '';
+  align-self: stretch;
+  flex: none;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--line-soft);
+  transition: background-color var(--dur-fast) var(--ease-out);
 }
 
 .saved-route-row:hover {
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
-  border-color: color-mix(in srgb, var(--line) 50%, transparent);
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+  border-color: var(--accent-edge);
+  box-shadow: var(--shadow-sm);
 }
+
+.saved-route-row:hover::before { background: var(--accent); }
+
+.saved-route-row:active { transform: scale(0.995); }
 
 .saved-route-row:disabled {
   opacity: 0.7;

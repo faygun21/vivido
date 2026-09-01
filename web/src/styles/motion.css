@@ -1,0 +1,175 @@
+/* ═══════════════════════════════════════════════════════════════════
+   HAREKET KATMANI
+
+   Bu dosyadan önce projede TEK BİR `@keyframes` yoktu. Paneller, kartlar,
+   hata mesajları, açılır menüler — hepsi bir kare içinde var oluyordu.
+   Tek hareket, çekmecelerin `transform 0.22s ease` kaymasıydı.
+
+   Buradaki kurallar üç ilkeye dayanır:
+
+   1. GERİ BİLDİRİM BASMA ANINDA GELİR, bırakınca değil. `:hover`
+      dokunmatik ekranda yoktur; `:active` her yerde vardır. Basma
+      geri bildirimi olmayan bir düğme "tıkladım mı acaba" dedirtir.
+      (Uygulama geneli `:active` kuralı `index.css`'in temel
+      bölümünde — her düğmeyi tek tek işaretlemek gerekmesin diye.)
+
+   2. YALNIZCA `transform` VE `opacity` ANİMASYONLANIR. İkisi de
+      derleyici (compositor) üzerinde çalışır; `height`, `top`, `width`
+      her karede yeniden yerleşim (layout) tetikler ve harita gibi ağır
+      bir sahnede kare düşürür.
+
+   3. HAREKET İSTEĞE BAĞLIDIR — en altta üç ayrı erişilebilirlik
+      sinyali, üç ayrı cevap.
+
+   Buradaki her kare dizisi kullanılıyor; kullanılmayan bir animasyon
+   ileride birinin "acaba bu neyi bozar" diye denemek zorunda kalacağı
+   bir borçtur.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────
+   1. KARE DİZİLERİ
+   ───────────────────────────────────────────────────────────────── */
+
+/* Aşağıdan yükselerek belirme — sayfa ve bölüm girişlerinin varsayılanı.
+   8px KÜÇÜK bilerek: büyük bir yol içeriği "fırlatılmış" gösterir ve
+   arka arkaya birkaç öğede huzursuz durur. */
+@keyframes v-fade-up {
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes v-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Kaynağından büyüyerek açılma. Kullanan öğe `transform-origin`unu
+   TETİKLEYİCİSİNE göre ayarlar — merkezden büyüyen bir menü, hangi
+   düğmeden çıktığını anlatmaz. */
+@keyframes v-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Hata için sarsıntı — 3px, iki salınım. Daha fazlası dramatik ve
+   okumayı zorlaştırır; amaç dikkat çekmek, cezalandırmak değil. */
+@keyframes v-shake {
+  0%, 100% { transform: none; }
+  20%      { transform: translate3d(-3px, 0, 0); }
+  45%      { transform: translate3d(3px, 0, 0); }
+  70%      { transform: translate3d(-2px, 0, 0); }
+}
+
+/* Yükleniyor iskeleti. Sabit gri bir kutu "bozuk" görünür; kayan ışık
+   "çalışıyor" der. */
+@keyframes v-shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+/* Canlı konum nabzı. Tur süresi 2 sn — 0.2 Hz'in (5 sn/tur) belirgin
+   biçimde ÜSTÜNDE; o bandın altındaki yavaş salınımlar vestibüler
+   rahatsızlık tetikleyicisidir. */
+@keyframes v-pulse-ring {
+  0%   { transform: scale(1);   opacity: 0.5; }
+  70%  { transform: scale(2.6); opacity: 0; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   2. SIRALI GİRİŞ
+
+   `backwards` fill ZORUNLU: gecikmeli bir animasyonda ilk kare
+   uygulanmazsa öğe önce TAM GÖRÜNÜR çizilir, sonra kaybolup yeniden
+   belirir — göze çarpan bir titreme.
+   ───────────────────────────────────────────────────────────────── */
+
+/* Kardeşler arka arkaya değil, ÜST ÜSTE BİNEREK gelir. 55ms yeterince
+   belirgin, yeterince kısa — altıncı öğe yarım saniyede yerini alır. */
+.anim-stagger > * {
+  animation: v-fade-up var(--dur-base) var(--ease-out) backwards;
+  animation-delay: calc(var(--i, 0) * 55ms);
+}
+
+/* Sekizinciden sonrası aynı gecikmeyi paylaşır: uzun bir listede son
+   öğeyi saniyelerce bekletmek, animasyonu bir yükleme gecikmesine
+   çevirirdi. */
+.anim-stagger > *:nth-child(1) { --i: 0; }
+.anim-stagger > *:nth-child(2) { --i: 1; }
+.anim-stagger > *:nth-child(3) { --i: 2; }
+.anim-stagger > *:nth-child(4) { --i: 3; }
+.anim-stagger > *:nth-child(5) { --i: 4; }
+.anim-stagger > *:nth-child(6) { --i: 5; }
+.anim-stagger > *:nth-child(7) { --i: 6; }
+.anim-stagger > *:nth-child(n + 8) { --i: 7; }
+
+/* ─────────────────────────────────────────────────────────────────
+   3. İSKELET / YÜKLENİYOR
+   ───────────────────────────────────────────────────────────────── */
+
+.skeleton {
+  background:
+    linear-gradient(
+      90deg,
+      var(--input-bg) 25%,
+      color-mix(in srgb, var(--surface) 70%, var(--input-bg)) 50%,
+      var(--input-bg) 75%
+    );
+  background-size: 200% 100%;
+  border-radius: var(--r-sm);
+  animation: v-shimmer 1.4s linear infinite;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   4. ERİŞİLEBİLİRLİK
+
+   Üç bağımsız sinyal, üç bağımsız cevap. Hiçbiri diğerini kapsamaz:
+   hareketi kapatan biri saydamlığı isteyebilir, kontrast isteyen biri
+   hareketi sevebilir.
+   ───────────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  /*
+    Süreleri sıfıra indirmek, kayma ve ölçeği pratikte KALDIRIR: öğe
+    son karesine anında oturur. Rahatsızlık veren şey yol almanın
+    kendisidir, bir şeyin belirmesi değil.
+
+    Opaklık geçişleri (`.anim-stagger`, `v-fade-in`) de anlık olur ama
+    içerik yine görünür ve doğru yerde durur — hiçbir şey kaybolmaz.
+  */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  /* Cam yüzeyler donuklaşır: bulanıklık kalkar, zemin opaklaşır.
+     Bulanıklığı bırakıp opaklığı artırmak en kötüsü olurdu — hem
+     pahalı hem faydasız. */
+  :root {
+    --material-thin: var(--surface);
+    --material-thick: var(--surface);
+    --material-blur: none;
+    --material-blur-strong: none;
+    --material-edge: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --line-faint: color-mix(in srgb, var(--line) 55%, transparent);
+    --line-soft: color-mix(in srgb, var(--line) 85%, transparent);
+    --line-strong: var(--line);
+    --ink-muted: #565656;
+    --material-thin: var(--surface);
+    --material-thick: var(--surface);
+    --material-blur: none;
+    --focus-ring: 0 0 0 3px var(--accent);
+  }
+}

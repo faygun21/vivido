@@ -1,0 +1,241 @@
+/* ═══════════════════════════════════════════════════════════════════
+   TASARIM TOKEN'LARI
+
+   ⛔ PALET DEĞİŞMEDİ. Aşağıdaki dokuz marka rengi `index.css`'te ne ise
+   birebir odur. Bu dosya yeni renk ÜRETMEZ; yalnızca kodun içine elle
+   serpiştirilmiş değerlere isim verir.
+
+   Neden gerekliydi: `#a53818` üç ayrı yerde, `color-mix(... var(--line)
+   45% ...)` on ayrı yerde, `#15803d` (skor bandı yeşili) on iki ayrı
+   yerde elle yazılıydı. Aynı kavramın kaç kopyası varsa, biri
+   güncellenmeyi o kadar kolay kaçırır.
+
+   Ölçekler (yarıçap, gölge, tipografi, hareket) tek bir mantıkla
+   yeniden kuruldu: eskiden 0.4 / 0.5 / 0.7 / 0.85 / 0.9 / 1 / 1.1 /
+   1.25 / 1.5rem olmak üzere DOKUZ farklı köşe yarıçapı vardı ve
+   hiçbirinin diğerinden farkının gerekçesi yoktu.
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ─────────────────────────────────────────────────────────────
+     1. PALET — birebir korundu
+     ───────────────────────────────────────────────────────────── */
+  --bg: #f9f4ed;
+  --surface: #ffffff;
+  --ink: #333333;
+  --ink-muted: #737373;
+  --line: #a79d93;
+  --accent: #c0421d;
+  --accent-secondary: #e27250;
+  --accent-ink: #ffffff;
+  --input-bg: #eceae6;
+
+  /* ─────────────────────────────────────────────────────────────
+     2. PALETTEN TÜRETİLENLER — yeni renk değil, mevcut renklerin
+        tekrar tekrar elle yazılan varyantları
+     ───────────────────────────────────────────────────────────── */
+
+  /* `#a53818` üç yerde elle yazılıydı (.nav-btn--primary:hover,
+     .btn-primary:hover, .login-submit:hover). Accent'in %12 koyusu. */
+  --accent-hover: #a53818;
+  --accent-active: #8e2f13;
+
+  /* Seçili/aktif durumların yumuşak zemini. */
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, transparent);
+  --accent-soft-strong: color-mix(in srgb, var(--accent) 16%, transparent);
+  --accent-edge: color-mix(in srgb, var(--accent) 35%, transparent);
+
+  /* Klavye odak halkası. TEK yerden yönetiliyor: eskiden kimi alanda
+     `box-shadow: 0 0 0 1px var(--accent)`, kimi alanda hiç yoktu. */
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent);
+
+  /* Çizgiler — `color-mix(... var(--line) N% ...)` on yerde tekrarlıydı. */
+  --line-faint: color-mix(in srgb, var(--line) 22%, transparent);
+  --line-soft: color-mix(in srgb, var(--line) 45%, transparent);
+  --line-strong: color-mix(in srgb, var(--line) 70%, transparent);
+
+  /* Yüzey katmanları. `--surface` beyaz kalır; `--surface-sunken` krem
+     zeminle beyaz kart arasındaki ara ton (liste içi boşluklar). */
+  --surface-sunken: color-mix(in srgb, var(--bg) 60%, var(--surface));
+  --surface-raised: var(--surface);
+
+  /* ─────────────────────────────────────────────────────────────
+     3. DURUM RENKLERİ — skor bantları ve geri bildirim
+        Değerler kodda zaten vardı, isimlendirildi.
+     ───────────────────────────────────────────────────────────── */
+  --ok: #15803d;      /* mükemmel / güçlü */
+  --good: #4d7c0f;    /* iyi */
+  --warn: #b45309;    /* orta / dikkat */
+  --bad: #9a3412;     /* zayıf / hata */
+  --info: #0f766e;    /* bütçenin altında — nötr bilgi */
+  --live: #2563eb;    /* canlı GPS konumu (harita) */
+
+  /* ─────────────────────────────────────────────────────────────
+     4. YARIÇAP — dokuz keyfi değer yerine altı basamak
+     ───────────────────────────────────────────────────────────── */
+  --r-xs: 0.5rem;   /* rozet, küçük çip */
+  --r-sm: 0.7rem;   /* ikon düğmesi, çip */
+  --r-md: 0.9rem;   /* girdi, küçük kart */
+  --r-lg: 1.1rem;   /* kart, tablo kabı */
+  --r-xl: 1.4rem;   /* panel, form kartı, birincil düğme */
+  --r-pill: 999px;
+
+  /* ─────────────────────────────────────────────────────────────
+     5. GÖLGE — büyük yüzey daha KALIN okunur (Apple malzeme kuralı)
+
+     Eskiden 44px'lik harita düğmesi ile 374px'lik panel aynı
+     `--shadow-md`'yi paylaşıyordu; ikisi de aynı yükseklikte
+     duruyormuş gibi görünüyordu.
+
+     Gölge rengi soğuk gri değil SICAK kahve-gri (`51 45 40`): zemin
+     krem (#F9F4ED). Nötr gri bir gölge krem üzerinde mavimsi ve
+     "yapıştırılmış" durur.
+     ───────────────────────────────────────────────────────────── */
+  --shadow-tint: 51 45 40;
+
+  --shadow-xs:
+    0 1px 2px rgb(var(--shadow-tint) / 0.06);
+  --shadow-sm:
+    0 1px 2px rgb(var(--shadow-tint) / 0.06),
+    0 2px 6px rgb(var(--shadow-tint) / 0.06);
+  --shadow-md:
+    0 2px 4px rgb(var(--shadow-tint) / 0.05),
+    0 6px 16px rgb(var(--shadow-tint) / 0.09);
+  --shadow-lg:
+    0 4px 8px rgb(var(--shadow-tint) / 0.05),
+    0 14px 34px rgb(var(--shadow-tint) / 0.13);
+  --shadow-xl:
+    0 8px 16px rgb(var(--shadow-tint) / 0.06),
+    0 28px 64px rgb(var(--shadow-tint) / 0.18);
+
+  /* Accent'li düğmelerin gölgesi rengini düğmeden alır — nötr gri
+     gölge dolu turuncu bir düğmenin altında ölü durur. */
+  --shadow-accent: 0 4px 14px color-mix(in srgb, var(--accent) 32%, transparent);
+
+  /* ─────────────────────────────────────────────────────────────
+     6. MALZEME — harita üstündeki yüzen katman
+
+     Harita canlı, renkli ve hareketli bir zemin. Üstündeki opak beyaz
+     kutular "ekrana yapıştırılmış" duruyordu. Yarı saydam + bulanık
+     bir yüzey, altındaki haritanın rengini taşıyarak aynı dünyanın
+     parçası gibi okunur.
+     ───────────────────────────────────────────────────────────── */
+  --material-blur: saturate(180%) blur(20px);
+  --material-blur-strong: saturate(190%) blur(30px);
+
+  /* İnce: küçük kontroller (FAB, arama çubuğu). */
+  --material-thin: color-mix(in srgb, var(--surface) 74%, transparent);
+  /* Kalın: büyük yüzeyler (panel, çekmece) — metin taşıdığı için daha opak. */
+  --material-thick: color-mix(in srgb, var(--surface) 88%, transparent);
+  /* Malzemenin üst kenarındaki ışık — cam yüzeyin kalınlığını belli eder. */
+  --material-edge: inset 0 1px 0 rgb(255 255 255 / 0.65);
+
+  /* Modal arkasındaki karartma. */
+  --scrim: color-mix(in srgb, #2a231d 42%, transparent);
+
+  /* ─────────────────────────────────────────────────────────────
+     7. TİPOGRAFİ
+
+     Tracking BOYUTA BAĞLI: harf aralığı büyüdükçe optik olarak açılır,
+     o yüzden büyük başlıklar NEGATİF, küçük etiketler POZİTİF alır.
+     Tek bir `letter-spacing` her boyutta yanlıştır.
+
+     Leading ters yönde: büyük başlık sıkı, gövde metni ferah.
+     ───────────────────────────────────────────────────────────── */
+  --font-sans: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Consolas, monospace;
+
+  --fs-display: clamp(2rem, 1.4rem + 2.6vw, 2.9rem);
+  --lh-display: 1.06;
+  --ls-display: -0.035em;
+
+  --fs-h1: clamp(1.5rem, 1.28rem + 0.95vw, 1.85rem);
+  --lh-h1: 1.16;
+  --ls-h1: -0.028em;
+
+  --fs-h2: 1.22rem;
+  --lh-h2: 1.28;
+  --ls-h2: -0.018em;
+
+  --fs-h3: 1.02rem;
+  --lh-h3: 1.35;
+  --ls-h3: -0.01em;
+
+  --fs-body: 0.95rem;
+  --lh-body: 1.6;
+  --ls-body: 0em;
+
+  --fs-sm: 0.86rem;
+  --lh-sm: 1.5;
+  --ls-sm: 0.002em;
+
+  --fs-xs: 0.76rem;
+  --lh-xs: 1.45;
+  --ls-xs: 0.008em;
+
+  /* Büyük harfli mikro etiketler (tablo başlığı, bölüm adı). Versal
+     harfler doğal boşluklarını kaybeder — belirgin pozitif tracking şart. */
+  --fs-micro: 0.69rem;
+  --lh-micro: 1.4;
+  --ls-micro: 0.055em;
+
+  /* ─────────────────────────────────────────────────────────────
+     8. HAREKET
+
+     Süreler amaca göre, "güzel görünsün" diye değil:
+     - instant: basma geri bildirimi. Parmak/fare altındaki tepki
+       ALGILANIR gecikme taşıyamaz.
+     - fast:    hover, renk, küçük durum değişimi
+     - base:    kart, çip, açılır menü
+     - slow:    panel, çekmece — büyük yüzey daha uzun yol alır
+     - page:    sayfa girişi
+
+     Eğriler: `--ease-out` iOS'un yüzey eğrisi (kritik sönümlü bir
+     yayın CSS karşılığı — sonu tamamen düz, taşma yok). `--ease-in`
+     onun AYNA'sı: aynı yolu geri gitsin diye kontrol noktaları
+     ters çevrildi. Aynı geçişin gidiş ve dönüşü farklı eğri
+     kullanırsa hareket "geri sarılmış" gibi durur.
+
+     `--ease-spring` HAFİF taşar ve yalnızca kullanıcının kendi
+     momentum taşıyan hareketinden sonra kullanılır (kart seçimi,
+     rozet artışı). Kendiliğinden beliren bir menüde taşma yanlıştır.
+     ───────────────────────────────────────────────────────────── */
+  --dur-instant: 110ms;
+  --dur-fast: 180ms;
+  --dur-base: 260ms;
+  --dur-slow: 380ms;
+  --dur-page: 520ms;
+
+  --ease-out: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-in: cubic-bezier(1, 0, 0.68, 0.28);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.2, 1.24, 0.36, 1);
+
+  /* ─────────────────────────────────────────────────────────────
+     9. KABUK ÖLÇÜLERİ
+     ───────────────────────────────────────────────────────────── */
+  --header-h: 3.75rem;
+  --footer-h: 2.75rem;
+
+  /* ── Kök tipografi ── */
+  font-family: var(--font-sans);
+  font-size: 100%;
+  line-height: var(--lh-body);
+  color: var(--ink);
+  background: var(--bg);
+
+  /* Poppins ince uçlu bir geometrik grotesk; makro-optik ayarlar açık
+     olmadan Windows'ta kalın ve bulanık çizilir. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-synthesis-weight: none;
+
+  /* Uygulama BİLEREK tek temalı (açık). Eskiden buradaki
+     `@media (prefers-color-scheme: dark)` bloğu aynı AÇIK renkleri
+     tekrar tanımlıyordu — on iki satır ölü kod ve okuyan herkes için
+     "koyu tema var" yanılgısı. Niyeti tek satırda beyan etmek hem
+     dürüst hem işlevsel: tarayıcı form kontrollerini, kaydırma
+     çubuklarını ve varsayılan zeminleri buna göre çizer. */
+  color-scheme: light;
+}

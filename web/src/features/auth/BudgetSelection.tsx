@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Check, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ApiError, api } from '@/shared/api/client';
 import { useSessionQuery } from '@/shared/api/sessionQuery';
+import { WizardSteps } from '@/features/auth/ui/WizardSteps';
 import type { UserProfile } from '@vivido/shared';
 
 export default function BudgetSelection() {
@@ -73,144 +74,116 @@ export default function BudgetSelection() {
     return val.toLocaleString('tr-TR') + ' TL';
   };
 
+  // Seçilen bandın tüm ölçek üzerindeki yeri. İki ayrı kaydırıcı,
+  // aslında TEK bir aralığı tarif ediyor ama ekranda bunu gösteren
+  // hiçbir şey yoktu: kullanıcı iki bağımsız sayı ayarlıyormuş gibi
+  // hissediyordu. Ortak bir şerit üzerinde seçilen dilimi boyamak,
+  // "bu bir aralık" bilgisini etikete gerek kalmadan anlatır.
+  const scaleMin = 5000;
+  const scaleMax = 150000;
+  const toPercent = (value: number) =>
+    ((value - scaleMin) / (scaleMax - scaleMin)) * 100;
+
+  const bandStart = toPercent(minBudget);
+  const bandWidth = toPercent(maxBudget) - bandStart;
+
   return (
     <div className="wizard-shell">
+      <WizardSteps current={4} />
 
-      {/* ÜST KISIM: 4 Adımlı Stepper */}
-      <div style={{ maxWidth: '520px', margin: '0 auto', width: '100%' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
-          <div style={{ position: 'absolute', left: '30px', right: '30px', top: '50%', transform: 'translateY(-50%)', height: '2px', backgroundColor: '#d6d3d1', zIndex: 0 }}></div>
-
-          {[
-            { step: 1, label: 'Profil', status: 'completed' },
-            { step: 2, label: 'Yaşam Tarzı', status: 'completed' },
-            { step: 3, label: 'Tercihler', status: 'completed' },
-            { step: 4, label: 'Bütçe', status: 'active' },
-          ].map((item) => {
-            const isCompleted = item.status === 'completed';
-            const isActive = item.status === 'active';
-            return (
-              <div key={item.step} style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <div style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '12px',
-                  fontWeight: 500,
-                  backgroundColor: isCompleted ? '#C26927' : '#FDFBF7',
-                  color: isCompleted ? '#ffffff' : isActive ? '#C26927' : '#a8a29e',
-                  border: isCompleted ? 'none' : isActive ? '2px solid #C26927' : '2px solid #d6d3d1',
-                  boxShadow: isActive ? '0 0 0 3px rgba(194, 105, 39, 0.1)' : 'none'
-                }}>
-                  {isCompleted ? <Check size={14} /> : item.step}
-                </div>
-                <span style={{ fontSize: '11px', marginTop: '4px', fontWeight: 500, color: isActive ? '#C26927' : '#a8a29e' }}>
-                  {item.label}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Başlık, Aralık Gösterimi ve Slider Kartı */}
-      <div style={{ maxWidth: '640px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-        
-        <h1 style={{ fontSize: '32px', fontFamily: 'serif', fontWeight: 'bold', color: '#1c1917', marginBottom: '8px' }}>
-          Aylık kira bütçen ne kadar?
-        </h1>
-        <p style={{ color: '#78716c', fontSize: '14px', maxWidth: '480px', lineHeight: '1.4', marginBottom: '28px' }}>
-          Bütçeni, sana gösterilen konutların uygunluk skorunu hesaplarken kullanacağız.
+      <div className="wizard-body wizard-body--center">
+        <h1 className="wizard-title">Aylık kira bütçen ne kadar?</h1>
+        <p className="wizard-subtitle">
+          Bütçeni, sana gösterilen konutların uygunluk skorunu hesaplarken
+          kullanacağız.
         </p>
 
-        <div style={{ fontSize: '36px', fontFamily: 'serif', fontWeight: 'bold', color: '#C26927', marginBottom: '24px' }}>
-          {formatMoney(minBudget)} – {formatMoney(maxBudget)}
-        </div>
+        {/* `tabular-nums`: rakamlar değişirken sayı ZIPLAMASIN. Orantılı
+            rakamlarda "1" diğerlerinden dar olduğu için kaydırıcıyı
+            sürüklerken tüm satır sağa sola oynuyordu. */}
+        <p className="budget-readout">
+          {formatMoney(minBudget)} <span aria-hidden="true">–</span>{' '}
+          {formatMoney(maxBudget)}
+        </p>
 
-        {/* Slider Kartı*/}
-        <div style={{ 
-          width: '100%', 
-          backgroundColor: '#F7F4EE', 
-          border: '1px solid rgba(214, 211, 209, 0.8)', 
-          borderRadius: '16px', 
-          padding: '24px 32px',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '20px'
-        }}>
-          
-          {/* Min Bütçe Slider */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', textAlign: 'left' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 500, color: '#44403c' }}>
+        <div className="budget-card">
+          {/* Aralığın görsel özeti — iki kaydırıcının ortak sonucu. */}
+          <div className="budget-band" aria-hidden="true">
+            <span
+              className="budget-band-fill"
+              style={{ left: `${bandStart}%`, width: `${bandWidth}%` }}
+            />
+          </div>
+
+          <div className="budget-field">
+            <label className="budget-label" htmlFor="budget-min">
               <span>Minimum Kira</span>
-              <span style={{ fontWeight: 'bold', color: '#C26927' }}>{formatMoney(minBudget)}</span>
-            </div>
-            <input 
-              type="range" 
-              min="5000" 
-              max="90000" 
+              <span className="budget-value">{formatMoney(minBudget)}</span>
+            </label>
+            <input
+              id="budget-min"
+              className="budget-range"
+              type="range"
+              min="5000"
+              max="90000"
               step="1000"
               value={minBudget}
               onChange={(e) => {
                 const val = Number(e.target.value);
                 if (val <= maxBudget) setMinBudget(val);
               }}
-              style={{ width: '100%', accentColor: '#C26927', cursor: 'pointer', height: '5px' }}
             />
           </div>
 
-          <div style={{ width: '100%', height: '1px', backgroundColor: '#e7e5e4' }}></div>
+          <div className="budget-divider" />
 
-          {/* Max Bütçe Slider */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', textAlign: 'left' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 500, color: '#44403c' }}>
+          <div className="budget-field">
+            <label className="budget-label" htmlFor="budget-max">
               <span>Maksimum Kira</span>
-              <span style={{ fontWeight: 'bold', color: '#C26927' }}>{formatMoney(maxBudget)}</span>
-            </div>
-            <input 
-              type="range" 
-              min="10000" 
-              max="150000" 
+              <span className="budget-value">{formatMoney(maxBudget)}</span>
+            </label>
+            <input
+              id="budget-max"
+              className="budget-range"
+              type="range"
+              min="10000"
+              max="150000"
               step="1000"
               value={maxBudget}
               onChange={(e) => {
                 const val = Number(e.target.value);
                 if (val >= minBudget) setMaxBudget(val);
               }}
-              style={{ width: '100%', accentColor: '#C26927', cursor: 'pointer', height: '5px' }}
             />
           </div>
-
         </div>
-
       </div>
 
-      {/*Navigasyon Butonları */}
-      <div style={{ maxWidth: '640px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '16px', borderTop: '1px solid #e7e5e4' }}>
+      <div className="wizard-foot">
         {error && (
-          <p style={{ color: '#b91c1c', fontSize: '13px', margin: 0, textAlign: 'center' }}>{error}</p>
+          <p className="wizard-error" role="alert">
+            {error}
+          </p>
         )}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button
-            onClick={handleBack}
-            style={{ padding: '8px 22px', borderRadius: '8px', border: '1px solid #d6d3d1', backgroundColor: 'transparent', color: '#44403c', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}
-          >
+        <div className="wizard-foot-row">
+          <button type="button" className="wizard-back" onClick={handleBack}>
             Geri
           </button>
           <button
+            type="button"
+            className="wizard-next"
             onClick={handleNext}
             disabled={mutation.isPending}
-            style={{ padding: '8px 24px', borderRadius: '8px', backgroundColor: '#C26927', color: '#ffffff', fontSize: '14px', fontWeight: 500, border: 'none', cursor: mutation.isPending ? 'not-allowed' : 'pointer', opacity: mutation.isPending ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            {mutation.isPending ? 'Kaydediliyor…' : 'Tamamla'} <ArrowRight size={16} />
+            {mutation.isPending ? 'Kaydediliyor…' : 'Tamamla'}
+            {mutation.isPending ? (
+              <span className="wizard-spinner" aria-hidden="true" />
+            ) : (
+              <ArrowRight aria-hidden="true" />
+            )}
           </button>
         </div>
       </div>
-
     </div>
   );
 }

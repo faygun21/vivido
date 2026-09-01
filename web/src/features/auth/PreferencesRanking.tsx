@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, ArrowRight, GripVertical } from 'lucide-react';
+import { ArrowRight, GripVertical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -18,6 +18,7 @@ import {
 } from '@dnd-kit/sortable';
 import { ApiError, api } from '@/shared/api/client';
 import { useSessionQuery } from '@/shared/api/sessionQuery';
+import { WizardSteps } from '@/features/auth/ui/WizardSteps';
 import type { Persona, UserProfile } from '@vivido/shared';
 
 interface PreferenceItem {
@@ -155,100 +156,66 @@ export default function PreferencesRanking() {
 
   return (
     <div className="wizard-shell">
+      <WizardSteps current={3} />
 
-      {/* 4 Adımlı Stepper*/}
-      <div style={{ maxWidth: '520px', margin: '0 auto', width: '100%' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
-          <div style={{ position: 'absolute', left: '30px', right: '30px', top: '50%', transform: 'translateY(-50%)', height: '2px', backgroundColor: '#d6d3d1', zIndex: 0 }}></div>
-
-          {[
-            { step: 1, label: 'Profil', status: 'completed' },
-            { step: 2, label: 'Yaşam Tarzı', status: 'completed' },
-            { step: 3, label: 'Tercihler', status: 'active' },
-            { step: 4, label: 'Bütçe', status: 'pending' },
-          ].map((item) => {
-            const isCompleted = item.status === 'completed';
-            const isActive = item.status === 'active';
-            return (
-              <div key={item.step} style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <div style={{
-                  width: '26px',
-                  height: '26px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '11px',
-                  fontWeight: 500,
-                  backgroundColor: isCompleted ? '#C26927' : '#FDFBF7',
-                  color: isCompleted ? '#ffffff' : isActive ? '#C26927' : '#a8a29e',
-                  border: isCompleted ? 'none' : isActive ? '2px solid #C26927' : '2px solid #d6d3d1',
-                  boxShadow: isActive ? '0 0 0 3px rgba(194, 105, 39, 0.1)' : 'none'
-                }}>
-                  {isCompleted ? <Check size={13} /> : item.step}
-                </div>
-                <span style={{ fontSize: '11px', marginTop: '3px', fontWeight: 500, color: isActive ? '#C26927' : '#a8a29e' }}>
-                  {item.label}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Başlık ve Sürükle-Bırak Liste */}
-      <div style={{ maxWidth: '700px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '10px' }}>
-          <h1 style={{ fontSize: '24px', fontFamily: 'serif', fontWeight: 'bold', color: '#1c1917', margin: 0 }}>
-            Öncelik Sıralaman
-          </h1>
-          <span style={{ fontSize: '12px', color: '#a8a29e' }}>Sürükle ve bırak</span>
+      <div className="wizard-body wizard-body--stretch">
+        <div className="wizard-head-row">
+          <h1 className="wizard-title wizard-title--left">Öncelik Sıralaman</h1>
+          <span className="wizard-hint">Sürükle ve bırak</span>
         </div>
 
-        {/* Liste Alanı */}
+        {/* Sıra numarası GÖRÜNÜR olmalı: "1." kriter ile "6." kriterin
+            skora katkısı çok farklı, ama liste yalnızca konumla
+            anlatıyordu. Kullanıcı kaçıncı sırada olduğunu saymak
+            zorunda kalıyordu. */}
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext
             items={preferences.map((item) => item.categoryCode)}
             strategy={verticalListSortingStrategy}
           >
-            <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
-              {preferences.map((item) => (
-                <SortablePreferenceItem key={item.categoryCode} item={item} />
+            <ol className="pref-list">
+              {preferences.map((item, index) => (
+                <SortablePreferenceItem
+                  key={item.categoryCode}
+                  item={item}
+                  rank={index + 1}
+                />
               ))}
             </ol>
           </SortableContext>
         </DndContext>
-
       </div>
 
-      {/* Navigasyon Butonları */}
-      <div style={{ maxWidth: '700px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '14px', borderTop: '1px solid #e7e5e4' }}>
+      <div className="wizard-foot">
         {error && (
-          <p style={{ color: '#b91c1c', fontSize: '13px', margin: 0, textAlign: 'center' }}>{error}</p>
+          <p className="wizard-error" role="alert">
+            {error}
+          </p>
         )}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button
-            onClick={handleBack}
-            style={{ padding: '8px 22px', borderRadius: '8px', border: '1px solid #d6d3d1', backgroundColor: 'transparent', color: '#44403c', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}
-          >
+        <div className="wizard-foot-row">
+          <button type="button" className="wizard-back" onClick={handleBack}>
             Geri
           </button>
           <button
+            type="button"
+            className="wizard-next"
             onClick={handleNext}
             disabled={mutation.isPending || preferences.length === 0}
-            style={{ padding: '8px 24px', borderRadius: '8px', backgroundColor: '#C26927', color: '#ffffff', fontSize: '14px', fontWeight: 500, border: 'none', cursor: mutation.isPending ? 'not-allowed' : 'pointer', opacity: mutation.isPending ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            {mutation.isPending ? 'Kaydediliyor…' : 'Devam Et'} <ArrowRight size={16} />
+            {mutation.isPending ? 'Kaydediliyor…' : 'Devam Et'}
+            {mutation.isPending ? (
+              <span className="wizard-spinner" aria-hidden="true" />
+            ) : (
+              <ArrowRight aria-hidden="true" />
+            )}
           </button>
         </div>
       </div>
-
     </div>
   );
 }
 
-function SortablePreferenceItem({ item }: { item: PreferenceItem }) {
+function SortablePreferenceItem({ item, rank }: { item: PreferenceItem; rank: number }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.categoryCode,
   });
@@ -258,35 +225,27 @@ function SortablePreferenceItem({ item }: { item: PreferenceItem }) {
       ref={setNodeRef}
       {...attributes}
       {...listeners}
+      className={`pref-item${isDragging ? ' is-dragging' : ''}`}
+      // Yalnızca dnd-kit'in her karede hesapladığı iki değer satır içi
+      // kalıyor — konum ve geçiş sürükleme sırasında sürekli değişir,
+      // CSS sınıfına çıkarılamaz. Görsel kararların geri kalanı
+      // `.pref-item` sınıfında.
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '11px 16px',
-        backgroundColor: isDragging ? '#EFECE6' : '#F7F4EE',
-        border: isDragging ? '1px dashed #C26927' : '1px solid rgba(214, 211, 209, 0.8)',
-        borderRadius: '12px',
-        cursor: isDragging ? 'grabbing' : 'grab',
-        opacity: isDragging ? 0.85 : 1,
-        transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-        transition: transition || 'background-color 0.2s ease, border 0.2s ease',
-        boxShadow: isDragging ? '0 6px 14px rgba(0,0,0,0.08)' : '0 1px 3px rgba(0,0,0,0.02)',
-        userSelect: 'none',
-        touchAction: 'none',
-        zIndex: isDragging ? 10 : 1,
+        transform: transform
+          ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
+          : undefined,
+        transition,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', pointerEvents: 'none' }}>
-        <GripVertical size={18} color="#a8a29e" />
+      <span className="pref-rank" aria-hidden="true">{rank}</span>
 
-        <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: '#EFECE6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <img src={item.icon} alt={item.title} style={{ width: '16px', height: '16px', objectFit: 'contain' }} />
-        </div>
+      <GripVertical className="pref-grip" aria-hidden="true" />
 
-        <span style={{ fontSize: '14px', fontWeight: 500, color: '#1c1917' }}>
-          {item.title}
-        </span>
-      </div>
+      <span className="pref-icon">
+        <img src={item.icon} alt="" />
+      </span>
+
+      <span className="pref-title">{item.title}</span>
     </li>
   );
 }

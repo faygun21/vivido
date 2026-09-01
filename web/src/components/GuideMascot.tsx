@@ -168,31 +168,30 @@ export function GuideMascot({ isOpen, steps: propSteps, onTabChange, onComplete 
     if (onComplete) onComplete();
   }
 
+  /*
+    Görsel kararlar `index.css`'teki `.mascot*` sınıflarına taşındı.
+    Maskot uygulamanın BEŞİNCİ turuncusunu (`#e06d3b`) kullanıyordu ve
+    `transition: all 0.3s` ile `left`/`bottom` gibi YERLEŞİM tetikleyen
+    özellikleri animasyonluyordu — harita gibi ağır bir sahnede her
+    karede yeniden hesap demek.
+
+    Konum burada kalıyor çünkü `wideScreen`/`isOpen` ikilisine bağlı ve
+    CSS'in bilmediği bir React durumundan geliyor; ama artık `left`
+    yerine `transform` üzerinden — kaydırma derleyicide olur, yerleşimi
+    hiç dokundurmaz.
+  */
+  const parked = !isOpen;
+
   return (
     <div
-      style={{
-        position: 'absolute',
-        bottom: wideScreen ? '20px' : (isOpen ? 'calc(45% - 24px)' : '0px'),
-        left: wideScreen ? (isOpen ? '343px' : '-200px') : (isOpen ? '15px' : '-200px'),
-        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        zIndex: 1000,
-        display: 'flex',
-        alignItems: 'flex-end',
-        gap: '12px',
-        pointerEvents: 'none',
-      }}
+      className={`mascot${wideScreen ? ' mascot--wide' : ''}${
+        parked ? ' is-parked' : ''
+      }`}
     >
       <img
-        src={wideScreen ? "/mascot.png" : "/mascot_2.png"}
+        src={wideScreen ? '/mascot_on_the_wall.png' : '/mascot_2.png'}
         alt="Rehber Maskot"
-        style={{
-          display: 'block',
-          width: wideScreen ? '75px' : '65px',
-          height: 'auto',
-          filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.15))',
-          pointerEvents: 'auto',
-          cursor: 'pointer',
-        }}
+        className="mascot-figure"
         onClick={() => {
           setIsBubbleVisible((prev) => !prev);
           if (!isTourActive) {
@@ -203,79 +202,54 @@ export function GuideMascot({ isOpen, steps: propSteps, onTabChange, onComplete 
       />
 
       {isBubbleVisible && (
-        <div
-          style={{
-            backgroundColor: '#F0EEE9',
-            padding: '14px 16px',
-            borderRadius: '16px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-            position: 'absolute',
-            bottom: '100%',
-            left: wideScreen ? '10px' : '0px',
-            marginBottom: '10px',
-            width: '230px',
-            pointerEvents: 'auto',
-            border: '1px solid #f0eee9',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-            <span style={{ fontSize: '11px', fontWeight: 600, color: '#e06d3b' }}>
+        /* Balon maskotun ÜSTÜNDEN, ona doğru büyüyerek açılır:
+           `transform-origin` sivri ucun olduğu köşede. Merkezden
+           büyüyen bir balon hangi karakterin konuştuğunu anlatmaz. */
+        <div className="mascot-bubble" role="dialog" aria-label="Rehber">
+          <div className="mascot-bubble-head">
+            <span className="mascot-step">
               {currentStepIndex + 1} / {steps.length}
             </span>
             <button
+              type="button"
+              className="mascot-close"
               onClick={handleSkip}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e', fontSize: '12px', padding: '2px' }}
+              aria-label="Rehberi kapat"
             >
               ✕
             </button>
           </div>
 
-          {currentStep.title && (
-            <h4 style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#1c1917', fontWeight: 700 }}>
-              {currentStep.title}
-            </h4>
-          )}
+          {currentStep.title && <h4 className="mascot-title">{currentStep.title}</h4>}
 
-          <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#44403c', lineHeight: '1.4' }}>
-            {currentStep.text}
-          </p>
+          <p className="mascot-text">{currentStep.text}</p>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+          {/* İlerleme çizgisi: kaç adım kaldığını "3 / 7" metnini
+              okumadan gösterir. */}
+          <div className="mascot-progress" aria-hidden="true">
+            <span
+              className="mascot-progress-fill"
+              style={{ width: `${((currentStepIndex + 1) / steps.length) * 100}%` }}
+            />
+          </div>
+
+          <div className="mascot-actions">
             {currentStepIndex > 0 ? (
-              <button
-                onClick={handlePrev}
-                style={{ background: 'none', border: '1px solid #e7e5e4', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', cursor: 'pointer', color: '#57534e' }}
-              >
+              <button type="button" className="mascot-back" onClick={handlePrev}>
                 Geri
               </button>
             ) : (
-              <button
-                onClick={handleSkip}
-                style={{ background: 'none', border: 'none', fontSize: '11px', cursor: 'pointer', color: '#a8a29e', padding: 0 }}
-              >
+              <button type="button" className="mascot-skip" onClick={handleSkip}>
                 Geç
               </button>
             )}
 
-            <button
-              onClick={handleNext}
-              style={{ backgroundColor: '#e06d3b', color: '#F0EEE9', border: 'none', borderRadius: '6px', padding: '5px 12px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
-            >
+            <button type="button" className="mascot-next" onClick={handleNext}>
               {isLastStep ? 'Tamamla' : 'İleri'}
             </button>
           </div>
 
-          <div
-            style={{ 
-              position: 'absolute', 
-              bottom: '-8px', 
-              left: wideScreen ? '20px' : '30px', 
-              width: 0, height: 0, 
-              borderLeft: '8px solid transparent', 
-              borderRight: '8px solid transparent', 
-              borderTop: '8px solid #F0EEE9' 
-            }}
-          />
+          <span className="mascot-arrow" aria-hidden="true" />
         </div>
       )}
     </div>

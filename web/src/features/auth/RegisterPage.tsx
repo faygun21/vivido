@@ -89,24 +89,36 @@ if (
   }
 
   return (
+    /*
+      Marka paneli SOLDA, form SAĞDA — giriş ekranıyla AYNI yerleşim.
+
+      Önceden ters çevrilmişti: `.login-right` DOM'da önce geldiği için
+      kayıt sayfasında form sola, video sağa düşüyordu. "Kayıt ol"a
+      basan kullanıcı, ekranın iki yarısının yer değiştirdiğini
+      görüyordu — aynı akışın iki adımı arasında mekânsal bağ kopuyor,
+      geçiş "başka bir siteye gittim" gibi okunuyordu.
+    */
     <div className="login-page-wrapper">
+      <div className="login-left">
+        <div className="login-video-box">
+          <video autoPlay loop muted playsInline>
+            <source src="/video/vivido_giris_video.mp4" type="video/mp4" />
+          </video>
+        </div>
+      </div>
+
       <div className="login-right">
-        <div className="login-form-container">
-          <img
-            src="/images/logo.svg"
-            alt="Vivido Logo"
-            className="login-logo"
-            style={{ height: '4.5rem', marginBottom: '0.25rem' }} 
-          />
+        {/* `--compact`: kayıt formunda dört alan var, girişte iki. Aynı
+            dikey ritim kullanılırsa 700px'lik bir dizüstünde "Kayıt Ol"
+            düğmesi ekranın altında kalıyor. Ölçüler satır içi `style`
+            ile tek tek ezilmek yerine tek bir değiştirici sınıfta. */}
+        <div className="login-form-container login-form-container--compact">
+          <img src="/images/logo.svg" alt="Vivido Logo" className="login-logo" />
 
-          <p className="login-slogan" style={{ margin: '0 0 0.5rem 0' }}>
-            hayalinizdeki eve giden yol
-          </p>
-          <div className="login-divider" style={{ marginBottom: '1rem' }}></div>
+          <p className="login-slogan">hayalinizdeki eve giden yol</p>
+          <div className="login-divider" />
 
-          <h1 className="login-title" style={{ marginTop: '0', marginBottom: '1rem' }}>
-            Kayıt Ol
-          </h1>
+          <h1 className="login-title">Kayıt Ol</h1>
 
           <form className="login-form" onSubmit={handleSubmit} noValidate>
             {error && <p className="form-error" role="alert">{error}</p>}
@@ -176,8 +188,9 @@ if (
                 placeholder="Şifre Tekrar"
                 autoComplete="new-password"
                 required
-                className="login-input"
-                style={mismatch ? { borderColor: '#b3261e' } : {}}
+                className={`login-input${mismatch ? ' is-invalid' : ''}`}
+                aria-invalid={mismatch}
+                aria-describedby={mismatch ? 'password-mismatch' : undefined}
               />
               <span className="login-icon">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -186,8 +199,16 @@ if (
               </span>
             </div>
             
+            {/* `role="alert"` DEĞİL: bu satır kullanıcı yazarken her
+                tuşta yeniden değerlendiriliyor; `alert` ekran
+                okuyucuyu her seferinde sözünü keserek uyarır.
+                `aria-live="polite"` yazmayı bitirince okur. */}
             {mismatch && (
-              <span style={{ color: '#b3261e', fontSize: '0.85rem', marginTop: '-0.5rem', fontWeight: 600 }}>
+              <span
+                id="password-mismatch"
+                className="login-field-error"
+                aria-live="polite"
+              >
                 Parolalar uyuşmuyor.
               </span>
             )}
@@ -197,7 +218,7 @@ if (
             </button>
           </form>
 
-          <div className="login-or" style={{ margin: '1rem 0' }}>
+          <div className="login-or">
             <span>veya</span>
           </div>
 
@@ -212,17 +233,9 @@ if (
             Misafir olarak devam et
           </button>
 
-          <p className="login-register-text" style={{ marginTop: '1.25rem', marginBottom: '0' }}>
+          <p className="login-register-text">
             Hesabın var mı? <Link to="/auth/login">Giriş Yap</Link>
           </p>
-        </div>
-      </div>
-
-      <div className="login-left">
-        <div className="login-video-box" style={{ backgroundColor: '#E27250' }}>
-          <video autoPlay loop muted playsInline>
-            <source src="/video/vivido_giris_video.mp4" type="video/mp4" />
-          </video>
         </div>
       </div>
     </div>
