@@ -12,6 +12,16 @@ interface PoiLayerPanelProps {
   /** Kapalıyken sadece anchor alanındaki evler, açıkken hepsi gösterilir. */
   showAllProperties: boolean;
   onToggleShowAllProperties: () => void;
+  /**
+   * Favori katmanı — misafir kullanıcının favorisi olamaz, o yüzden
+   * satır hiç çizilmez (anchor satırındaki `hasAnchorArea` deseniyle
+   * aynı: işlevi olmayan bir tik göstermek kullanıcıyı yanıltır).
+   */
+  canUseFavorites: boolean;
+  favoritesVisible: boolean;
+  onToggleFavorites: () => void;
+  /** Kaç favori var — kullanıcı tiki açmadan önce ne bekleyeceğini bilsin. */
+  favoriteCount: number;
 }
 
 /**
@@ -21,8 +31,10 @@ function getCategoryIconPath(code: string, displayNameTr?: string): string {
   const lowerCode = (code || '').toLowerCase();
   const lowerName = (displayNameTr || '').toLowerCase();
 
-  // Konsola yazdıralım ki F12 konsolunda sunucudan tam olarak ne geldiğini görebilelim
-  console.log('Gelen Kategori Kodu:', code, '| Görünen Ad:', displayNameTr);
+  // Buradaki `console.log` KALDIRILDI: geliştirme sırasında bırakılmış bir
+  // hata ayıklama satırıydı ve her render'da her kategori için tetikleniyordu
+  // (8 kategori × her panel çizimi). Üretimde de çalışıyordu, konsolu
+  // doldurup gerçek uyarıları görünmez yapıyordu.
 
   // Kafe / Restoran / Yeme-İçme varyasyonları (food, cafe, kafe vb.)
   if (
@@ -116,6 +128,10 @@ export function PoiLayerPanel({
   hasAnchorArea,
   showAllProperties,
   onToggleShowAllProperties,
+  canUseFavorites,
+  favoritesVisible,
+  onToggleFavorites,
+  favoriteCount,
 }: PoiLayerPanelProps) {
   return (
     <div className="poi-layer-panel">
@@ -127,13 +143,35 @@ export function PoiLayerPanel({
           onChange={onToggleProperties}
         />
         <img
-          src="/home_kahve.svg" 
+          src="/home_kahve.svg"
           alt="Konutlar"
           className="poi-layer-icon"
           style={{ width: '1.1rem', height: '1.1rem', objectFit: 'contain' }}
         />
         Konutlar
       </label>
+
+      {/* Favoriler — konut katmanının hemen altında çünkü aynı şeyin
+          (ev) bir alt kümesi; POI kategorilerinden ayrıldığı yer bu. */}
+      {canUseFavorites && (
+        <label className="poi-layer-row">
+          <input
+            type="checkbox"
+            checked={favoritesVisible}
+            onChange={onToggleFavorites}
+          />
+          <img
+            src="/star_kahve.svg"
+            alt=""
+            className="poi-layer-icon"
+            style={{ width: '1.1rem', height: '1.1rem', objectFit: 'contain' }}
+          />
+          Favorilerim
+          {/* Sayı, tiki açmadan önce ne bekleyeceğini söyler: boş bir
+              katmanı açıp "çalışmıyor mu?" diye düşünmesin. */}
+          <span className="poi-layer-count">{favoriteCount}</span>
+        </label>
+      )}
 
       {/* Anchor (özel yer) yoksa filtrelenecek bir alan da yok — anlamsız
           bir tik göstermek yerine satır hiç çizilmiyor. */}

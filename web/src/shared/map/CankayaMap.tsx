@@ -93,6 +93,16 @@ interface CankayaMapProps {
    * (ExplorePage) zaten indirgeyip gönderiyor.
    */
   highlightedPois?: Poi[];
+  /**
+   * Favorilenmiş konutlar — konut katmanının ÜSTÜNDE, yıldız işaretiyle.
+   *
+   * Ayrı bir kaynak çünkü görünürlüğü `properties`ten BAĞIMSIZ: kullanıcı
+   * "Konutlar" katmanını kapatıp yalnızca favorilerini görmek isteyebilir
+   * (kalabalık bir haritada favorileri bulmanın en hızlı yolu bu).
+   * `properties` içinden türetilseydi konut katmanı kapandığında
+   * favoriler de kaybolurdu.
+   */
+  favorites?: PropertyPoint[];
   onBoundsChange?: (bounds: MapBounds) => void;
   userLocation?: UserLocation | null;
   route?: RouteDetail | null;
@@ -325,6 +335,9 @@ function loadCustomMapImages(map: MapLibreMap) {
   // 1. Konutlar için ev ikonu (beyaz — turuncu daire üstünde net ayrışıyor)
   addSvgIcon('ev-ikon', '/home_white.svg');
 
+  // 1b. Favoriler için yıldız (beyaz — altın daire üstünde)
+  addSvgIcon('yildiz-ikon', '/star_white.svg');
+
   // 2. Diğer POI ikonları — beyaz varyantlar (bkz. getCategoryIconPath'teki not)
   const uniquePaths = [
     '/cafe_white.svg',
@@ -405,6 +418,14 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
       cluster: true,
       clusterMaxZoom: 15,
       clusterRadius: 45,
+    },
+    // Favoriler KÜMELENMİYOR (`cluster` yok). Konutlar binlerce olduğu
+    // için kümeleme şart; favoriler en fazla birkaç düzine ve kullanıcı
+    // onları TEK TEK görmek istiyor — "3" yazan bir balon, favorilerin
+    // nerede olduğu sorusunu cevaplamaz.
+    favoriler: {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
     },
     rota: {
       type: 'geojson',
@@ -569,6 +590,38 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
       layout: {
         'icon-image': 'ev-ikon',
         'icon-size': 0.45,
+        'icon-allow-overlap': true,
+      },
+    },
+    // ⭐ FAVORİLER — konut katmanının hemen ÜSTÜNDE.
+    //
+    // Sıra önemli: favori olan ev aynı koordinatta hem `konutlar` hem
+    // `favoriler` kaynağında bulunuyor. Favori katmanı sonra çizildiği
+    // için turuncu ev pinini örtüyor ve kullanıcı o evin favorilendiğini
+    // tek bakışta görüyor.
+    //
+    // Renk `#d97706` (koyu altın): haritadaki hiçbir dolu daireyle
+    // çakışmıyor — konutlar `#ea580c`, okul POI'si `#f59e0b`, yemek
+    // `#f97316`. Yarıçap da konutunkinden (14) büyük (16), böylece
+    // üst üste bindiklerinde favori bir halka gibi taşıyor.
+    {
+      id: 'favori-arkaplan',
+      type: 'circle',
+      source: 'favoriler',
+      paint: {
+        'circle-color': '#d97706',
+        'circle-radius': 16,
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#fff',
+      },
+    },
+    {
+      id: 'favori-ikon',
+      type: 'symbol',
+      source: 'favoriler',
+      layout: {
+        'icon-image': 'yildiz-ikon',
+        'icon-size': 0.5,
         'icon-allow-overlap': true,
       },
     },
@@ -855,6 +908,7 @@ export function CankayaMap({
   padLeft = 0,
   pois,
   highlightedPois,
+  favorites = [],
   poiCategoryNames,
   onBoundsChange,
   userLocation = null,
@@ -949,11 +1003,16 @@ export function CankayaMap({
           setErrorText(e.error?.message ?? 'Bilinmeyen harita hatası');
         });
 
-        map.on('click', 'konut-noktalar-arkaplan', (e) => {
-          const feature = e.features?.[0];
-          const id = feature?.properties?.id as string | undefined;
-          if (id) propertyClickHandlerRef.current?.(id);
-        });
+        // Favori pini konut pinini ÖRTÜYOR, dolayısıyla kendi tıklama
+        // dinleyicisi olmadan favori bir eve hiç tıklanamazdı. İkisi de
+        // aynı şeyi yapar: detay panelini açar.
+        for (const layerId of ['konut-noktalar-arkaplan', 'favori-arkaplan', 'favori-ikon']) {
+          map.on('click', layerId, (e) => {
+            const feature = e.features?.[0];
+            const id = feature?.properties?.id as string | undefined;
+            if (id) propertyClickHandlerRef.current?.(id);
+          });
+        }
 
         map.on('click', 'konut-kumeleri', (e) => {
           const feature = e.features?.[0];
@@ -969,7 +1028,13 @@ export function CankayaMap({
           }).catch(() => {});
         });
 
-        for (const layerId of ['konut-kumeleri', 'konut-noktalar-arkaplan', 'konut-noktalar']) {
+        for (const layerId of [
+          'konut-kumeleri',
+          'konut-noktalar-arkaplan',
+          'konut-noktalar',
+          'favori-arkaplan',
+          'favori-ikon',
+        ]) {
           map.on('mouseenter', layerId, () => {
             const canvas = map?.getCanvas();
             if (canvas) canvas.style.cursor = 'pointer';
@@ -992,6 +1057,8 @@ export function CankayaMap({
             'konut-kumeleri',
             'konut-noktalar-arkaplan',
             'konut-noktalar',
+            'favori-arkaplan',
+            'favori-ikon',
           ].filter((id) => map?.getLayer(id));
 
           const hits = map.queryRenderedFeatures(e.point, { layers: interactive });
@@ -1184,6 +1251,20 @@ export function CankayaMap({
       })),
     });
   }, [properties, status]);
+
+  useEffect(() => {
+    const source = mapRef.current?.getSource('favoriler') as GeoJSONSource | undefined;
+    if (!source) return;
+
+    source.setData({
+      type: 'FeatureCollection',
+      features: favorites.map((p) => ({
+        type: 'Feature',
+        properties: { id: p.id },
+        geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
+      })),
+    });
+  }, [favorites, status]);
 
   useEffect(() => {
     const source = mapRef.current?.getSource('rota') as GeoJSONSource | undefined;

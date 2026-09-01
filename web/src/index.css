@@ -2258,6 +2258,17 @@ button {
 .map-canvas { position: absolute; inset: 0; }
 .map-pin { display: grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--accent); color: var(--accent-ink); border: 2px solid #fff; box-shadow: 0 1px 4px rgb(0 0 0 / 0.35); font-size: 0.8rem; font-weight: 700; cursor: default; }
 .map-pin--property { background: #ea580c; cursor: pointer; }
+
+/* Favori konut göstergesi — haritadaki `favori-arkaplan` katmanıyla AYNI
+   altın (`#d97706`) ve aynı yıldız. Gösterge ile haritadaki işaret
+   birbirini tutmazsa gösterge işe yaramaz. */
+.map-pin--favorite {
+  background: #d97706;
+  background-image: url('/star_white.svg');
+  background-size: 0.75rem 0.75rem;
+  background-position: center;
+  background-repeat: no-repeat;
+}
 .map-pin--property:hover { background: #c2410c; }
 .map-pin--analysis { background: #f59e0b; color: #7c2d12; cursor: grab; touch-action: none; }
 .map-pin--analysis:active { cursor: grabbing; }
