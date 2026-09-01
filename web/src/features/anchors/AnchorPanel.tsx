@@ -1,16 +1,22 @@
 import { useState } from 'react';
-import type { Anchor } from '@vivido/shared';
+import type { Anchor, LocationSearchResult } from '@vivido/shared';
 import { MAX_ANCHORS } from '@vivido/shared';
 import { api } from '@/shared/api/client';
 import { useSessionQuery } from '@/shared/api/sessionQuery';
-import { CankayaMap, type MapPoint } from '@/shared/map/CankayaMap';
+import { CankayaMap, type MapFocus, type MapPoint } from '@/shared/map/CankayaMap';
+import { LocationSearch } from '@/shared/location/LocationSearch';
 import { AnchorEditor } from './AnchorEditor';
 
 /**
  * Anchor paneli — gömülü haritalı sürüm (profil sayfası + onboarding 3. adım).
  *
- * Akış: haritaya tıkla → nokta seçilir → etiket + mod gir → kaydet.
- * Sıralama sürükle-bırakla değişir, bırakıldığı an sunucuya yazılır.
+ * Akış: haritaya tıkla **ya da adres ara** → nokta seçilir → etiket + mod
+ * gir → kaydet. Sıralama sürükle-bırakla değişir, bırakıldığı an sunucuya
+ * yazılır.
+ *
+ * Adres arama explore ekranındakiyle AYNI bileşen (`@/shared/location`) —
+ * "üniversitenin adını biliyorum ama haritada nerede olduğunu bilmiyorum"
+ * durumunda 320px'lik haritada elle nokta bulmak neredeyse imkânsızdı.
  *
  * Liste, form ve mutasyonlar `AnchorEditor` içinde; burada yalnızca 320px'lik
  * seçim haritası var. Explore ekranı aynı editörü kendi TAM EKRAN haritasıyla
@@ -30,6 +36,15 @@ export interface AnchorPanelProps {
 
 export function AnchorPanel({ usedCount }: AnchorPanelProps = {}) {
   const [pending, setPending] = useState<MapPoint | null>(null);
+  // Aramadan gelen nokta: `focus` haritayı oraya uçurur, `searchLabel`
+  // etiket alanını hazır doldurur. İkisi de haritaya tıklanınca temizlenir.
+  const [focus, setFocus] = useState<MapFocus | null>(null);
+  const [searchLabel, setSearchLabel] = useState<string | null>(null);
+  // Arama kutusunun iç durumunu (sorgu + açık sonuç listesi) dışarıdan
+  // sıfırlamanın React'teki yolu yeniden bağlamak: sayaç artınca `key`
+  // değişir. Kaydettikten sonra sonuç listesi haritanın üstünde açık
+  // kalırsa yeni eklenen pini örter.
+  const [searchKey, setSearchKey] = useState(0);
 
   // İşaretçiler için liste burada da lazım. Aynı sorgu anahtarı olduğu için
   // ek istek gitmez — `AnchorEditor` ile ortak önbellekten okunur.
@@ -41,6 +56,37 @@ export function AnchorPanel({ usedCount }: AnchorPanelProps = {}) {
 
   const full = anchors.length >= MAX_ANCHORS;
   const showCapacity = usedCount != null;
+
+  /** Haritaya tıklayarak seçim — aramadan kalan uçuş hedefi/etiket düşer. */
+  function pickFromMap(point: MapPoint) {
+    setPending(point);
+    setFocus(null);
+    setSearchLabel(null);
+  }
+
+  function pickFromSearch(result: LocationSearchResult) {
+    if (full) return;
+    setPending({ lat: result.latitude, lon: result.longitude });
+    // `result.bounds` BİLEREK gönderilmiyor: explore'da amaç bir mahalleyi
+    // çerçevelemek, burada ise tek bir noktayı işaretlemek. Sınırlara
+    // oturtmak kullanıcıyı, pini elle düzeltemeyeceği kadar uzağa alırdı.
+    setFocus({ id: result.id, label: result.label, lat: result.latitude, lon: result.longitude });
+    setSearchLabel(shortLabel(result.label));
+  }
+
+  /**
+   * Kaydet/vazgeç sonrası `AnchorEditor` burayı `null` ile çağırır — arama
+   * durumu da onunla birlikte sıfırlanmalı, yoksa kaydedilen anchor'ın
+   * numaralı pininin yanında aramanın ⌖ pini asılı kalır.
+   */
+  function changePending(point: MapPoint | null) {
+    setPending(point);
+    if (point === null) {
+      setFocus(null);
+      setSearchLabel(null);
+      setSearchKey((key) => key + 1);
+    }
+  }
 
   return (
     <article className={showCapacity ? 'pcard anchor-panel' : 'anchor-panel'}>
@@ -94,10 +140,24 @@ export function AnchorPanel({ usedCount }: AnchorPanelProps = {}) {
             bitiyor, ipucu ayrı bir paragraf olarak altta duruyordu ve
             haritayla ilgili olduğu belli olmuyordu. */}
         <div className={`anchor-map-frame${full ? ' is-full' : ''}`}>
+          {/* Kapasite doluyken arama da kapalı: bulunan yer bir noktaya
+              dönüşemeyeceği için sonuç listesi boşuna umut verirdi
+              (haritaya tıklama da aynı sebeple kapalı). */}
+          {!full && (
+            <LocationSearch
+              key={searchKey}
+              variant="inline"
+              placeholder="Adres veya yer ara (ör. Hacettepe Beytepe)"
+              onSelect={pickFromSearch}
+              onClear={() => setFocus(null)}
+            />
+          )}
+
           <div className="anchor-map">
             <CankayaMap
               height="320px"
-              onMapClick={full ? undefined : setPending}
+              onMapClick={full ? undefined : pickFromMap}
+              focus={focus}
               markers={[
                 ...anchors.map((a) => ({
                   id: a.id,
@@ -106,7 +166,10 @@ export function AnchorPanel({ usedCount }: AnchorPanelProps = {}) {
                   label: a.label,
                   priority: a.priority,
                 })),
-                ...(pending
+                // Aramadan gelen nokta zaten `focus`un ⌖ piniyle işaretli;
+                // ikinci bir "Yeni yer" pinini aynı koordinata bindirmek
+                // üst üste iki işaretçi demek olurdu.
+                ...(pending && !focus
                   ? [{ id: '__yeni', lat: pending.lat, lon: pending.lon, label: 'Yeni yer' }]
                   : []),
               ]}
@@ -121,14 +184,36 @@ export function AnchorPanel({ usedCount }: AnchorPanelProps = {}) {
               </>
             ) : (
               <>
-                <span aria-hidden="true">👆</span> Haritaya tıklayarak yer seç.
+                <span aria-hidden="true">👆</span> Yukarıdan adres ara ya da
+                haritaya tıklayarak yer seç.
               </>
             )}
           </p>
         </div>
 
-        <AnchorEditor pending={pending} onPendingChange={setPending} />
+        <AnchorEditor
+          pending={pending}
+          onPendingChange={changePending}
+          suggestedLabel={searchLabel}
+        />
       </div>
     </article>
   );
+}
+
+/**
+ * Arama sonucu etiketini anchor etiketine indirger.
+ *
+ * Sunucu etiketi virgülle birleştirilmiş tam adres döndürüyor (bkz.
+ * `PhotonGeocodingProvider.BuildLabel`): "Hacettepe Üniversitesi, Beytepe,
+ * Çankaya, Ankara, Türkiye". Anchor listesinde tek satırda görünen bir
+ * etiket için ilk parça yeterli — kullanıcı zaten üstüne yazabiliyor.
+ *
+ * Dışa AÇILMIYOR: bileşen dosyasından bileşen olmayan bir şey dışa
+ * aktarılınca Vite'ın fast-refresh'i bu dosya için devre dışı kalıyor
+ * (aynı not `AnchorEditor`da da var).
+ */
+function shortLabel(label: string): string {
+  const first = label.split(',')[0]?.trim() ?? '';
+  return first || label.trim();
 }

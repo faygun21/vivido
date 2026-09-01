@@ -1,10 +1,21 @@
 .location-search {
+  color: var(--ink);
+}
+
+/* Explore: tam ekran haritanın ÜSTÜNDE yüzen kutu. */
+.location-search--overlay {
   position: absolute;
   z-index: 5;
   top: 0.8rem;
   left: 0.8rem;
   width: min(30rem, calc(100% - 5.2rem));
-  color: var(--ink);
+}
+
+/* Gömülü harita (profil/onboarding): haritanın üst şeridi. Altındaki
+   ipucu şeridiyle (`.anchor-map-hint`) simetrik — ikisi de haritayı
+   çerçeveleyen, aynı yüzeye ait bantlar. */
+.location-search--inline {
+  position: relative;
 }
 
 /* Harita üstündeki diğer kontrollerle (`.map-fab`, `.top-panel-toggle`)
@@ -159,7 +170,49 @@
    `clip: rect(...)` kullanıyordu, ötekisi `clip-path`. Aynı sınıfın
    iki tanımı, yükleme sırasına göre farklı davranır. */
 
+/* ── Gömülü sürümün farkları ───────────────────────────────────────────
+   Yüzen kutu kendi kenarlığı/gölgesiyle haritadan AYRILMAK zorunda;
+   gömülü sürüm ise zaten bir çerçevenin (`.anchor-map-frame`) parçası —
+   ikinci bir kutu çizmek çerçeve içinde çerçeve olurdu. Bu yüzden kutu
+   malzemesi düşürülüp yalnızca alt çizgiyle haritadan ayrılıyor. */
+.location-search--inline .location-search-form {
+  padding: 0.4rem 0.5rem;
+  border: 0;
+  border-bottom: 1px solid var(--line-faint);
+  border-radius: 0;
+  background: var(--surface);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+}
+
+/* Odak halkası kutunun DIŞINA taşamaz (`.anchor-map-frame`de
+   `overflow: hidden` var) — içeriye çiziyoruz. */
+.location-search--inline .location-search-form:focus-within {
+  border-bottom-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent-soft-strong);
+}
+
+/* Sonuç listesi ve geri bildirim akışta yer KAPLAMAZ: kart içinde
+   açıldıklarında haritayı aşağı iter, altındaki form ve liste zıplardı.
+   Haritanın üstüne açılıyorlar. */
+.location-search--inline .location-search-feedback,
+.location-search--inline .location-search-results {
+  position: absolute;
+  z-index: 6;
+  top: 100%;
+  right: 0.5rem;
+  left: 0.5rem;
+}
+
+.location-search--inline .location-search-feedback { margin-top: 0; }
+
+/* Çerçeve 320px'lik haritayı kırpıyor; liste taşarsa alt satırlar
+   görünmez olur. Şerit + liste toplamı harita yüksekliğinin altında
+   kalmalı. */
+.location-search--inline .location-search-results ul { max-height: 13rem; }
+
 @media (max-width: 560px) {
-  .location-search { width: calc(100% - 4.7rem); }
+  .location-search--overlay { width: calc(100% - 4.7rem); }
   .location-search-submit { padding-inline: 0.55rem; }
 }

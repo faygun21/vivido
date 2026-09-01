@@ -34,7 +34,7 @@ import {
   type PropertyPoint,
 } from '@/shared/map/CankayaMap';
 import { PoiLayerPanel } from './PoiLayerPanel';
-import { LocationSearch } from './LocationSearch';
+import { LocationSearch } from '@/shared/location/LocationSearch';
 import { PropertyDetailPanel } from './PropertyDetailPanel';
 import { TopPropertiesPanel } from './TopPropertiesPanel';
 import {

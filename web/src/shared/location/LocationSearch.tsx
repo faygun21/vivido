@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import type { LocationSearchResponse, LocationSearchResult } from '@vivido/shared';
 import { api, ApiError, NetworkError } from '@/shared/api/client';
 import './LocationSearch.css';
@@ -6,6 +6,17 @@ import './LocationSearch.css';
 interface LocationSearchProps {
   onSelect: (location: LocationSearchResult) => void;
   onClear?: () => void;
+  /**
+   * `overlay` (varsayılan): explore'daki TAM EKRAN haritanın üstünde yüzen
+   * kutu — mutlak konumlu, kendi gölgesini taşır.
+   *
+   * `inline`: bir kartın içine gömülü haritanın (profil/onboarding'deki
+   * 320px'lik anchor haritası) ÜST ŞERİDİ — kendi satırını kaplar, sonuç
+   * listesi haritanın üstüne açılır.
+   */
+  variant?: 'overlay' | 'inline';
+  /** Bağlama göre değişebilsin diye dışarıdan verilebilir. */
+  placeholder?: string;
 }
 
 const kindLabels = {
@@ -24,7 +35,16 @@ const kindLabels = {
  */
 const SEARCH_DEBOUNCE_MS = 400;
 
-export function LocationSearch({ onSelect, onClear }: LocationSearchProps) {
+export function LocationSearch({
+  onSelect,
+  onClear,
+  variant = 'overlay',
+  placeholder = 'Mahalle, adres veya konum ara',
+}: LocationSearchProps) {
+  // Sayfada birden fazla arama kutusu olabilir (explore çekmecesi + gömülü
+  // harita). Sabit bir `id` yazılırsa `label`/`input` eşleşmesi ikisinde de
+  // aynı kimliğe bağlanır ve ekran okuyucu yanlış alana odaklanır.
+  const inputId = useId();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<LocationSearchResult[]>([]);
   const [attribution, setAttribution] = useState('');
@@ -112,20 +132,34 @@ export function LocationSearch({ onSelect, onClear }: LocationSearchProps) {
   function select(result: LocationSearchResult) {
     setSelectedId(result.id);
     onSelect(result);
+
+    // Gömülü sürümde liste haritanın ÜSTÜNE açılıyor: açık kalırsa
+    // kullanıcı az önce seçtiği noktanın haritada nereye düştüğünü
+    // göremez. Explore'da liste çekmecenin üstünde duruyor ve harita
+    // yanında görünmeye devam ediyor — orada açık kalması, sonuçlar
+    // arasında gezinmeyi kolaylaştırdığı için isteniyor.
+    // Sorgu metni SİLİNMİYOR; kullanıcı ne aradığını görmeye devam etsin.
+    if (variant === 'inline') {
+      setResults([]);
+      setSearched(false);
+    }
   }
 
   return (
-    <div className="location-search" onKeyDown={(event) => event.key === 'Escape' && clear()}>
+    <div
+      className={`location-search location-search--${variant}`}
+      onKeyDown={(event) => event.key === 'Escape' && clear()}
+    >
       <form className="location-search-form" role="search" onSubmit={submit}>
-        <label className="sr-only" htmlFor="location-query">
-          Mahalle, adres veya konum ara
+        <label className="sr-only" htmlFor={inputId}>
+          {placeholder}
         </label>
         <span className="location-search-icon" aria-hidden="true">⌕</span>
         <input
-          id="location-query"
+          id={inputId}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Mahalle, adres veya konum ara"
+          placeholder={placeholder}
           autoComplete="off"
           maxLength={200}
         />
