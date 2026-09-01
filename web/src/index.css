@@ -2577,7 +2577,10 @@ button svg,
 
 .route-item-score {
   flex: none;
-  padding: 0.1rem 0.45rem;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.1rem;
+  padding: 0.1rem 0.5rem;
   border-radius: 999px;
   background: color-mix(in srgb, var(--accent) 12%, var(--surface));
   color: var(--accent);
@@ -2585,8 +2588,21 @@ button svg,
   font-weight: 700;
 }
 
+/* "/100" eki — çıplak bir sayı ("43") ne olduğunu (uygunluk skoru,
+   100 üzerinden) anlatmıyordu; kullanıcı özellikle kaldır (✕) düğmesine
+   bu kadar yakınken bunun ne olduğunu ayırt etmekte zorlanabiliyordu. */
+.route-item-score-unit {
+  color: color-mix(in srgb, var(--accent) 65%, var(--ink-muted));
+  font-weight: 600;
+  font-size: 0.68rem;
+}
+
 .route-remove {
   flex: none;
+  /* Skor rozeti de kaldır düğmesi de yuvarlak/rozet görünümünde —
+     aradaki standart 0.55rem satır boşluğu ikisini "tek bir kontrol"
+     gibi göstermeye yetmiyordu, biraz daha ayırıyoruz. */
+  margin-left: 0.15rem;
   color: var(--ink-muted);
   font-size: 0.8rem;
 }

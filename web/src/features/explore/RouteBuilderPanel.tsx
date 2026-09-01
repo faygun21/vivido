@@ -155,7 +155,15 @@ export function RouteBuilderPanel({
                     {option.monthlyRent.toLocaleString('tr-TR')} ₺
                   </span>
                 </span>
-                <span className="route-item-score">{Math.round(option.totalScore)}</span>
+                <span
+                  className="route-item-score"
+                  title={`Uygunluk skoru: ${Math.round(option.totalScore)}/100`}
+                >
+                  {Math.round(option.totalScore)}
+                  <span className="route-item-score-unit" aria-hidden="true">
+                    /100
+                  </span>
+                </span>
                 <button
                   className="btn-icon route-remove"
                   type="button"
@@ -383,8 +391,20 @@ function RouteMetricsCard({
                     : ''}
                 </span>
               </span>
-              <span className="route-item-score">
-                {stop.score != null ? Math.round(stop.score) : '—'}
+              <span
+                className="route-item-score"
+                title={stop.score != null ? `Uygunluk skoru: ${Math.round(stop.score)}/100` : undefined}
+              >
+                {stop.score != null ? (
+                  <>
+                    {Math.round(stop.score)}
+                    <span className="route-item-score-unit" aria-hidden="true">
+                      /100
+                    </span>
+                  </>
+                ) : (
+                  '—'
+                )}
               </span>
               <button
                 className="btn-icon route-remove"
