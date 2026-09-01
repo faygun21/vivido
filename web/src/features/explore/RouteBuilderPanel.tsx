@@ -157,9 +157,12 @@ export function RouteBuilderPanel({
                 </span>
                 <span
                   className="route-item-score"
-                  title={`Uygunluk skoru: ${Math.round(option.totalScore)}/100`}
+                  title={`Uygunluk skoru: ${option.totalScore.toFixed(1)}/100`}
                 >
-                  {Math.round(option.totalScore)}
+                  {/* Tam sayıya yuvarlanmıyor — bkz. PropertyDetailPanel'deki
+                      aynı gerekçe: skorlar artık çok daha ayrışık, yuvarlama
+                      farklı evleri aynı görünen puana taşıyabiliyordu. */}
+                  {option.totalScore.toFixed(1)}
                   <span className="route-item-score-unit" aria-hidden="true">
                     /100
                   </span>
@@ -393,11 +396,11 @@ function RouteMetricsCard({
               </span>
               <span
                 className="route-item-score"
-                title={stop.score != null ? `Uygunluk skoru: ${Math.round(stop.score)}/100` : undefined}
+                title={stop.score != null ? `Uygunluk skoru: ${stop.score.toFixed(1)}/100` : undefined}
               >
                 {stop.score != null ? (
                   <>
-                    {Math.round(stop.score)}
+                    {stop.score.toFixed(1)}
                     <span className="route-item-score-unit" aria-hidden="true">
                       /100
                     </span>

@@ -2601,8 +2601,11 @@ button svg,
   flex: none;
   /* Skor rozeti de kaldır düğmesi de yuvarlak/rozet görünümünde —
      aradaki standart 0.55rem satır boşluğu ikisini "tek bir kontrol"
-     gibi göstermeye yetmiyordu, biraz daha ayırıyoruz. */
-  margin-left: 0.15rem;
+     gibi göstermeye yetmiyordu (0.15rem'lik ilk deneme de yetersiz
+     kaldı, özellikle rozet artık ondalıklı gösterip genişleyince —
+     bkz. RouteBuilderPanel'deki toFixed(1) notu). Belirgin bir boşluk
+     için satırın geri kalanından (0.55rem) daha büyük bir değer. */
+  margin-left: 0.5rem;
   color: var(--ink-muted);
   font-size: 0.8rem;
 }
