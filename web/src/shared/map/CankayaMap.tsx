@@ -25,7 +25,7 @@ import {
 } from './analysisArea';
 import type { UserLocation } from './useUserLocation';
 import type { Poi, PolygonGeoJson, RouteDetail, RouteStop } from '@vivido/shared';
-import { poiCategoryColor } from './poiColors';
+import { POI_CATEGORY_COLORS, POI_FALLBACK_COLOR, poiCategoryColor } from './poiColors';
 
 setWorkerUrl(maplibreWorkerUrl);
 
@@ -206,7 +206,18 @@ function vectorLabelLayers(): unknown[] {
   ];
 }
 
-/** Sol menüdeki mantıkla birebir aynı çalışan ikon belirleme fonksiyonu. */
+/**
+ * Sol menüdeki mantıkla birebir aynı çalışan ikon belirleme fonksiyonu.
+ *
+ * ⚠️ BEYAZ ikon dosyalarını döndürür (`*_white.svg`) — sol menüdeki
+ * (`PoiLayerPanel`) AYNI mantığın renkli orijinalleri döndüren kopyası
+ * BİLEREK farklı: buradaki ikon artık kategori renginde dolu bir dairenin
+ * (bkz. `poi-daire`/`poi-vurgu-daire` katmanları) ÜSTÜNE biniyor — mobil
+ * uygulamadaki "Google Haritalar" tarzı POI işaretçisiyle aynı desen
+ * (bkz. mobile/.../cankaya_map.dart `register(..., Colors.white)` ve
+ * oradaki not: "altında kategori renginde dolu bir daire var, ikonu da
+ * renkli yapmak ikisini birbirine karıştırırdı").
+ */
 function getCategoryIconPath(code: string, name?: string): string {
   const lowerCode = (code || '').toLowerCase();
   const lowerName = (name || '').toLowerCase();
@@ -222,7 +233,7 @@ function getCategoryIconPath(code: string, name?: string): string {
     lowerName.includes('kafe') ||
     lowerName.includes('restoran')
   ) {
-    return '/cafe.svg';
+    return '/cafe_white.svg';
   }
 
   if (
@@ -232,7 +243,7 @@ function getCategoryIconPath(code: string, name?: string): string {
     lowerCode.includes('transit') || 
     lowerCode.includes('ulasim')
   ) {
-    return '/bus.svg';
+    return '/bus_white.svg';
   }
 
   if (
@@ -247,7 +258,7 @@ function getCategoryIconPath(code: string, name?: string): string {
     lowerName.includes('eczane') ||
     lowerName.includes('hastane')
   ) {
-    return '/hastane.svg';
+    return '/hastane_white.svg';
   }
 
   if (
@@ -255,7 +266,7 @@ function getCategoryIconPath(code: string, name?: string): string {
     lowerCode.includes('yesil') || 
     lowerCode.includes('green')
   ) {
-    return '/park.svg';
+    return '/park_white.svg';
   }
 
   if (
@@ -264,7 +275,7 @@ function getCategoryIconPath(code: string, name?: string): string {
     lowerCode.includes('education') || 
     lowerCode.includes('egitim')
   ) {
-    return '/kep_kahve.svg';
+    return '/kep_kahve_white.svg';
   }
 
   if (
@@ -272,7 +283,7 @@ function getCategoryIconPath(code: string, name?: string): string {
     lowerCode.includes('spor') || 
     lowerCode.includes('gym')
   ) {
-    return '/sport_kahve.svg';
+    return '/sport_kahve_white.svg';
   }
 
   if (
@@ -281,10 +292,16 @@ function getCategoryIconPath(code: string, name?: string): string {
     lowerCode.includes('supermarket') || 
     lowerCode.includes('alisveris')
   ) {
-    return '/avm.svg';
+    return '/avm_white.svg';
   }
 
-  return '/icons.svg';
+  // Bilinen 8 kategorinin dışında bir kod gelirse (ör. backend'e yeni bir
+  // kategori eklenip burası unutulursa) buraya düşülür. Eskiden bu yol
+  // `/icons.svg`'ye gidiyordu — Vite şablonundan kalma, POI'yle hiç ilgisi
+  // olmayan bir sosyal medya ikon sprite'ıydı (Discord/GitHub/X). Şu an
+  // fiilen ERİŞİLEMEZ (8 kategori de yukarıdaki dallardan birine düşüyor)
+  // ama sessiz bir savunma hattı olarak nötr bir nokta ikonuna işaret ediyor.
+  return '/poi_generic_white.svg';
 }
 
 /**
@@ -308,21 +325,39 @@ function loadCustomMapImages(map: MapLibreMap) {
   // 1. Konutlar için ev ikonu (beyaz — turuncu daire üstünde net ayrışıyor)
   addSvgIcon('ev-ikon', '/home_white.svg');
 
-  // 2. Diğer POI ikonları
+  // 2. Diğer POI ikonları — beyaz varyantlar (bkz. getCategoryIconPath'teki not)
   const uniquePaths = [
-    '/cafe.svg',
-    '/bus.svg',
-    '/hastane.svg',
-    '/park.svg',
-    '/kep_kahve.svg',
-    '/sport_kahve.svg',
-    '/avm.svg',
-    '/icons.svg',
+    '/cafe_white.svg',
+    '/bus_white.svg',
+    '/hastane_white.svg',
+    '/park_white.svg',
+    '/kep_kahve_white.svg',
+    '/sport_kahve_white.svg',
+    '/avm_white.svg',
+    '/poi_generic_white.svg',
   ];
 
   for (const path of uniquePaths) {
     addSvgIcon(`svg-icon-${path}`, path);
   }
+}
+
+/**
+ * Kategori kodu → renk için MapLibre `match` ifadesi üretir.
+ *
+ * Mobil uygulamadaki `_poiColorExpression()` ile AYNI mantık (bkz.
+ * `mobile/.../cankaya_map.dart`) — iki istemci de `POI_CATEGORY_COLORS`'ı
+ * (`poiColors.ts`, mobildeki `poiCategoryColors` ile aynı renkler) `match`
+ * ifadesine düzleştiriyor, tek fark PoI verisindeki alan adı yok (ikisi de
+ * `category`/`category` özelliğine bakıyor).
+ */
+function poiCircleColorExpression(): unknown[] {
+  const expression: unknown[] = ['match', ['get', 'category']];
+  for (const [code, color] of Object.entries(POI_CATEGORY_COLORS)) {
+    expression.push(code, color);
+  }
+  expression.push(POI_FALLBACK_COLOR);
+  return expression;
 }
 
 function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): MapStyle {
@@ -537,29 +572,63 @@ function buildStyle(district: GeoCollection, neighbourhoods: GeoCollection): Map
         'icon-allow-overlap': true,
       },
     },
-    // POI Katmanı (Mevcut yapısı korundu)
+    // POI Katmanı — Google Haritalar tarzı: kategori renginde dolu bir
+    // daire + üstünde beyaz kategori ikonu (mobil uygulamayla AYNI desen,
+    // bkz. `poiCircleColorExpression` ve `getCategoryIconPath`'teki not).
+    // Eskiden POI'ler herhangi bir zemin olmadan çıplak, tek renkli
+    // (koyu gri) ikonlar olarak çiziliyordu — hangi kategoriden olduğu
+    // uzaktan hiç anlaşılmıyordu ve haritadaki "ev" işaretçileriyle
+    // (turuncu daire + beyaz ikon) tutarsız duruyordu.
+    {
+      id: 'poi-daire',
+      type: 'circle',
+      source: 'pois',
+      filter: ['!', ['has', 'point_count']],
+      minzoom: 13,
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 5, 14.5, 10],
+        'circle-color': poiCircleColorExpression(),
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': 1.5,
+      },
+    },
     {
       id: 'poi-nokta',
       type: 'symbol',
       source: 'pois',
       filter: ['!', ['has', 'point_count']],
-      minzoom: 14,
+      // Daireden GEÇ beliriyor: küçük dairenin üstünde ikon okunmaz, sadece
+      // lekelenir — daire 14.5'te tam büyüklüğüne (10px yarıçap) ulaşıyor.
+      minzoom: 14.5,
       layout: {
         'icon-image': ['concat', 'svg-icon-', ['get', 'iconPath']],
-        'icon-size': 0.8,
+        'icon-size': 0.3,
         'icon-allow-overlap': true,
       },
     },
-    // Seçili evin güçlü yönü olan POI'ler — AYNI ikon setiyle, özel bir
-    // renk/halka icat edilmedi. `minzoom` YOK: kullanıcı listeden ev
-    // seçtiğinde henüz yakınlaşmamış olabilir, o an bile görülsün.
+    // Seçili evin güçlü yönü olan POI'ler — AYNI ikon setiyle, sadece
+    // normal POI'lerden biraz daha büyük (dolgulu daire, önceki
+    // icon-size farkının — 0.9 / 0.8 — karşılığı). `minzoom` YOK:
+    // kullanıcı listeden ev seçtiğinde henüz yakınlaşmamış olabilir,
+    // o an bile görülsün.
+    {
+      id: 'poi-vurgu-daire',
+      type: 'circle',
+      source: 'poi-vurgu',
+      paint: {
+        'circle-radius': 11,
+        'circle-color': poiCircleColorExpression(),
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': 2,
+      },
+    },
     {
       id: 'poi-vurgu-ikon',
       type: 'symbol',
       source: 'poi-vurgu',
       layout: {
         'icon-image': ['concat', 'svg-icon-', ['get', 'iconPath']],
-        'icon-size': 0.9,
+        'icon-size': 0.35,
         'icon-allow-overlap': true,
       },
     },
