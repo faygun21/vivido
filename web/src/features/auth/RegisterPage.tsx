@@ -113,8 +113,11 @@ if (
             düğmesi ekranın altında kalıyor. Ölçüler satır içi `style`
             ile tek tek ezilmek yerine tek bir değiştirici sınıfta. */}
         <div className="login-form-container login-form-container--compact">
-          <img src="/images/logo.svg" alt="Vivido Logo" className="login-logo" />
+          {/* Marka kilidi — giriş ekranıyla birebir aynı; `alt=""` gerekçesi
+              için bkz. `LoginPage`. */}
+          <img src="/images/logo.svg" alt="" className="login-logo" />
 
+          <p className="login-wordmark">Vivido</p>
           <p className="login-slogan">hayalinizdeki eve giden yol</p>
           <div className="login-divider" />
 

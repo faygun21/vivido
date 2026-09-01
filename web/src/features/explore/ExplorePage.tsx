@@ -679,28 +679,27 @@ export function ExplorePage() {
         />
       )}
 
-      {/* Sağ alta sabitlenmiş menü açma tuşu (FAB) */}
-      {!drawerOpen && (
-        <button
-          className="map-fab"
-          type="button"
-          aria-expanded={false}
-          aria-controls="explore-drawer"
-          aria-label="Paneli aç"
-          onClick={() => setDrawerOpen(true)}
-          style={{
-            position: 'absolute',
-            bottom: '2.5rem', 
-            right: 'calc(var(--right-slot) + 1.25rem)',
-            zIndex: 6,
-            transition: 'right 0.22s ease, background 0.15s ease, border-color 0.15s ease'
-          }}
-        >
-          <span className="map-fab-bars" aria-hidden="true" />
-        </button>
-      )}
-
       <div className="map-topbar">
+        {/* Çekmece açma tuşu SOL ÜSTTE — açtığı panelin geldiği kenarda.
+            Bir süre sağ alta sabitlenmiş bir FAB'dı: soldan açılan bir
+            paneli sağ alttaki bir düğmeyle açmak yönü tersine çeviriyor,
+            üstelik sağ alt köşe "En uygun evler" yuvasının (`--right-slot`)
+            ve maskotun paylaştığı bölge. Konumu artık `.map-topbar`ın
+            yerleşiminden geliyor — panel açılınca şerit zaten panelin
+            sağına kayıyor (bkz. `.explore--drawer-open .map-topbar`). */}
+        {!drawerOpen && (
+          <button
+            className="map-fab"
+            type="button"
+            aria-expanded={false}
+            aria-controls="explore-drawer"
+            aria-label="Paneli aç"
+            onClick={() => setDrawerOpen(true)}
+          >
+            <span className="map-fab-bars" aria-hidden="true" />
+          </button>
+        )}
+
         {showTopPanelToggle && !topPanelOpen && (
           <button
             className="top-panel-toggle"
