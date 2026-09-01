@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { CreateRouteRequest, RouteDetail, TravelMode } from '@vivido/shared';
-import { MAX_ROUTE_STOPS, MIN_ROUTE_STOPS } from '@vivido/shared';
+import { MAX_ROUTE_STOPS, MIN_ROUTE_STOPS, scoreBand } from '@vivido/shared';
 import type { UserLocationStatus } from '@/shared/map/useUserLocation';
 import { isWithinCankaya, type RouteStart } from '@/shared/route/routeStart';
 import { RouteStartCombobox } from './RouteStartCombobox';
@@ -156,12 +156,15 @@ export function RouteBuilderPanel({
                   </span>
                 </span>
                 <span
-                  className="route-item-score"
+                  className={`route-item-score route-item-score--${scoreBand(option.totalScore)}`}
                   title={`Uygunluk skoru: ${option.totalScore.toFixed(1)}/100`}
                 >
                   {/* Tam sayıya yuvarlanmıyor — bkz. PropertyDetailPanel'deki
                       aynı gerekçe: skorlar artık çok daha ayrışık, yuvarlama
-                      farklı evleri aynı görünen puana taşıyabiliyordu. */}
+                      farklı evleri aynı görünen puana taşıyabiliyordu. Renk de
+                      "en uygun evler" listesindeki bant renklendirmesiyle
+                      (yeşil/turuncu/kırmızı) aynı — çıplak sayı iyi mi kötü
+                      mü olduğunu anlatmıyordu. */}
                   {option.totalScore.toFixed(1)}
                   <span className="route-item-score-unit" aria-hidden="true">
                     /100
@@ -395,7 +398,9 @@ function RouteMetricsCard({
                 </span>
               </span>
               <span
-                className="route-item-score"
+                className={`route-item-score${
+                  stop.score != null ? ` route-item-score--${scoreBand(stop.score)}` : ''
+                }`}
                 title={stop.score != null ? `Uygunluk skoru: ${stop.score.toFixed(1)}/100` : undefined}
               >
                 {stop.score != null ? (

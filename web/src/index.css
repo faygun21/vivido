@@ -2582,17 +2582,32 @@ button svg,
   gap: 0.1rem;
   padding: 0.1rem 0.5rem;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
-  color: var(--accent);
   font-size: 0.75rem;
   font-weight: 700;
+  /* Skor henüz bilinmiyorsa ("—") hiçbir bant sınıfı verilmiyor — nötr
+     bir varsayılan, aşağıdaki `--bant` sınıflarından biri her zaman
+     bunun üstüne yazar. */
+  background: var(--input-bg);
+  color: var(--ink-muted);
 }
+
+/* Bant başına renk — "en uygun evler" listesindeki `.score-badge`/
+   `.band-chip` ile AYNI dört renk (bkz. oradaki not: "sayı tek başına
+   anlamlı değil, bandı söylemeden kullanıcı iyi mi kötü mü bilmiyor").
+   Rota panelindeki rozet daha küçük/derli toplu olduğu için dolgu değil
+   soluk-zeminli (tint) versiyon kullanılıyor. */
+.route-item-score--excellent { background: color-mix(in srgb, #15803d 15%, var(--surface)); color: #15803d; }
+.route-item-score--good      { background: color-mix(in srgb, #4d7c0f 15%, var(--surface)); color: #4d7c0f; }
+.route-item-score--fair      { background: color-mix(in srgb, #b45309 15%, var(--surface)); color: #b45309; }
+.route-item-score--poor      { background: color-mix(in srgb, #9a3412 15%, var(--surface)); color: #9a3412; }
 
 /* "/100" eki — çıplak bir sayı ("43") ne olduğunu (uygunluk skoru,
    100 üzerinden) anlatmıyordu; kullanıcı özellikle kaldır (✕) düğmesine
-   bu kadar yakınken bunun ne olduğunu ayırt etmekte zorlanabiliyordu. */
+   bu kadar yakınken bunun ne olduğunu ayırt etmekte zorlanabiliyordu.
+   `currentColor` sayesinde hangi bant rengi set edilmişse onu miras alır
+   — dört ayrı varyant tanımlamaya gerek kalmaz. */
 .route-item-score-unit {
-  color: color-mix(in srgb, var(--accent) 65%, var(--ink-muted));
+  color: color-mix(in srgb, currentColor 65%, var(--ink-muted));
   font-weight: 600;
   font-size: 0.68rem;
 }
