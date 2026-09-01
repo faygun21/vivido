@@ -182,6 +182,20 @@ export function GuideMascot({ isOpen, steps: propSteps, onTabChange, onComplete 
   */
   const parked = !isOpen;
 
+  /*
+    Duruş, EKRAN GENİŞLİĞİNE değil PANELİN AÇIK OLMASINA bağlı: panelden
+    sarkan/tutunan görseller (`mascot_on_the_wall`, `mascot_2`) yaslanacak
+    bir kenar olduğunu varsayıyor — geniş ekranda çekmecenin duvarı, dar
+    ekranda alt sayfanın üst kenarı. Panel kapanınca o kenar ortadan
+    kalkıyor ve maskot haritanın ortasında görünmez bir duvara tutunmuş
+    gibi duruyordu; kapalıyken ayakta duran hâli kullanılıyor.
+  */
+  const figureSrc = parked
+    ? '/mascot.png'
+    : wideScreen
+      ? '/mascot_on_the_wall.png'
+      : '/mascot_2.png';
+
   return (
     <div
       className={`mascot${wideScreen ? ' mascot--wide' : ''}${
@@ -189,7 +203,7 @@ export function GuideMascot({ isOpen, steps: propSteps, onTabChange, onComplete 
       }`}
     >
       <img
-        src={wideScreen ? '/mascot_on_the_wall.png' : '/mascot_2.png'}
+        src={figureSrc}
         alt="Rehber Maskot"
         className="mascot-figure"
         onClick={() => {

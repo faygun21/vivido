@@ -2473,6 +2473,27 @@ button {
   margin-bottom: 0.5rem;
 }
 
+/* Marka kelimesi — başlıktaki `.brand` kilidinin (işaret + "Vivido")
+   büyük hâli. Giriş/kayıt ekranında yalnızca İŞARET vardı: uygulamanın
+   ilk yüzeyinde marka adı hiçbir yerde yazmıyordu, oysa kullanıcı içeri
+   girdiği anda üst şeritte onu okuyor.
+
+   Ölçek `--fs-display`, sayfa başlığı (`.login-title`) `--fs-h1`: bu
+   ekranın en büyük ögesi marka olmalı. İkisi aynı boyda olsaydı "Vivido"
+   ile "Giriş Yap" iki eş başlık gibi okunur, hangisinin kimlik hangisinin
+   görev olduğu kaybolurdu.
+
+   Renk `--ink` — üst şeritteki marka da öyle. İşaret zaten accent
+   taşıyor; kelimeyi de turuncuya boyamak aynı vurguyu iki kez yapardı. */
+.login-wordmark {
+  margin: 0 0 0.15rem;
+  font-size: var(--fs-display);
+  line-height: var(--lh-display);
+  letter-spacing: var(--ls-display);
+  font-weight: 700;
+  color: var(--ink);
+}
+
 .login-slogan {
   font-size: var(--fs-sm);
   color: var(--ink-muted);
@@ -2583,7 +2604,15 @@ button {
 /* Kayıt formu: dört alan + iki düğme. Aynı dikey ritim kullanılırsa
    700px yüksekliğinde bir dizüstünde son düğme ekranın altında
    kalıyor. Sıkıştırma tek yerden. */
-.login-form-container--compact .login-logo { height: 4.5rem; margin-bottom: 0.25rem; }
+.login-form-container--compact .login-logo { height: 4rem; margin-bottom: 0.15rem; }
+/* Kelime kilide dahil olunca dikey yer istiyor; sığdırmanın bedeli
+   İŞARETTEN alınıyor (4.5 → 4rem), kelimeden değil — küçülen bir marka
+   adı kilidi zayıflatır. Üst sınır `--fs-h1`in (1.85rem) ÜSTÜNDE
+   kalmalı, yoksa sıkışık sürümde marka ile sayfa başlığı eşitlenir. */
+.login-form-container--compact .login-wordmark {
+  font-size: min(var(--fs-display), 2.15rem);
+  margin-bottom: 0.1rem;
+}
 .login-form-container--compact .login-slogan { margin: 0 0 0.5rem; }
 .login-form-container--compact .login-divider { margin-bottom: 1rem; }
 .login-form-container--compact .login-title { margin-bottom: 1rem; }

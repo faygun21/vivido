@@ -65,12 +65,13 @@ export function LoginPage() {
       {/* Sağ Taraf: Giriş Formu */}
       <div className="login-right">
         <div className="login-form-container">
-          <img
-            src="/images/logo.svg"
-            alt="Vivido Logo"
-            className="login-logo"
-          />
+          {/* Marka kilidi: işaret → ad → slogan.
+              Logo `alt=""` (dekoratif) çünkü markayı artık bitişiğindeki
+              görünür metin adlandırıyor; ikisi de metin taşısaydı ekran
+              okuyucu "Vivido Logo, Vivido" diye iki kez okurdu. */}
+          <img src="/images/logo.svg" alt="" className="login-logo" />
 
+          <p className="login-wordmark">Vivido</p>
           <p className="login-slogan">hayalinizdeki eve giden yol</p>
           <div className="login-divider"></div>
 
