@@ -4,6 +4,7 @@ import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } f
 import { GuideMascot } from '@/components/GuideMascot';
 import type {
   CreateRouteRequest,
+  FavoriteResponse,
   LocationSearchResult,
   Persona,
   Poi,
@@ -33,7 +34,7 @@ import {
   type PropertyPoint,
 } from '@/shared/map/CankayaMap';
 import { PoiLayerPanel } from './PoiLayerPanel';
-import { LocationSearch } from './LocationSearch';
+import { LocationSearch } from '@/shared/location/LocationSearch';
 import { PropertyDetailPanel } from './PropertyDetailPanel';
 import { TopPropertiesPanel } from './TopPropertiesPanel';
 import {
@@ -361,6 +362,11 @@ export function ExplorePage() {
   const [bounds, setBounds] = useState<MapBounds | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [propertiesVisible, setPropertiesVisible] = useState(true);
+  // Favori katmanı KAPALI başlar: harita zaten konut, POI ve anchor
+  // katmanlarını taşıyor. Kullanıcı favorilerini görmek istediğinde
+  // açar — açık başlasaydı favorisi olmayan kullanıcı için hiçbir şey
+  // yapmayan, olan içinse istemediği bir katman olurdu.
+  const [favoritesVisible, setFavoritesVisible] = useState(false);
   const boundsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: poiCategories = [] } = useQuery({
@@ -368,6 +374,37 @@ export function ExplorePage() {
     queryFn: () => api.get<PoiCategory[]>('/pois/categories'),
     staleTime: 5 * 60 * 1000,
   });
+
+  /*
+    Favoriler — haritada yıldızla gösterilecek konutlar.
+
+    ⚠️ Sorgu anahtarı `['favorites']`: profil sayfası ve "en uygun evler"
+    panelindeki kalp düğmesi (`useFavoriteMutation`) tam bu anahtarı
+    invalidate ediyor. Yani kullanıcı listeden bir evi favorilerine
+    eklediği an haritadaki yıldız da beliriyor — ayrıca bir tazeleme
+    kablosu çekmeye gerek yok.
+
+    Misafir kullanıcıda `useSessionQuery` isteği hiç atmaz (oturum
+    koşuluyla VE'leniyor, bkz. K-14), bu yüzden ayrı bir `enabled`
+    koşulu yok.
+  */
+  const { data: favorites = [] } = useSessionQuery({
+    queryKey: ['favorites'],
+    queryFn: () => api.get<FavoriteResponse[]>('/profile/favorites'),
+    retry: false,
+  });
+
+  // Konutu silinmiş favoriler `property: null` döner (bkz. profildeki
+  // `FavoriteCard`) — koordinatı olmayan bir noktayı haritaya koyamayız.
+  const favoritePoints: PropertyPoint[] = favorites.flatMap((favorite) =>
+    favorite.property
+      ? [{
+          id: String(favorite.property.id),
+          lat: favorite.property.latitude,
+          lon: favorite.property.longitude,
+        }]
+      : [],
+  );
 
   function handleBoundsChange(next: MapBounds) {
     if (boundsTimer.current) clearTimeout(boundsTimer.current);
@@ -602,6 +639,7 @@ export function ExplorePage() {
         pois={pois}
         poiCategoryNames={poiCategoryNames}
         highlightedPois={highlightedPois}
+        favorites={favoritesVisible ? favoritePoints : []}
         selectedPropertyId={selectedPropertyId}
         onBoundsChange={handleBoundsChange}
         userLocation={userLocation}
@@ -928,6 +966,10 @@ export function ExplorePage() {
                 hasAnchorArea={anchorCount > 0}
                 showAllProperties={showAllProperties}
                 onToggleShowAllProperties={() => setShowAllProperties((v) => !v)}
+                canUseFavorites={authenticated && !isGuest}
+                favoritesVisible={favoritesVisible}
+                onToggleFavorites={() => setFavoritesVisible((v) => !v)}
+                favoriteCount={favoritePoints.length}
               />
 
               <ul className="legend">
@@ -942,6 +984,17 @@ export function ExplorePage() {
                   />
                   Bütçene uygun konut
                 </li>
+                {/* Gösterge yalnızca katman AÇIKKEN — kapalıyken haritada
+                    karşılığı olmayan bir sembolü açıklamak kafa karıştırır. */}
+                {favoritesVisible && (
+                  <li>
+                    <span
+                      className="map-pin map-pin--favorite"
+                      style={{ position: 'static', width: '1.2rem', height: '1.2rem' }}
+                    />
+                    Favori konutun
+                  </li>
+                )}
               </ul>
               <p className="data-badge">Konut verisi sentetiktir</p>
             </section>

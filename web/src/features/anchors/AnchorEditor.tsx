@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   DndContext,
@@ -46,6 +46,12 @@ export interface AnchorEditorProps {
   onRequestPick?: () => void;
   /** Nokta seçme modu açık mı — düğme durumunu buna göre çiziyoruz. */
   picking?: boolean;
+  /**
+   * Nokta adres aramasından geldiyse bulunan yerin adı — etiket alanına
+   * hazır yazılır. Haritaya tıklayarak seçilen noktalarda `null` gelir ve
+   * alan boşalır (önceki aramadan kalan ad orada kalmasın).
+   */
+  suggestedLabel?: string | null;
 }
 
 export function AnchorEditor({
@@ -53,11 +59,19 @@ export function AnchorEditor({
   onPendingChange,
   onRequestPick,
   picking = false,
+  suggestedLabel = null,
 }: AnchorEditorProps) {
   const queryClient = useQueryClient();
   const [label, setLabel] = useState('');
   const [mode, setMode] = useState<TravelMode>('car');
   const [error, setError] = useState<string | null>(null);
+
+  // Öneri DEĞİŞTİĞİNDE yazılır, her render'da değil — kullanıcı hazır gelen
+  // adı silip kendi etiketini yazdıysa (ör. "Kızılay" → "İş") bir sonraki
+  // render onu geri getirmemeli.
+  useEffect(() => {
+    setLabel(suggestedLabel ?? '');
+  }, [suggestedLabel]);
 
   const { data: anchors = [], isLoading, error: loadError } = useSessionQuery({
     queryKey: ['anchors'],

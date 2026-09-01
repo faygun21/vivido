@@ -23,8 +23,33 @@
 }
 
 .poi-layer-divider {
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--line-soft);
   margin: 0.5rem 0 0.25rem;
+}
+
+/* Katmandaki öge sayısı — satırın SONUNA yaslanır. Kullanıcı tiki
+   açmadan önce ne bekleyeceğini bilsin: boş bir katmanı açıp
+   "çalışmıyor mu?" diye düşünmesin. */
+.poi-layer-count {
+  margin-left: auto;
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.35rem;
+  border-radius: var(--r-pill);
+  background: var(--input-bg);
+  color: var(--ink-muted);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Katman açıkken sayaç da vurgulanır — hangi katmanların açık olduğu
+   yalnızca küçük onay kutusundan okunuyordu. */
+.poi-layer-row:has(input:checked) .poi-layer-count {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 /* ─── R-110 — MapLibre popup ───
