@@ -63,7 +63,6 @@ export function AnchorEditor({
 }: AnchorEditorProps) {
   const queryClient = useQueryClient();
   const [label, setLabel] = useState('');
-  const [mode, setMode] = useState<TravelMode>('car');
   const [error, setError] = useState<string | null>(null);
 
   // Öneri DEĞİŞTİĞİNDE yazılır, her render'da değil — kullanıcı hazır gelen
@@ -181,7 +180,14 @@ export function AnchorEditor({
           onSubmit={(e) => {
             e.preventDefault();
             if (!label.trim()) { setError('Bir etiket gir (ör. "Üniversite").'); return; }
-            createMutation.mutate({ label: label.trim(), lat: pending.lat, lon: pending.lon, mode });
+            // Ulaşım şekli artık kullanıcıya sorulmuyor — koridor hesabı
+            // her bacak için gerçek yol tarifiyle zaten yürüme/araç arasında
+            // kendisi karar veriyor (bkz. PropertiesController.
+            // BuildCorridorLegsAsync: önce yaya, olmazsa araç dener). Bu
+            // seçim yalnızca tek-anchor'lu ya da hiç yol bulunamayan nadir
+            // durumda buffer genişliğini belirliyordu — kullanıcıya ekstra
+            // bir soru sormaya değecek kadar etkili değildi.
+            createMutation.mutate({ label: label.trim(), lat: pending.lat, lon: pending.lon, mode: 'car' });
           }}
         >
           <label className="field">
@@ -192,14 +198,6 @@ export function AnchorEditor({
               placeholder="Örn. Hacettepe Beytepe"
               autoFocus
             />
-          </label>
-
-          <label className="field">
-            <span>Nasıl gidiyorsun?</span>
-            <select value={mode} onChange={(e) => setMode(e.target.value as TravelMode)}>
-              <option value="car">Araçla</option>
-              <option value="foot">Yürüyerek</option>
-            </select>
           </label>
 
           <div className="row-actions">
@@ -275,9 +273,6 @@ function SortableAnchor({
 
       <span className="anchor-body">
         <strong>{anchor.label}</strong>
-        <span className="muted">
-          {anchor.mode === 'car' ? 'Araçla' : 'Yürüyerek'}
-        </span>
       </span>
 
       <button className="btn-icon" type="button" onClick={onDelete} title="Sil">
