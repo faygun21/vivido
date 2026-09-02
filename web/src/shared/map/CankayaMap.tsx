@@ -26,6 +26,7 @@ import {
 import type { UserLocation } from './useUserLocation';
 import type { Poi, PolygonGeoJson, RouteDetail, RouteStop } from '@vivido/shared';
 import { POI_CATEGORY_COLORS, POI_FALLBACK_COLOR, poiCategoryColor } from './poiColors';
+import { POI_WHITE_ICON_PATHS, poiIconPathWhite } from './poiIcons';
 
 setWorkerUrl(maplibreWorkerUrl);
 
@@ -217,104 +218,6 @@ function vectorLabelLayers(): unknown[] {
 }
 
 /**
- * Sol menüdeki mantıkla birebir aynı çalışan ikon belirleme fonksiyonu.
- *
- * ⚠️ BEYAZ ikon dosyalarını döndürür (`*_white.svg`) — sol menüdeki
- * (`PoiLayerPanel`) AYNI mantığın renkli orijinalleri döndüren kopyası
- * BİLEREK farklı: buradaki ikon artık kategori renginde dolu bir dairenin
- * (bkz. `poi-daire`/`poi-vurgu-daire` katmanları) ÜSTÜNE biniyor — mobil
- * uygulamadaki "Google Haritalar" tarzı POI işaretçisiyle aynı desen
- * (bkz. mobile/.../cankaya_map.dart `register(..., Colors.white)` ve
- * oradaki not: "altında kategori renginde dolu bir daire var, ikonu da
- * renkli yapmak ikisini birbirine karıştırırdı").
- */
-function getCategoryIconPath(code: string, name?: string): string {
-  const lowerCode = (code || '').toLowerCase();
-  const lowerName = (name || '').toLowerCase();
-
-  if (
-    lowerCode.includes('cafe') || 
-    lowerCode.includes('kafe') || 
-    lowerCode.includes('restaurant') || 
-    lowerCode.includes('restoran') ||
-    lowerCode.includes('coffee') ||
-    lowerCode.includes('food') ||
-    lowerCode.includes('dining') ||
-    lowerName.includes('kafe') ||
-    lowerName.includes('restoran')
-  ) {
-    return '/cafe_white.svg';
-  }
-
-  if (
-    lowerCode.includes('bus') || 
-    lowerCode.includes('durak') || 
-    lowerCode.includes('transport') || 
-    lowerCode.includes('transit') || 
-    lowerCode.includes('ulasim')
-  ) {
-    return '/bus_white.svg';
-  }
-
-  if (
-    lowerCode.includes('hastane') || 
-    lowerCode.includes('hospital') || 
-    lowerCode.includes('saglik') || 
-    lowerCode.includes('health') || 
-    lowerCode.includes('asm') || 
-    lowerCode.includes('eczane') ||
-    lowerCode.includes('pharmacy') ||
-    lowerCode.includes('drugstore') ||
-    lowerName.includes('eczane') ||
-    lowerName.includes('hastane')
-  ) {
-    return '/hastane_white.svg';
-  }
-
-  if (
-    lowerCode.includes('park') || 
-    lowerCode.includes('yesil') || 
-    lowerCode.includes('green')
-  ) {
-    return '/park_white.svg';
-  }
-
-  if (
-    lowerCode.includes('school') || 
-    lowerCode.includes('okul') || 
-    lowerCode.includes('education') || 
-    lowerCode.includes('egitim')
-  ) {
-    return '/kep_kahve_white.svg';
-  }
-
-  if (
-    lowerCode.includes('sport') || 
-    lowerCode.includes('spor') || 
-    lowerCode.includes('gym')
-  ) {
-    return '/sport_kahve_white.svg';
-  }
-
-  if (
-    lowerCode.includes('market') || 
-    lowerCode.includes('avm') || 
-    lowerCode.includes('supermarket') || 
-    lowerCode.includes('alisveris')
-  ) {
-    return '/avm_white.svg';
-  }
-
-  // Bilinen 8 kategorinin dışında bir kod gelirse (ör. backend'e yeni bir
-  // kategori eklenip burası unutulursa) buraya düşülür. Eskiden bu yol
-  // `/icons.svg`'ye gidiyordu — Vite şablonundan kalma, POI'yle hiç ilgisi
-  // olmayan bir sosyal medya ikon sprite'ıydı (Discord/GitHub/X). Şu an
-  // fiilen ERİŞİLEMEZ (8 kategori de yukarıdaki dallardan birine düşüyor)
-  // ama sessiz bir savunma hattı olarak nötr bir nokta ikonuna işaret ediyor.
-  return '/poi_generic_white.svg';
-}
-
-/**
  * Sol menüdeki SVG'leri harita motoruna imaj olarak kaydeder.
  */
 function loadCustomMapImages(map: MapLibreMap) {
@@ -338,19 +241,8 @@ function loadCustomMapImages(map: MapLibreMap) {
   // 1b. Favoriler için yıldız (beyaz — altın daire üstünde)
   addSvgIcon('yildiz-ikon', '/star_white.svg');
 
-  // 2. Diğer POI ikonları — beyaz varyantlar (bkz. getCategoryIconPath'teki not)
-  const uniquePaths = [
-    '/cafe_white.svg',
-    '/bus_white.svg',
-    '/hastane_white.svg',
-    '/park_white.svg',
-    '/kep_kahve_white.svg',
-    '/sport_kahve_white.svg',
-    '/avm_white.svg',
-    '/poi_generic_white.svg',
-  ];
-
-  for (const path of uniquePaths) {
+  // 2. Diğer POI ikonları — beyaz varyantlar (bkz. `poiIcons.ts`'teki not)
+  for (const path of POI_WHITE_ICON_PATHS) {
     addSvgIcon(`svg-icon-${path}`, path);
   }
 }
@@ -757,7 +649,7 @@ function toPoiFeatureCollection(pois: Poi[], categoryNames?: Record<string, stri
     type: 'FeatureCollection',
     features: pois.map((poi) => {
       const displayNameTr = categoryNames?.[poi.categoryCode] || poi.categoryCode;
-      const iconPath = getCategoryIconPath(poi.categoryCode, displayNameTr);
+      const iconPath = poiIconPathWhite(poi.categoryCode, displayNameTr);
       return {
         type: 'Feature',
         properties: {

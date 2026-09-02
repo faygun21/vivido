@@ -6,6 +6,7 @@ import type {
   CreateRouteRequest,
   FavoriteResponse,
   LocationSearchResult,
+  MapProperty,
   Persona,
   Poi,
   PoiCategory,
@@ -37,11 +38,15 @@ import { PoiLayerPanel } from './PoiLayerPanel';
 import { LocationSearch } from '@/shared/location/LocationSearch';
 import { PropertyDetailPanel } from './PropertyDetailPanel';
 import { TopPropertiesPanel } from './TopPropertiesPanel';
+import { GuestPropertyPanel } from './GuestPropertyPanel';
+import { AreaPoiPanel } from './AreaPoiPanel';
+import { useAreaPois } from './useAreaPois';
 import {
   DEFAULT_WALKING_MINUTES,
   WALKING_MINUTE_OPTIONS,
   haversineDistanceMetres,
   isWalkingMinutes,
+  walkingRadiusMetres,
   type WalkingLocation,
   type WalkingMinutes,
 } from '@/shared/map/walkingAccessibility';
@@ -125,6 +130,7 @@ export function ExplorePage() {
   const setActiveRoute = useRouteStore((s) => s.setActiveRoute);
 
   const isGuest = useAuthStore((s) => s.isGuest);
+  const leaveGuest = useAuthStore((s) => s.leaveGuest);
   const status = useAuthStore((s) => s.status);
   const authenticated = status === 'authenticated';
 
@@ -211,7 +217,34 @@ export function ExplorePage() {
           .map((entry) => entry.poi),
       )
     : [];
-  const highlightedPois = [...singlePois, ...densityPois];
+  /* ─── Alan içi hizmet noktaları (konum analizi, mobilden geldi) ───
+
+     Çember eskiden yalnızca çiziliyordu; "bu alanda ne var?" sorusunun
+     cevabı hiçbir yerde yoktu (bkz. `AreaPoiPanel`). Liste çekmecedeki
+     "Analiz" sekmesinde, ayarların altında; koşulu haritadaki sarı
+     çemberin görünme koşuluyla AYNI (sekme + seçili konum), yoksa
+     çemberi olmayan bir alanı anlatırdı. */
+  const [areaCategory, setAreaCategory] = useState<string | null>(null);
+  const analysisActive = tab === 'analiz' && selectedLocation !== null;
+  const areaPois = useAreaPois({
+    center: analysisActive ? selectedLocation : null,
+    // Çemberin yarıçapının AYNISI: liste "yürüme alanı içinde" diyorsa
+    // gerçekten çemberin içinde olmalı.
+    radiusM: walkingRadiusMetres(walkingMinutes),
+    categoryCode: areaCategory,
+  });
+
+  /* Listedeki noktalar haritada da vurgulu: listede "Konyalı Kebap 376 m"
+     okuyan kullanıcı onu haritada aramak zorunda kalmıyor (mobildeki
+     `highlightedPois: _areaPois.highlighted` ile aynı). Seçili evin güçlü
+     yönleriyle aynı katmanı paylaşıyorlar; ikisi de aynı ikon setini
+     kullandığı için tekrar eden bir POI iki kez çizilmesin diye id'ye
+     göre tekleniyor. */
+  const highlightedPois = dedupeById([
+    ...singlePois,
+    ...densityPois,
+    ...(analysisActive ? areaPois.items.map((item) => item.poi) : []),
+  ]);
 
   const persona = personas.find((p) => p.code === profile?.personaCode);
 
@@ -375,6 +408,16 @@ export function ExplorePage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // İlk kategori kendiliğinden seçiliyor: boş bir panel açıp "şimdi bir
+  // şey seç" demek kullanıcıya fazladan bir adım yüklüyor. Seçim analiz
+  // kapanınca SIFIRLANMIYOR — kullanıcı yeni bir nokta işaretlediğinde
+  // baktığı kategoriden devam ediyor (liste yeni merkeze göre çekiliyor).
+  useEffect(() => {
+    if (!analysisActive || areaCategory !== null) return;
+    const first = poiCategories[0];
+    if (first) setAreaCategory(first.code);
+  }, [analysisActive, areaCategory, poiCategories]);
+
   /*
     Favoriler — haritada yıldızla gösterilecek konutlar.
 
@@ -439,6 +482,62 @@ export function ExplorePage() {
     // Eski liste yeni veri gelene kadar EKRANDA KALIYOR artık.
     placeholderData: keepPreviousData,
   });
+
+  /*
+    ⭐ MİSAFİRİN KONUTLARI — herkese açık `/properties/map` (bbox)
+
+    `/properties` skorlama yaptığı için oturum ister ve `useSessionQuery`
+    misafirken isteği hiç atmaz; sonuç: misafirin haritasında TEK BİR EV
+    yoktu. Oysa konut noktaları herkese açık harita verisi (sunucuda
+    `[AllowAnonymous]`) ve mobil misafir akışı yıllardır bu ucu kullanıyor
+    (bkz. `MapDataController.getPublicProperties`).
+
+    Görünüm alanına bağlı: skorlu uç kullanıcının anchor alanına göre
+    süzüyor, bunun öyle bir çıpası yok — haritada NEREYE bakılıyorsa
+    oradaki evler geliyor. `bounds` zaten POI katmanı için 250 ms
+    geciktiriliyor, ayrıca bir gecikme gerekmiyor.
+
+    ⚠️ `useSessionQuery` DEĞİL, düz `useQuery`: veri kimliğe bağlı değil,
+    herkes için aynı. Oturum kapsamına almak misafirin hiç istek atamaması
+    demek olurdu — düzeltilen hatanın ta kendisi.
+  */
+  const anonymous = status === 'anonymous';
+
+  const { data: publicProperties = [] } = useQuery({
+    queryKey: ['properties', 'map', 'public', boundsKey],
+    queryFn: () =>
+      api.get<MapProperty[]>(
+        `/properties/map?west=${bounds!.west}&south=${bounds!.south}` +
+          `&east=${bounds!.east}&north=${bounds!.north}`,
+      ),
+    enabled: anonymous && bounds != null,
+    staleTime: 30_000,
+    // POI katmanıyla aynı gerekçe: harita her hareket ettiğinde eski liste
+    // ekranda kalsın, pinler bir anlığına kaybolup geri gelmesin.
+    placeholderData: keepPreviousData,
+  });
+
+  /* Misafirin tıkladığı ev. Skorlu detay ucu (`/properties/{id}`) oturum
+     istediği için misafire kapalı; ihtiyacı olan her şey ZATEN elde
+     (`/properties/map` yanıtı kira, oda, m², bina yaşı, asansör taşıyor),
+     ikinci bir istek atmaya gerek yok.
+
+     ⚠️ Doğrudan listeden TÜRETİLMİYOR, durumda tutuluyor: liste görünüm
+     alanına bağlı ve kullanıcı panel açıkken haritayı kaydırdığında
+     seçili ev bbox'ın dışına çıkabiliyor — türetilmiş olsaydı panel
+     kullanıcı hiçbir şey kapatmadan kendiliğinden kaybolurdu. Seçim
+     kimliği tek kaynak olarak kalıyor; yalnızca KARTIN VERİSİ elde
+     tutuluyor. */
+  const [guestProperty, setGuestProperty] = useState<MapProperty | null>(null);
+
+  useEffect(() => {
+    if (!anonymous || selectedPropertyId === null) {
+      setGuestProperty(null);
+      return;
+    }
+    const found = publicProperties.find((p) => String(p.id) === selectedPropertyId);
+    if (found) setGuestProperty(found);
+  }, [anonymous, selectedPropertyId, publicProperties]);
 
   const poiCategoryNames = Object.fromEntries(
     poiCategories.map((c) => [c.code, c.displayNameTr]),
@@ -518,11 +617,25 @@ export function ExplorePage() {
       totalScore: property.totalScore,
     }));
 
-  const propertyPoints: PropertyPoint[] = properties.map((p) => ({
-    id: p.id,
-    lat: p.latitude,
-    lon: p.longitude,
-  }));
+  // Giriş yapmışsa skorlanmış liste, misafirse görünüm alanındaki herkese
+  // açık noktalar. Harita katmanı ikisini de aynı turuncu ev pini olarak
+  // çiziyor — misafir "başka bir uygulama" görmüyor, sadece skoru yok.
+  const propertyPoints: PropertyPoint[] = anonymous
+    ? publicProperties.map((p) => ({
+        id: String(p.id),
+        lat: p.latitude,
+        lon: p.longitude,
+      }))
+    : properties.map((p) => ({
+        id: p.id,
+        lat: p.latitude,
+        lon: p.longitude,
+      }));
+
+  function leaveGuestFor(path: string) {
+    leaveGuest();
+    navigate(path, { state: { from: { pathname: '/explore' } } });
+  }
 
   // Pin tıklaması her sekmede AYNI şeyi yapar: detay panelini açar.
   //
@@ -601,7 +714,7 @@ export function ExplorePage() {
 
   const anchorCount = profile?.anchors.length ?? 0;
   const showTopPanelToggle = authenticated && !isGuest;
-  const rightSlotOpen = topPanelOpen || selectedProperty !== null;
+  const rightSlotOpen = topPanelOpen || selectedProperty !== null || guestProperty !== null;
 
   // "Rotaya ekle" düğmesi favori düğmesiyle aynı temada ("En uygun evler"
   // panelinde ve ev detayında), ama rota tamamen istemci-taraflı bir
@@ -656,6 +769,14 @@ export function ExplorePage() {
           isInRoute={routePropertyIds.has(Number(selectedProperty.id))}
           routeAtCapacity={routeAtCapacity}
           onToggleRoute={() => toggleRouteStop(Number(selectedProperty.id))}
+        />
+      )}
+
+      {guestProperty && (
+        <GuestPropertyPanel
+          property={guestProperty}
+          onClose={() => setSelectedPropertyId(null)}
+          onRegister={() => leaveGuestFor('/auth/register')}
         />
       )}
 
@@ -911,6 +1032,27 @@ export function ExplorePage() {
             </section>
           )}
 
+          {/* Alan içi hizmet noktaları — ayarların hemen ALTINDA, ayrı bir
+              bölüm olarak. Yalnızca bir konum seçiliyken var: çember
+              yokken "alandaki noktalar" diye bir şey de yok. */}
+          {tab === 'analiz' && selectedLocation && (
+            <AreaPoiPanel
+              walkingMinutes={walkingMinutes}
+              categories={poiCategories}
+              selectedCategory={areaCategory}
+              onSelectCategory={setAreaCategory}
+              state={areaPois}
+              onPoiSelect={(poi) =>
+                setMapFocus({
+                  id: `alan-poi-${poi.id}`,
+                  label: poi.name ?? 'Hizmet noktası',
+                  lat: poi.latitude,
+                  lon: poi.longitude,
+                })
+              }
+            />
+          )}
+
           {tab === 'rota' &&
             (isGuest || !authenticated ? (
               <GuestPanel />
@@ -947,12 +1089,16 @@ export function ExplorePage() {
             <section className="drawer-section">
               <h2>Harita katmanları</h2>
 
+              {/* Misafir bütçe girmedi ve skoru yok: "bütçene uygun N konut"
+                  ile "skorun gerekçesi açılır" ikisi de yanlıştı. Gördüğü
+                  şey görünüm alanındaki konutlar, tıklayınca da temel
+                  bilgiler + kilitli skor açılıyor. */}
               {isGuest && (
                 <p className="muted">
-                  Bütçene uygun <strong>{properties.length} konut</strong> haritada 🏠 ile
-                  işaretli. Bir pin&apos;e tıklayınca adres, kira ve skorun gerekçesi açılır.
-                  Sağ üstteki <strong>En uygun evler</strong> düğmesi en yüksek skorluları
-                  sıralar.
+                  Haritada görünen <strong>{propertyPoints.length} konut</strong> 🏠 ile
+                  işaretli. Bir pin&apos;e tıklayınca kira, oda sayısı, m², bina yaşı ve
+                  asansör bilgisi açılır. <strong>Uygunluk skoru</strong> ve gerekçesi
+                  ücretsiz hesapla geliyor.
                 </p>
               )}
 
@@ -1007,6 +1153,20 @@ export function ExplorePage() {
       />
     </section>
   );
+}
+
+/**
+ * Aynı POI iki kaynaktan gelebiliyor (seçili evin güçlü yönü + analiz
+ * alanı listesi). İkisi de aynı haritada aynı ikonu çizdiği için tekrar
+ * eden kayıt üst üste binmiş, hafifçe kalınlaşmış bir işaret üretirdi.
+ */
+function dedupeById(pois: Poi[]): Poi[] {
+  const seen = new Set<number>();
+  return pois.filter((poi) => {
+    if (seen.has(poi.id)) return false;
+    seen.add(poi.id);
+    return true;
+  });
 }
 
 function formatBudgetRange(minMonthlyBudget: number | null, maxMonthlyBudget: number | null) {

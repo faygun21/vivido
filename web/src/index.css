@@ -4193,7 +4193,15 @@ button {
      aksi halde görünmez bir dikdörtgen haritanın üstünde
      sürüklemeyi engelliyordu. */
   pointer-events: none;
-  transition: transform var(--dur-slow) var(--ease-out);
+
+  /* Geliş: çekmece yerine oturduktan SONRA, onu takip ederek. 90 ms'lik
+     gecikme "paneli açtım, maskot onunla geldi" okumasını verir; ikisi
+     tam aynı anda hareket ederse maskot panelden bağımsız, havada duran
+     ayrı bir öge gibi görünür. */
+  transition:
+    transform var(--dur-slow) var(--ease-out) 90ms,
+    opacity var(--dur-base) var(--ease-out) 90ms,
+    visibility 0s;
 }
 
 /* Geniş ekranda çekmecenin sağına oturur; dar ekranda alt sayfanın
@@ -4204,11 +4212,50 @@ button {
   .mascot:not(.mascot--wide) { bottom: calc(45% - 1.5rem); }
 }
 
-/* Panel kapalıyken ekranın dışına çekilir. `left: -200px` DEĞİL
-   `transform`: yerleşimi hiç dokundurmaz, derleyici üzerinde kayar. */
+/* ── Panel kapalı: maskot EKRANDAN TAMAMEN ÇIKAR ──
+   Eskiden yalnızca `translateX(calc(-100% - 13rem))` uygulanıyordu ve
+   geniş ekranda bu YETMİYORDU: maskot 21.45rem'den yola çıkıp ~3.75rem'de
+   duruyordu, yani çekmece kapalıyken haritanın sol kenarında asılı
+   kalıyordu — üstelik tutunacak bir duvar yokken.
+
+   Yön çekmecenin yönüyle AYNI: maskot panelin kenarına tutunuyor, panel
+   nereye gidiyorsa oraya gider (geniş ekranda sola, dar ekranda alt
+   sayfayla birlikte aşağı). Çıkarken `--ease-in` — gelirken kullanılan
+   `--ease-out` eğrisinin AYNAsı, yani aynı yolu geri gider.
+
+   `visibility` süre sonunda kapanıyor: görünmez ama DOM'da duran bir
+   maskot fareyle yakalanabilir ve ekran okuyucuya okunabilir kalırdı. */
 .mascot.is-parked {
-  transform: translateX(calc(-100% - 13rem));
+  transform: translateX(calc(-100% - 22.5rem)) scale(0.92);
+  opacity: 0;
+  visibility: hidden;
   pointer-events: none;
+  transition:
+    transform var(--dur-slow) var(--ease-in),
+    opacity var(--dur-fast) var(--ease-in),
+    visibility 0s linear var(--dur-slow);
+}
+
+@media (max-width: 899px) {
+  .mascot:not(.mascot--wide).is-parked {
+    transform: translateY(calc(100% + 2rem)) scale(0.92);
+  }
+}
+
+/* Azaltılmış hareket: kayma yok, yalnızca sönümlenme. Maskot büyük ve
+   ekranın yarısını kat eden bir öge — vestibüler rahatsızlık veren tam
+   olarak bu tür bir hareket. */
+@media (prefers-reduced-motion: reduce) {
+  .mascot {
+    transition: opacity var(--dur-fast) linear, visibility 0s;
+  }
+
+  .mascot.is-parked {
+    transform: none;
+    transition: opacity var(--dur-fast) linear, visibility 0s linear var(--dur-fast);
+  }
+
+  .mascot:not(.mascot--wide).is-parked { transform: none; }
 }
 
 .mascot-figure {
@@ -4220,6 +4267,13 @@ button {
   filter: drop-shadow(0 4px 8px rgb(var(--shadow-tint) / 0.18));
   pointer-events: auto;
   cursor: pointer;
+  /* Maskot bir arayüz ögesi, indirilecek bir resim değil: sürüklenerek
+     sekmeye/masaüstüne bırakılabiliyordu (tarayıcılar `<img>`'ı
+     varsayılan olarak sürüklenebilir sayar). `draggable={false}`
+     Chrome/Firefox'u, bu satır Safari'yi kapatıyor. */
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
   transition: transform var(--dur-fast) var(--ease-out);
 }
 

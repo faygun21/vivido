@@ -8,11 +8,25 @@ export interface WalkingLocation {
   lon: number;
 }
 
-const WALKING_METRES_PER_MINUTE = 80;
+/**
+ * Standart 4,8 km/sa yürüme hızı.
+ *
+ * ⚠️ DIŞA AÇIK olmak zorunda: alan içi hizmet noktaları listesi
+ * (`areaPoi.ts`) her noktanın yürüme süresini bu SABİTLE hesaplıyor.
+ * Farklı bir hız kullansaydı çemberin kenarındaki bir nokta "18 dk"
+ * diyebilirdi, oysa çemberin kendisi 15 dk (mobildeki `AreaPoi` ile
+ * aynı gerekçe).
+ */
+export const WALKING_METRES_PER_MINUTE = 80;
 const EARTH_RADIUS_METRES = 6_371_008.8;
 
 export function isWalkingMinutes(value: number): value is WalkingMinutes {
   return WALKING_MINUTE_OPTIONS.some((option) => option === value);
+}
+
+/** Yürüme alanının metre cinsinden yarıçapı — çember de liste de bunu kullanır. */
+export function walkingRadiusMetres(minutes: WalkingMinutes): number {
+  return minutes * WALKING_METRES_PER_MINUTE;
 }
 
 /**
@@ -25,7 +39,7 @@ export function createWalkingAccessibilityPolygon(
   minutes: WalkingMinutes,
   segments = 72,
 ) {
-  const radiusMetres = minutes * WALKING_METRES_PER_MINUTE;
+  const radiusMetres = walkingRadiusMetres(minutes);
   const feature = createRadiusPolygon(location, radiusMetres, segments);
 
   return {

@@ -1,0 +1,225 @@
+/* ═══════════════════════════════════════════════════════════════════
+   ALAN İÇİ HİZMET NOKTALARI
+   ───────────────────────────────────────────────────────────────────
+   Çekmecedeki "Analiz" sekmesinin son bölümü — ayarların (analiz
+   mesafesi, yürüme süresi) hemen ALTINDA duruyor: bir kontrol,
+   etkilediği şeyin yanında olmalı.
+
+   ⚠️ KENDİ KAYDIRMA ÇUBUĞU YOK. Liste çekmecenin gövdesiyle birlikte
+   akıyor; iç içe iki kaydırma alanı, kullanıcının hangi yüzeyi
+   kaydırdığını her seferinde denemesine yol açardı.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.area-section {
+  /* Üstteki analiz ayarlarının devamı: bölüm başlıkları arasındaki
+     boşluğu `.drawer-section + .drawer-section` zaten veriyor. */
+  padding-bottom: 0.25rem;
+}
+
+/* Seçici `.area-section` ile ağırlaştırıldı: `.drawer-section p`
+   (index.css) bölümdeki her paragrafa 0.86rem veriyor ve tek sınıflı bir
+   kural onu geçemiyor. */
+.area-section .area-summary {
+  margin: 0 0 0.6rem;
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Kategori ızgarası ──
+   Mobildeki dikey şeridin dar sütuna uyarlanmış hâli: aynı hücre
+   (kategori renginde dolu daire + beyaz ikon + kısa etiket), yatay
+   dizilmiş. Sekiz kategori iki satırda, hepsi aynı anda görünür —
+   yana kaydırılan bir çip şeridi olsaydı yarısı gizli kalırdı. */
+.area-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.2rem;
+  margin-bottom: 0.5rem;
+}
+
+.area-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.4rem 0.1rem;
+  border: 1.5px solid transparent;
+  border-radius: var(--r-sm);
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    transform var(--dur-instant) var(--ease-out);
+}
+
+/* Geri bildirim BASMA anında, bırakışta değil. */
+.area-cell:active { transform: scale(0.94); }
+
+.area-cell.is-selected {
+  border-color: var(--category-colour);
+  background: color-mix(in srgb, var(--category-colour) 14%, transparent);
+}
+
+.area-cell-dot {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1.5px solid #fff;
+  border-radius: 50%;
+  background: var(--category-colour);
+  box-shadow: var(--shadow-xs);
+  /* Seçili değilken işaret SOLUYOR, kaybolmuyor: hangi rengin hangi
+     kategori olduğu bilgisi hep gerekli — harita da aynı renkleri
+     kullanıyor. */
+  opacity: 0.55;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+
+.area-cell.is-selected .area-cell-dot,
+.area-cell:hover .area-cell-dot { opacity: 1; }
+
+.area-cell-dot img {
+  width: 0.9rem;
+  height: 0.9rem;
+  object-fit: contain;
+}
+
+.area-cell-label {
+  max-width: 100%;
+  font-size: 0.63rem;
+  line-height: 1.25;
+  letter-spacing: 0;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.area-cell.is-selected .area-cell-label {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* ── Sonuç listesi ── */
+
+.area-list {
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line-faint);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  list-style: none;
+  overflow: hidden;
+}
+
+.area-list li + li { border-top: 1px solid var(--line-faint); }
+
+.area-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.3rem 0.45rem 0.6rem;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.area-row:hover { background: var(--surface-sunken); }
+.area-row:active { background: var(--input-bg); }
+
+.area-row-name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Adı olmayan nokta bir eksik, bir hata değil — soluk ama okunur. */
+.area-row-name.is-unnamed { color: var(--ink-muted); }
+
+.area-row-metrics {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  /* Sabit genişlikli rakam: liste boyunca sayılar hizalı kalıyor. */
+  font-variant-numeric: tabular-nums;
+}
+
+.area-row-distance {
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.area-row-minutes {
+  font-size: var(--fs-micro);
+  letter-spacing: 0;
+  color: var(--ink-muted);
+}
+
+.area-row-chevron {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--ink-muted);
+}
+
+/* ── Hata / yükleniyor ── */
+
+.area-section .area-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.8rem 0.6rem;
+  border: 1px solid var(--line-faint);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  text-align: center;
+  font-size: var(--fs-xs);
+  color: var(--ink-muted);
+}
+
+.area-spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--line-soft);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: v-area-spin 0.7s linear infinite;
+}
+
+@keyframes v-area-spin {
+  to { transform: rotate(1turn); }
+}
+
+/* Azaltılmış hareket geri bildirimi KALDIRMAK değil, yumuşatmak. */
+@media (prefers-reduced-motion: reduce) {
+  .area-cell,
+  .area-cell-dot,
+  .area-row { transition-duration: 1ms; }
+
+  .area-cell:active { transform: none; }
+
+  .area-spinner { animation-duration: 2.4s; }
+}
+
+@media (prefers-contrast: more) {
+  .area-list,
+  .area-empty { border-color: var(--ink); }
+}

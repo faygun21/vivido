@@ -1,4 +1,5 @@
 import type { PoiCategory } from '@vivido/shared';
+import { poiIconPath } from '@/shared/map/poiIcons';
 import './PoiLayers.css';
 
 interface PoiLayerPanelProps {
@@ -22,101 +23,6 @@ interface PoiLayerPanelProps {
   onToggleFavorites: () => void;
   /** Kaç favori var — kullanıcı tiki açmadan önce ne bekleyeceğini bilsin. */
   favoriteCount: number;
-}
-
-/**
- * Kategori koduna veya görünen adına göre public klasöründeki uygun SVG dosyasının yolunu döndürür.
- */
-function getCategoryIconPath(code: string, displayNameTr?: string): string {
-  const lowerCode = (code || '').toLowerCase();
-  const lowerName = (displayNameTr || '').toLowerCase();
-
-  // Buradaki `console.log` KALDIRILDI: geliştirme sırasında bırakılmış bir
-  // hata ayıklama satırıydı ve her render'da her kategori için tetikleniyordu
-  // (8 kategori × her panel çizimi). Üretimde de çalışıyordu, konsolu
-  // doldurup gerçek uyarıları görünmez yapıyordu.
-
-  // Kafe / Restoran / Yeme-İçme varyasyonları (food, cafe, kafe vb.)
-  if (
-    lowerCode.includes('cafe') || 
-    lowerCode.includes('kafe') || 
-    lowerCode.includes('restaurant') || 
-    lowerCode.includes('restoran') ||
-    lowerCode.includes('coffee') ||
-    lowerCode.includes('food') ||
-    lowerCode.includes('dining') ||
-    lowerName.includes('kafe') ||
-    lowerName.includes('restoran')
-  ) {
-    return '/cafe.svg';
-  }
-
-  // Toplu Taşıma / Durak
-  if (
-    lowerCode.includes('bus') || 
-    lowerCode.includes('durak') || 
-    lowerCode.includes('transport') || 
-    lowerCode.includes('transit') || 
-    lowerCode.includes('ulasim')
-  ) {
-    return '/bus.svg';
-  }
-
-  // Hastane / Sağlık / ASM / Eczane varyasyonları
-  if (
-    lowerCode.includes('hastane') || 
-    lowerCode.includes('hospital') || 
-    lowerCode.includes('saglik') || 
-    lowerCode.includes('health') || 
-    lowerCode.includes('asm') || 
-    lowerCode.includes('eczane') ||
-    lowerCode.includes('pharmacy') ||
-    lowerCode.includes('drugstore') ||
-    lowerName.includes('eczane') ||
-    lowerName.includes('hastane')
-  ) {
-    return '/hastane.svg';
-  }
-
-  // Park / Yeşil Alan
-  if (
-    lowerCode.includes('park') || 
-    lowerCode.includes('yesil') || 
-    lowerCode.includes('green')
-  ) {
-    return '/park.svg';
-  }
-
-  // Okul / Eğitim
-  if (
-    lowerCode.includes('school') || 
-    lowerCode.includes('okul') || 
-    lowerCode.includes('education') || 
-    lowerCode.includes('egitim')
-  ) {
-    return '/kep_kahve.svg';
-  }
-
-  // Spor Salonu
-  if (
-    lowerCode.includes('sport') || 
-    lowerCode.includes('spor') || 
-    lowerCode.includes('gym')
-  ) {
-    return '/sport_kahve.svg';
-  }
-
-  // Market / AVM
-  if (
-    lowerCode.includes('market') || 
-    lowerCode.includes('avm') || 
-    lowerCode.includes('supermarket') || 
-    lowerCode.includes('alisveris')
-  ) {
-    return '/avm.svg';
-  }
-
-  return '/icons.svg';
 }
 
 export function PoiLayerPanel({
@@ -200,7 +106,7 @@ export function PoiLayerPanel({
               onChange={() => onToggleCategory(category.code)}
             />
             <img
-              src={getCategoryIconPath(category.code, category.displayNameTr)}
+              src={poiIconPath(category.code, category.displayNameTr)}
               alt={category.displayNameTr}
               className="poi-layer-icon"
               style={{ width: '1.1rem', height: '1.1rem', objectFit: 'contain' }}

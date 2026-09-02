@@ -1,0 +1,80 @@
+/* ═══════════════════════════════════════════════════════════════════
+   MİSAFİR KONUT ÖZETİ
+   ───────────────────────────────────────────────────────────────────
+   Kabuk (`.property-panel*`) giriş yapmış kullanıcının detay paneliyle
+   AYNI: kayıt olan biri, o ana kadar tıkladığı pinin başka bir yere
+   açıldığını görmemeli — yalnızca kilitli olanlar açılıyor.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Skor rozetinin yerinde duran kilit. Aynı ölçü ve köşe yarıçapı
+   (`.score-badge`): rozetin YOK olması bir eksiklik gibi okunurdu,
+   yerinde bir kilit olması bir bilgi. */
+.guest-score-lock {
+  display: grid;
+  place-content: center;
+  width: 3.4rem;
+  height: 3.4rem;
+  flex: none;
+  border-radius: 0.9rem;
+  border: 1px dashed var(--line-strong);
+  background: var(--input-bg);
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.guest-facts {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.9rem 0 0;
+}
+
+.guest-facts > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--r-sm);
+  background: var(--surface-sunken);
+}
+
+.guest-facts dt {
+  font-size: var(--fs-xs);
+  color: var(--ink-muted);
+}
+
+.guest-facts dd {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Koordinat bir okuma değil bir referans: rakam yığını başlığı
+   bastırmasın diye normal ağırlıkta ve tek boşlukta. */
+.guest-facts-coord {
+  font-weight: 500 !important;
+  font-size: var(--fs-xs) !important;
+  color: var(--ink-muted) !important;
+}
+
+/* Kilitli skor kartı — misafire NEYİ kaçırdığını gösteriyor. */
+.guest-unlock {
+  margin-top: 1rem;
+  padding: 0.8rem 0.85rem;
+  border: 1px solid var(--accent-edge);
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+}
+
+.guest-unlock p {
+  margin: 0 0 0.65rem;
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.guest-unlock .lock { margin-right: 0.35rem; }
+
+.guest-unlock .btn-primary { width: 100%; }
