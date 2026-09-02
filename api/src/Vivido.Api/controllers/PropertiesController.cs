@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using NetTopologySuite.Geometries;
+using NetTopologySuite.Geometries.Utilities;
 using Vivido.Api.services; // PropertyScoringService namespace'i
 using Vivido.Application.dtos.property; // DTO'ların
 using Vivido.Domain.Entities;
@@ -449,9 +450,19 @@ public class PropertiesController : ControllerBase
     //  yokmuş gibi göstermek yerine VARMIŞ gibi gösteren, yanıltıcı bir
     //  şekildi; (b) yaya profili çoğu zaman bağlıydı ama anlamsız derecede
     //  uzun (40+ km) "gerçek ama saçma" rotalar üretebiliyordu. Çözüm: her
-    //  ardışık anchor ikilisi (bacak) kendi başına değerlendirilir — normal
-    //  harita uygulamalarının "kısa mesafeyi yürü, uzunu araçla bağla"
-    //  mantığıyla aynı, bkz. <see cref="BuildCorridorLegsAsync"/>.
+    //  bacak (bkz. aşağıdaki "merkez" kuralı) kendi başına değerlendirilir —
+    //  normal harita uygulamalarının "kısa mesafeyi yürü, uzunu araçla
+    //  bağla" mantığıyla aynı, bkz. <see cref="BuildCorridorLegsAsync"/>.
+    //
+    //  ⭐ Merkez anchor (1 numaralı öncelik) — anchor'ların AĞIRLIĞI yok,
+    //  yalnızca kullanıcının belirlediği bir SIRASI var (1, 2, 3...).
+    //  Bacaklar bu sırayı bir ZİNCİR gibi değil (1↔2, 2↔3), 1 numaralı
+    //  (en önemli) anchor'ı MERKEZ alan bir YILDIZ gibi kurar: 1↔2, 1↔3, ...
+    //  Sebep: kullanıcı için en önemli yer neresiyse ("okulum" gibi), evler
+    //  ÖNCELİKLE oraya olan ulaşıma göre değerlendirilmeli — 2. ve 3.
+    //  anchor'lar birbirlerine değil, her zaman 1. anchor'a bağlanır. Zincir
+    //  modelinde ise ortadaki (2 numaralı) anchor hem 1'e hem 3'e bağlanan
+    //  bir "ara durak" gibi davranıp bu önceliği bulanıklaştırırdı.
     // ══════════════════════════════════════════════════════════════
 
     /// <summary>1 derece enlemin metre karşılığı — WGS84'te sabit, boylam enleme göre değişir ama Çankaya ölçeğinde bu yaklaşıklık yeterli.</summary>
@@ -478,7 +489,8 @@ public class PropertiesController : ControllerBase
     ///
     /// AKIŞ:
     ///   1. Anchor yoksa: koridor yok, filtre yok — tüm evler döner.
-    ///   2. Anchor'lar ardışık bacaklara bölünüp gerçek rotalara çevrilir
+    ///   2. Anchor'lar, 1 numaralı (en önemli) anchor'ı merkez alan
+    ///      bacaklara bölünüp gerçek rotalara çevrilir
     ///      (bkz. <see cref="BuildCorridorLegsAsync"/>).
     ///   3. Her bacak KENDİ BAŞINA, çevresinde en az 1 ev bulana kadar (en
     ///      fazla <see cref="MaxCorridorWidenAttempts"/> kez) genişletilir —
@@ -581,22 +593,57 @@ public class PropertiesController : ControllerBase
     private static Geometry BuildWidenedLegPolygon(CorridorLeg leg, List<Property> budgetProperties)
     {
         var widthMetres = leg.BaseWidthMetres;
-        var polygon = leg.Geometry.Buffer(widthMetres / MetresPerDegreeLat);
+        var polygon = BufferMetres(leg.Geometry, widthMetres);
 
         for (var attempt = 0; attempt < MaxCorridorWidenAttempts - 1; attempt++)
         {
             if (budgetProperties.Any(p => polygon.Intersects(p.Geom))) break;
 
             widthMetres *= 2;
-            polygon = leg.Geometry.Buffer(widthMetres / MetresPerDegreeLat);
+            polygon = BufferMetres(leg.Geometry, widthMetres);
         }
 
         return polygon;
     }
 
     /// <summary>
-    /// Anchor'lar arasındaki ardışık bacakları (priority sırasına göre)
-    /// gerçek OSRM rotalarına çevirir — her biri kendi buffer genişliğiyle.
+    /// Bir geometriyi GERÇEK dünyada (metre cinsinden) düzgün bir daire/şerit
+    /// çıkaracak şekilde buffer'lar.
+    ///
+    /// ⚠️ Çıplak <c>geometry.Buffer(metres / MetresPerDegreeLat)</c> yanlıştı:
+    /// NTS'in buffer'ı DERECE cinsinden çalışır ve 1 derecelik X (boylam) ile
+    /// 1 derecelik Y (enlem) mesafesini EŞİT sanır. Oysa 1 boylam derecesi
+    /// enleme göre KISALIR (Çankaya'nın ~39.9° enleminde bir enlem
+    /// derecesinden yaklaşık %23 daha kısa). Sonuç: tek anchor'lu bir
+    /// koridor gerçek haritada daire değil, doğu-batı yönünde SIKIŞMIŞ bir
+    /// elips çıkıyordu — "her açıdan eşit değil" (2026-09-02, gözle
+    /// bulundu).
+    ///
+    /// Düzeltme: X eksenini enlemin kosinüsüyle "geriyoruz" (bu uzayda 1
+    /// birim X ile 1 birim Y artık gerçekten aynı mesafeyi temsil ediyor),
+    /// dairesel buffer'ı bu gerilmiş uzayda alıyoruz, sonra geri
+    /// sıkıştırıyoruz — sonuç gerçek dünyada doğru bir daire/şerit.
+    /// </summary>
+    private static Geometry BufferMetres(Geometry geometry, double metres)
+    {
+        var stretch = 1.0 / Math.Cos(geometry.Centroid.Y * Math.PI / 180.0);
+
+        var stretched = AffineTransformation.ScaleInstance(stretch, 1.0).Transform(geometry);
+        var buffered = stretched.Buffer(metres / MetresPerDegreeLat);
+        return AffineTransformation.ScaleInstance(1.0 / stretch, 1.0).Transform(buffered);
+    }
+
+    /// <summary>
+    /// Anchor'ları, 1 numaralı (en önemli) anchor'ı MERKEZ alan bacaklara
+    /// bölüp gerçek OSRM rotalarına çevirir — her biri kendi buffer
+    /// genişliğiyle.
+    ///
+    /// ⭐ YILDIZ, ZİNCİR DEĞİL: bacaklar (1↔2), (1↔3), ... şeklinde kuruluyor
+    /// — ardışık ikili (1↔2, 2↔3) DEĞİL. Anchor'ların bir ağırlığı yok,
+    /// sadece kullanıcının belirlediği bir önem SIRASI var; bu sıradaki en
+    /// önemli (1.) anchor, evlerin değerlendirileceği asıl referans noktası.
+    /// 2. ve 3. anchor'lar birbirine değil, her zaman 1. anchor'a bağlanır —
+    /// "okuluma yakın, oradan da işe/arkadaşa nasıl gidilir" mantığı.
     ///
     /// Bacak başına sıra: (1) yaya rotası dene — kısaysa (≤
     /// <see cref="MaxWalkableLegMetres"/>) onu kullan; (2) uzunsa ya da yaya
@@ -619,14 +666,18 @@ public class PropertiesController : ControllerBase
                 only.Mode == "car" ? CarInitialCorridorMetres : FootInitialCorridorMetres)];
         }
 
+        // `anchors` çağırandan Priority'ye göre sıralı geliyor (bkz.
+        // BuildAnchorAreaAsync) — bu yüzden anchors[0] her zaman kullanıcının
+        // 1 numara verdiği, en önemli anchor'dır: merkez bu.
+        var hub = anchors[0];
+
         var legs = new List<CorridorLeg>();
-        for (var i = 0; i < anchors.Count - 1; i++)
+        for (var i = 1; i < anchors.Count; i++)
         {
-            var from = anchors[i];
-            var to = anchors[i + 1];
+            var to = anchors[i];
             var coords = new List<OsrmCoordinate>
             {
-                new(from.Geom.X, from.Geom.Y),
+                new(hub.Geom.X, hub.Geom.Y),
                 new(to.Geom.X, to.Geom.Y),
             };
 
@@ -645,8 +696,8 @@ public class PropertiesController : ControllerBase
             }
 
             legs.Add(new CorridorLeg(
-                new Point(from.Geom.X, from.Geom.Y) { SRID = 4326 },
-                from.Mode == "car" ? CarInitialCorridorMetres : FootInitialCorridorMetres));
+                new Point(hub.Geom.X, hub.Geom.Y) { SRID = 4326 },
+                hub.Mode == "car" ? CarInitialCorridorMetres : FootInitialCorridorMetres));
             legs.Add(new CorridorLeg(
                 new Point(to.Geom.X, to.Geom.Y) { SRID = 4326 },
                 to.Mode == "car" ? CarInitialCorridorMetres : FootInitialCorridorMetres));
