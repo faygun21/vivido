@@ -2,6 +2,7 @@ namespace Vivido.Api.services;
 
 using Microsoft.EntityFrameworkCore;
 using Vivido.Application.dtos.property;
+using Vivido.Domain.Entities;
 using Vivido.Infrastructure.Data;
 using Vivido.Scoring;
 
@@ -132,9 +133,6 @@ public class PropertyScoreBreakdownService
 
     private static Breakdown ToBreakdown(
         ScoringEngine.ScoreBreakdown engineResult,
-        // ⚠️ `PoiCategory` global ad alanında (dosyada `namespace` satırı yok),
-        // Vivido.Domain.Entities içinde DEĞİL — `Property` ve
-        // `PropertyPoiAccess` de öyle.
         IReadOnlyDictionary<string, PoiCategory> categories,
         IReadOnlyDictionary<string, long> poiIdByCategory)
     {

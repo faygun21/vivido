@@ -1,6 +1,9 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
+// Diğer entity'ler bu ad alanında; `PoiCategory` global ad alanında kalmıştı.
+namespace Vivido.Domain.Entities;
+
 [Table("poi_categories")]
 public class PoiCategory
 {
