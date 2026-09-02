@@ -55,13 +55,13 @@ Isochrone · toplu taşıma / GTFS · bisiklet modu · günlük yaşam senaryola
 | Veritabanı | **PostgreSQL 16 + PostGIS 3.4** | GiST indeks, `ST_DWithin`, KNN `<->` |
 | Cache | ~~Redis 7~~ | ⛔ **KESİLDİ** — 3 haftalık plan skor cache'ini çıkardı. Servis compose'da duruyor, kod kullanmıyor |
 | Routing | **OSRM**, 2 profil: `foot` + `car` | `/table` matris · `/route` manevra · `/trip` yedek |
-| TSP çözücü | **Held-Karp** (kendi kodumuz, C#) | n ≤ 8 için kesin optimum, <1 ms |
+| TSP çözücü | **Held-Karp** (kendi kodumuz, C#) | n ≤ 8 için kesin optimum, <1 ms. Kod tarafında güvenlik payı olarak n ≤ 16'ya kadar çalışıyor, ürün W7 gereği 2-8 ev seçimiyle sınırlı |
 | Tile | **Planetiler → mbtiles → tileserver-gl** | Public OSM tile **kullanılmaz** |
-| Web | **React 18 + TS + Vite + MapLibre GL JS** | TanStack Query + Zustand |
+| Web | **React 19 + TS + Vite + MapLibre GL JS** | TanStack Query + Zustand. *(Plan React 18 diyordu, gerçek sürüm 19'a çıktı)* |
 | Mobil | **Flutter** (`maplibre_gl`, `dio`, `go_router`) | ⚠️ [K-08](02-KARARLAR.md#k-08) ile değişti — Expo/RN terk edildi |
 | Paylaşılan kod | `packages/shared` — TS tipleri | Doğruluk kaynağı; Dart modelleri onu **yansıtır** (K-08) |
 | Veri | OpenStreetMap (Geofabrik) + **sentetik kiralık konut** | Pilot: Ankara **Çankaya'nın tamamı** |
-| Test | xUnit + Testcontainers · Vitest · Playwright | Skorlama için altın veri seti |
+| Test | xUnit + Testcontainers · Vitest · ~~Playwright~~ | Skorlama için altın veri seti. Testcontainers ve Vitest kullanımda; Playwright **planlandı, henüz kurulmadı**; altın veri seti/`Golden`-`Invariant` testleri de henüz yazılmadı (bkz. [04-MEVCUT-DURUM §8](04-MEVCUT-DURUM.md)) |
 | CI | GitHub Actions | 4 workflow. **Deploy otomasyonu henüz yok** |
 | Dağıtım | Docker Compose + **Caddy** (otomatik HTTPS), tek sunucu | [K-11](02-KARARLAR.md#k-11) · [`deploy/README.md`](../deploy/README.md) |
 
@@ -132,7 +132,7 @@ basarsoft/
 | Servis | Port | Not |
 |---|---|---|
 | `postgis` | 5432 | postgis/postgis:16-3.4 |
-| `redis` | 6379 | H5'te devreye girer |
+| `redis` | 6379 | Compose'da duruyor ama **hiç devreye alınmadı** — 3 haftalık plan skor cache'ini Redis'ten çıkardı (bkz. §3, [04-MEVCUT-DURUM §8](04-MEVCUT-DURUM.md)) |
 | `api` | 5000 | .NET 10 |
 | `web` | 5173 | Vite dev server |
 | `osrm-foot` | 5001 | `--algorithm mld` |
@@ -384,6 +384,16 @@ Erişilebilirlik algısı doğrusal değildir: 2 dk ile 4 dk arası hissedilmez,
 | `car_free` Araçsız kullanıcı | 0.20 | 0.10 | **0.30** | 0.12 | 0.08 | 0.05 | 0.00 | 0.08 | 0.07 | 0.00 |
 
 **Adım C — birleştirme: CES, ağırlıklı toplam değil**
+
+> ⚠️ **Bu bölüm orijinal plandır, motorun çalışan hâli değil.** Gerçek
+> `ScoringEngine` (v1.1) tam CES yerine daha basit bir **"zayıf halka
+> cezası"** çarpanı kullanıyor — aynı amaca (bir kategorinin çok kötü
+> olması toplamı telafi edilemez şekilde düşürsün) hizmet ediyor ama
+> aşağıdaki `ρ = −0.5` formülüyle birebir aynı değil. Ayrıca motor bir
+> **yumuşak tavan** (soft ceiling) ve **yoğunluk bonusu** da uyguluyor,
+> ikisi de bu bölümde yok. Güncel davranış ve ölçülmüş etkisi için
+> [04-MEVCUT-DURUM §5.14](04-MEVCUT-DURUM.md#514-🟠-skor-motoru-ayrıştırmıyor--medyan-938-listenin-tamamı-100)
+> ve kod: `api/src/Vivido.Scoring/ScoringEngine.cs`.
 
 Ağırlıklı toplamın kusuru: *bir kategori sıfır olsa bile toplam iyi çıkabilir.* Metrosu ve otobüsü olmayan bir ev, `car_free` kullanıcısı için marketleri iyi diye 72 alabilir — bu saçmadır.
 
@@ -975,6 +985,26 @@ GET /api/v1/properties/4312/score
 
 ### 11.1 Sayfalar
 
+> ⚠️ **Aşağıdaki tablo orijinal plandır.** Gerçek uygulama (`web/src/app/router.tsx`)
+> farklı bir yapıya evrildi: ayrı bir landing sayfası yok (`/` doğrudan
+> `/auth/login`'e yönleniyor), onboarding tek sayfa değil `/lifestyle` →
+> `/preferences` → `/budget` → `/onboarding` şeklinde ayrı rotalara bölündü,
+> ve **ev detayı ile rota oluşturma ayrı sayfa değil** — `PropertyDetailPanel`
+> ve `RouteBuilderPanel` olarak `/explore` içine panel şeklinde gömüldü.
+> Plandan sonra eklenen, bu tabloda hiç olmayan iki sayfa da var: `/favorites`
+> ve `/admin`. Gerçek route listesi:
+>
+> | Gerçek route | Karşılığı |
+> |---|---|
+> | `/auth/login`, `/auth/register`, `/auth/verify-email`, `/auth/forgot-password` | Kimlik doğrulama |
+> | `/lifestyle`, `/preferences`, `/budget`, `/onboarding` | Persona/kriter/bütçe akışı (plandaki tek `/onboarding` yerine 4 ayrı adım) |
+> | `/explore` | Ana ekran — harita + liste + **ev detayı + rota oluşturma panelleri de burada** |
+> | `/favorites` | Favoriler (plan dışı eklendi) |
+> | `/profile` | Persona, bütçe, anchor yönetimi |
+> | `/admin` | Yönetim ekranı (plan dışı eklendi) |
+
+Orijinal plan tablosu (referans için korunuyor):
+
 | Route | Sayfa |
 |---|---|
 | `/` | Landing — kısa tanıtım + "Başla" |
@@ -1011,7 +1041,18 @@ GET /api/v1/properties/4312/score
 └────────────────┴─────────────────────────────────────────────┘
 ```
 
-**Anchor paneli (W4):** sürükle-bırak ile sıralanır (`dnd-kit`). Sıra bırakıldığı anda `PUT /profile/anchors/order` çağrılır ve **tüm liste skorları yeniden hesaplanır** — kullanıcı sıranın etkisini anında görür. Bu, ürünün en çarpıcı etkileşimidir.
+**Anchor paneli (W4):** sürükle-bırak ile sıralanır (`dnd-kit`). Sıra bırakıldığı anda `PUT /profile/anchors/order` çağrılır.
+
+> ⚠️ **Planla gerçek davranış burada ayrıştı.** Bu satır aslen "sıra
+> değişince tüm liste skorları yeniden hesaplanır" diyordu — **W4'ün
+> tanımı da bu**. Ama motor anchor'ları hâlâ skor formülüne almıyor
+> (bkz. §9 uyarı kutusu, [04-MEVCUT-DURUM §4.2](04-MEVCUT-DURUM.md)).
+> `PUT /profile/anchors/order` bunun yerine **anchor koridoru** cache'ini
+> geçersiz kılıyor — yani sıra değişince evlerin *skoru* değil,
+> *hangi evlerin listelendiği* (coğrafi koridor) değişiyor. Skoru
+> gerçekten yeniden hesaplatan işlem, anchor sırası değil **kategori/kriter
+> önceliği** sıralamasıdır (`/preferences`, `PUT /profile`). **W4 bu haliyle
+> tam karşılanmıyor** — kalan borç olarak izleniyor.
 
 **Düşük skorluları gösterme (W5):** varsayılan **açık**. Liste skora göre azalan sıralı; skor bandı renk şeridi ile gösterilir. Ayrıca sonuç başlığında `scoreDistribution` mini çubuğu — kullanıcı kaç ev hangi bantta görür.
 
@@ -1391,7 +1432,7 @@ psql -f db/checks/dq.sql                       # DQ-01..06, hepsi boş dönmeli
 1. Depo iskeleti: `api/ web/ mobile/ packages/shared/ data/ db/ docker-compose.yml`
 2. `db/schema/001_initial.sql` — §5'teki DDL
 3. `api/openapi.yaml` — §10'daki endpoint sözleşmesi
-4. .NET solution (5 proje) + Vite web + **Expo mobil (dev client ile!)**
+4. .NET solution (5 proje) + Vite web + ~~Expo mobil (dev client ile!)~~ **Flutter mobil** ([K-08](02-KARARLAR.md#k-08) ile değişti)
 5. `data/scripts/01_download.sh` … `06_seed_db.sh`
 6. `data/lua/vivido_pois.lua` — POI tag eşlemesi
 7. `docker-compose.yml` — 8 servis

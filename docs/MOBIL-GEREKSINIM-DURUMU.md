@@ -1,8 +1,16 @@
 # Mobil Gereksinim Durum Raporu
 
-> **Tarih:** 2026-08-26
+> **Tarih:** 2026-08-26 (2026-09-02'de düzeltildi — bkz. not)
 > **İncelenen branch:** `feat/mobile-property-favorites-routes`
 > **Kapsam kaynağı:** Kullanıcının paylaştığı son mobil gereksinim listesi (`R-1`–`R-78`)
+
+> ⚠️ **2026-09-02 düzeltmesi.** R-51–R-55, "Yapılmayan gereksinimler"
+> tablosunda listelenmiş ama açıklama sütunlarının tamamı zaten
+> "**Tamamlandı.**" diyordu — yanlış tabloda kalmışlardı, "Yapılan
+> gereksinimler"e taşındı. R-28 de kodda (`mobile/lib/features/home/
+> presentation/pages/home_page.dart`, `UserLocationController`) canlı GPS
+> konumunun izin akışıyla birlikte haritada gösterildiği doğrulanarak
+> "Yapıldı"ya taşındı. Özet tablo buna göre güncellendi.
 
 Bu raporda yalnızca son paylaşılan 78 mobil gereksinim kabul kapsamı olarak
 alınmıştır. Repodaki eski `M1`–`M5` veya `W1`–`W7` kapsamları, bu durum
@@ -12,9 +20,9 @@ değerlendirmesinde ölçüt olarak kullanılmamıştır.
 
 | Durum | Adet | Toplam içindeki oran |
 |---|---:|---:|
-| ✅ Yapıldı | **46** | **%59,0** |
+| ✅ Yapıldı | **52** | **%66,7** |
 | 🟡 Yarım yapıldı | **16** | **%20,5** |
-| ❌ Yapılmadı | **16** | **%20,5** |
+| ❌ Yapılmadı | **10** | **%12,8** |
 | **Toplam** | **78** | **%100** |
 
 Tam veya kısmi olarak ele alınmış gereksinim sayısı **62/78 (%79,5)**'dır.
@@ -72,6 +80,12 @@ varsa “Yarım yapıldı” olarak işaretlenmiştir.
 | **R-65** | Veri Tutarlılığı | Profil, tercih, favori, skor ve rota bilgileri güncel ve Web uygulamasındaki bilgilerle tutarlı olmalıdır. | Mobil ve web profil, konut, skor, favori ve rota için aynı backend endpoint'lerini kullanıyor; favori mutasyonu sonrası ilgili mobil listeler sunucudan yenileniyor. |
 | **R-70** | Sistem Yapısı | Mobil kullanıcı arayüzü, Backend ve Data bileşenleri birbirinden ayrılmış geliştirilebilir yapıda olmalıdır. | Mobilde `core/features`, backend'de Application/Domain/Infrastructure/API katmanları ayrılmıştır. |
 | **R-71** | Entegrasyon | Mobil uygulama kullanıcı, profil, konut, POI, skor, favori ve rota bilgilerine Backend üzerinden erişmelidir. | Bütün sayılan kaynaklar ayrı mobil gateway/controller katmanlarından gerçek `/api/v1` endpoint'lerine bağlıdır. |
+| **R-28** | Konum | Konum izni açıkken kullanıcının GPS konumu haritada gösterilmelidir. | Ana harita ekranı `UserLocationController` ile izin akışını yönetiyor ve canlı GPS konumunu haritada işaretçiyle gösteriyor (`home_page.dart`). |
+| **R-51** | Navigasyon | Kullanıcı seçtiği ziyaret rotası için navigasyonu başlatabilmelidir. | Önizlenen, aktif ve kayıtlı rotalardan canlı konuma göre navigasyon başlatılabiliyor; çevrimdışıyken işlem açıklayıcı mesajla engelleniyor. |
+| **R-52** | Navigasyon | Navigasyon öncesi konum izni kontrol edilmeli, izin kapalıysa uyarı gösterilmelidir. | Paylaşılan konum denetleyicisi servis/izin durumunu navigasyon ekranından önce kontrol ediyor; kalıcı ret için ayarlara yönlendiriyor. Android ve iOS kullanım açıklamaları tanımlı. |
+| **R-53** | Navigasyon | Navigasyon sırasında GPS konumu ve oluşturulan ziyaret rotası haritada gösterilmelidir. | 5 m filtreli sürekli GPS akışı, yönlü kullanıcı işareti, 16.5 yakınlaştırma/45° eğimle kamera takibi, rota ve gri tamamlanan rota bölümü MapLibre haritasında gösteriliyor. |
+| **R-54** | Navigasyon | Sıradaki konut, temel manevra bilgisi ve manevraya kalan mesafe gösterilmelidir. | OSRM adımları Türkçe manevra metni ve yön ikonu olarak; manevra mesafesi, durak sırası, konut özeti, kalan durak mesafesi ve tahmini süreyle gösteriliyor. |
+| **R-55** | Navigasyon | Kullanıcı rotadan belirlenen mesafeden fazla uzaklaşınca sapma uyarısı gösterilmelidir. | 50 m sapma/30 m dönüş histerezisi ve üç ardışık GPS ölçümüyle sapma algılanıyor; mesafeli uyarı ve canlı konumdan rota yenileme sunuluyor. 35 m üzeri doğruluk hesaplamaya alınmıyor. |
 
 ## 3. Yarım yapılan gereksinimler
 
@@ -99,13 +113,7 @@ varsa “Yarım yapıldı” olarak işaretlenmiştir.
 | ID | Alt modül | Gereksinim | Eksik durum |
 |---|---|---|---|
 | **R-12** | Profil | Kullanıcı yaş, cinsiyet, çalışma durumu ve medeni hâl bilgileriyle profil oluşturabilmelidir. | Bu alanlar modelde, API'de ve mobil formda yok. |
-| **R-28** | Konum | Konum izni açıkken kullanıcının GPS konumu haritada gösterilmelidir. | Konum paketi, izin akışı ve GPS işaretçisi yok. |
 | **R-39** | Özel Konum Analizi | Konut ile kullanıcının kayıtlı özel konumları arasındaki tahmini mesafe ve ulaşım süresi gösterilmelidir. | Konut-anchor analiz servisi ve ekranı yok. |
-| **R-51** | Navigasyon | Kullanıcı seçtiği ziyaret rotası için navigasyonu başlatabilmelidir. | **Tamamlandı.** Önizlenen, aktif ve kayıtlı rotalardan canlı konuma göre navigasyon başlatılabiliyor; çevrimdışıyken işlem açıklayıcı mesajla engelleniyor. |
-| **R-52** | Navigasyon | Navigasyon öncesi konum izni kontrol edilmeli, izin kapalıysa uyarı gösterilmelidir. | **Tamamlandı.** Paylaşılan konum denetleyicisi servis/izin durumunu navigasyon ekranından önce kontrol ediyor; kalıcı ret için ayarlara yönlendiriyor. Android ve iOS kullanım açıklamaları tanımlı. |
-| **R-53** | Navigasyon | Navigasyon sırasında GPS konumu ve oluşturulan ziyaret rotası haritada gösterilmelidir. | **Tamamlandı.** 5 m filtreli sürekli GPS akışı, yönlü kullanıcı işareti, 16.5 yakınlaştırma/45° eğimle kamera takibi, rota ve gri tamamlanan rota bölümü MapLibre haritasında gösteriliyor. |
-| **R-54** | Navigasyon | Sıradaki konut, temel manevra bilgisi ve manevraya kalan mesafe gösterilmelidir. | **Tamamlandı.** OSRM adımları Türkçe manevra metni ve yön ikonu olarak; manevra mesafesi, durak sırası, konut özeti, kalan durak mesafesi ve tahmini süreyle gösteriliyor. |
-| **R-55** | Navigasyon | Kullanıcı rotadan belirlenen mesafeden fazla uzaklaşınca sapma uyarısı gösterilmelidir. | **Tamamlandı.** 50 m sapma/30 m dönüş histerezisi ve üç ardışık GPS ölçümüyle sapma algılanıyor; mesafeli uyarı ve canlı konumdan rota yenileme sunuluyor. 35 m üzeri doğruluk hesaplamaya alınmıyor. |
 | **R-56** | Ziyaret Takibi | Ulaşılan konut “Ziyaret Ettim” ile işaretlenmeli ve rota ilerlemesi güncellenmelidir. | Ziyaret işaretleme yok. |
 | **R-57** | Ziyaret Takibi | Ziyaretten sonra sıradaki konuta yönlendirilmeli; tümü tamamlanınca rota tamamlandı bildirimi gösterilmelidir. | Ziyaret ilerleme akışı yok. |
 | **R-67** | Konum Gizliliği | Mevcut konum yalnızca izin alındıktan sonra harita ve navigasyon amacıyla kullanılmalıdır. | GPS/konum izni özelliği yok. |
@@ -144,7 +152,7 @@ Bağımlılıklar dikkate alındığında önerilen geliştirme sırası:
 
 1. **Konut analizi ve skor tamamlamaları:** R-33, R-35, R-38, R-39, R-61 ve R-73; gerçek ilan fotoğrafı ile anchor/POI mesafe-süre verileri tamamlanmalı, kaydedilen kriter sırası R-17 kapsamında skora bağlanmalı
 2. **Profil tamamlamaları:** R-3, R-12, R-15, R-22
-3. **GPS ve POI erişim analizi:** R-28, R-38, R-67
-4. **Navigasyon ve ziyaret takibi:** R-51–R-57
+3. **GPS ve POI erişim analizi:** R-38, R-67 *(R-28 tamamlandı, düşürüldü)*
+4. **Ziyaret takibi:** R-56–R-57 *(R-51–R-55 navigasyon tamamlandı, düşürüldü)*
 5. **Güvenlik, gizlilik ve hata yönetimi:** R-62, R-66, R-68 ve R-74
 6. **Paylaşım, kullanıcı puanı ve çevrimdışı kullanım:** R-75–R-78

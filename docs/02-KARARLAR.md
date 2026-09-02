@@ -27,6 +27,7 @@
 | [K-14](#k-14) | Oturuma bağlı sunucu verisi `useSessionQuery`'den geçer | Kabul |
 | [K-15](#k-15) | Konut adresi yerel `streets` tablosundan; ters geokodlama yok | Kabul |
 | [K-16](#k-16) | Gerekçe tablosu motorun İÇİNDEN üretilir, ikinci kopya yazılmaz | Kabul |
+| [K-17](#k-17) | Anchor'lar skor formülüne değil, coğrafi "koridor" filtresine girer | Kabul |
 
 ---
 
@@ -859,3 +860,65 @@ eklendi çünkü hem `PropertyScoringService` hem de `ScoringEngineTests`
 kaydı POZİSYONEL kuruyor
 (`new(duration, weight, tIdeal, tHalf, tCutoff, poiCount, minPoiCount)`).
 Araya eklenseydi derleme geçer, değerler sessizce yanlış alanlara yazılırdı.
+
+---
+
+## K-17
+### Anchor'lar skor formülüne değil, coğrafi "koridor" filtresine giriyor
+
+**Durum:** Kabul · 2026-09-02
+
+**Bağlam.** W4 ve AK-W4, anchor sırası değiştiğinde "skorun yeniden
+hesaplanmasını" istiyor ([01-PROJE-PLANI §11.2](01-PROJE-PLANI.md)). Skor
+motoru (v1.1) hâlâ yalnızca POI erişim sürelerinin persona-ağırlıklı
+ortalamasını, zayıf halka cezasını ve yoğunluk bonusunu hesaplıyor;
+anchor'lar bu formüle hiç girmiyor ve tam anchor-skor bileşenini (CES'e
+benzer, kullanıcıya özel bir terim) yazmak planlanandan daha büyük bir iş.
+
+Bunun yerine `PropertiesController` ve `AnchorsController`'da farklı bir
+mekanizma geliştirildi: kullanıcının anchor'larından, **1. öncelikli
+(en önemli) anchor'ı merkez alan bir "yıldız" topolojisiyle** coğrafi bir
+koridor (buffer/şerit) oluşturuluyor; `GET /properties` ve
+`/properties/top` varsayılan olarak yalnızca bu koridora düşen (bütçeye
+uygun) evleri döndürüyor.
+
+**Karar.**
+
+- Anchor sırası **skoru değiştirmiyor**; bunun yerine **listelenen ev
+  kümesini** coğrafi olarak daraltıyor/genişletiyor.
+- Koridor, en öncelikli anchor'ı merkez alan yıldız şeklinde kuruluyor
+  (bacaklar 1↔2, 1↔3) — **zincir değil** (1↔2, 2↔3): zincirde ortadaki
+  anchor "ara durak" gibi davranıp kullanıcının asıl önceliğini
+  bulanıklaştırıyordu.
+- Her bacak için önce **yaya rotası**, olmazsa **araç rotası**, ikisi de
+  yoksa **daire buffer'ı** kullanılıyor — OSRM tabanlı, gerçek yol
+  geometrisiyle. Tek-anchor durumunda buffer, enlem/boylam mesafe farkı
+  düzeltilerek gerçek bir daire olarak çiziliyor (bkz.
+  [04-MEVCUT-DURUM §5.18](04-MEVCUT-DURUM.md)).
+- Kullanıcıya "hangi ulaşım şekli?" sorusu artık **sorulmuyor** — bu
+  kararı sistem her bacak için kendisi veriyor. Backend sözleşmesi
+  değişmedi (`mode` hâlâ zorunlu alan), istemci sabit `'car'` gönderiyor.
+
+**Gerekçe.** Coğrafi filtreleme, "evlerimi anchor'larıma yakın göster"
+ihtiyacının büyük kısmını, skor motoruna dokunmadan ve önceden
+hesaplanmış `score_cache`'i geçersiz kılmadan (bkz. K-16) karşılıyor.
+Skor formülüne yeni bir bileşen eklemek hem motoru hem gerekçe tablosunu
+hem de kalibrasyonu (§5.14) yeniden etkileyecek daha büyük ve riskli bir
+değişiklik; koridor bunu beklemeden kullanıcıya somut bir fayda veriyor.
+
+**Sonuçları.**
+
+- **AK-W4 ("anchor sırası skoru ≥ 5 puan değiştirir") hâlâ karşılanmıyor**
+  — bu kapatılmış bir borç değil, bilinçli bir ara adım. `04-MEVCUT-DURUM`
+  bunu açık borç olarak izliyor.
+- Anchor eklendiğinde/silindiğinde/sırası değiştiğinde artık `score_cache`
+  değil, ayrı bir koridor cache'i (`anchor-corridor:{profileId}`, 10 dk)
+  geçersiz kılınıyor — ikisi birbirinden bağımsız.
+- İleride gerçek bir anchor-skor bileşeni yazılırsa, bu koridor
+  mekanizmasının kapsam dışı mı kalacağı yoksa ikisinin birlikte mi
+  çalışacağı ayrıca karara bağlanmalı — bu doküman şimdilik yalnızca
+  mevcut ikiliği kaydediyor.
+
+Kanıt: `api/src/Vivido.Api/controllers/PropertiesController.cs`,
+`api/src/Vivido.Api/controllers/AnchorsController.cs`,
+`web/src/features/anchors/AnchorEditor.tsx`.

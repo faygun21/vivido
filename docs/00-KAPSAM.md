@@ -91,6 +91,15 @@ Then  liste skora göre azalan sıralıdır (items[i].score >= items[i+1].score)
 
 ## W4 — Anchor sıralaması ⭐ en kritik test
 
+> ⚠️ **2026-09-02 durumu:** Bu kriter şu an **geçmiyor** ve kısa vadede
+> geçmesi planlanmıyor. [K-17](02-KARARLAR.md#k-17) kararıyla anchor sırası
+> skoru değil, coğrafi "koridor" filtresini (hangi evlerin listelendiğini)
+> değiştiriyor. Aşağıdaki senaryo hâlâ ürünün hedefidir (AK-W4 kapanmadı),
+> ama ekip bunun yerine önce koridor mekanizmasını teslim etmeyi seçti —
+> bkz. [04-MEVCUT-DURUM §4.2](04-MEVCUT-DURUM.md#42--2026-09-02de-eklenenler--anchor-koridoru).
+> Bu kriteri düşürüp düşürmemek (ya da koridorla birlikte nasıl
+> çalışacağını tanımlamak) ekibin karar vereceği bir kapsam sorusu.
+
 ```gherkin
 Given 3 anchor eklemiş bir öğrenciyim (① Üniversite ② Spor salonu ③ Aile evi)
  And  4312 numaralı evin skoru 71.0
@@ -209,7 +218,7 @@ Bunlar her koşulda doğru olmalı; `Category=Invariant` etiketiyle test edilir.
 | **I2** | Bir kategorinin süresi azalırsa skor artmalı veya aynı kalmalı (monotonluk) |
 | **I3** | Tüm alt skorlar 100 ve bütçe rahatsa → toplam 100 |
 | **I4** | `Σ rows[].contribution == total` (±0.05) |
-| **I5** | Anchor sırası değişince skor değişmeli — aynı kalmamalı |
+| **I5** | Anchor sırası değişince skor değişmeli — aynı kalmamalı ⚠️ *(şu an sağlanmıyor, bkz. W4 notu / [K-17](02-KARARLAR.md#k-17))* |
 | **I6** | Aynı girdi iki kez → bit-bit aynı çıktı (determinizm) |
 | **I7** | Anchor listesi boşken skor = POISkoru (bütçe girilmemişse) |
 | **I8** | Her persona için ağırlıklar toplamı 1.000 |
