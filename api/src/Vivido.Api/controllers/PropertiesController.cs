@@ -19,6 +19,13 @@ namespace Vivido.Api.Controllers;
 public class PropertiesController : ControllerBase
 {
     private const int MaximumPropertyCount = 2000;
+
+    /// <summary>
+    /// Bu skorun ALTINDAKİ evler haritada/listede hiç gösterilmez — düşük
+    /// skorlu bir evi görmek kullanıcıya değer katmıyor, gürültü ekliyor.
+    /// GEÇİCİ olarak sabit bir eşik olarak eklendi (kullanıcı ayarı DEĞİL).
+    /// </summary>
+    private const double MinimumDisplayScore = 25.0;
     private readonly VividoDbContext _context;
     private readonly PropertyScoringService _scoringService;
     private readonly PropertyScoreBreakdownService _breakdownService;
@@ -101,8 +108,14 @@ public class PropertiesController : ControllerBase
             scores.GetValueOrDefault(prop.Id, 0.0)
         ));
 
-        // Skorlarına göre yüksekten düşüğe sıralama (R-114)
-        var sortedItems = mapItems.OrderByDescending(x => x.TotalScore).ToList();
+        // Düşük skorlu evler hiç gösterilmiyor (bkz. MinimumDisplayScore) —
+        // sıralamadan ÖNCE eleniyor, sıralama zaten skora göre olduğu için
+        // sıra önemli değil ama filtre sıralanmış listeye uygulanınca
+        // okunması daha kolay.
+        var sortedItems = mapItems
+            .OrderByDescending(x => x.TotalScore)
+            .Where(x => x.TotalScore >= MinimumDisplayScore)
+            .ToList();
 
         return Ok(new PropertiesMapResponseDto(
             sortedItems,
@@ -164,6 +177,10 @@ public class PropertiesController : ControllerBase
             properties.Select(p => p.Id).ToList(), profile.Id);
 
         var top = properties
+            // Düşük skorlu evler burada da hiç gösterilmiyor (bkz.
+            // MinimumDisplayScore) — "en yakın uygun ev" yedeği YUKARIDAKİ
+            // (koridorda hiç ev yoksa) ayrı durum, bu filtreden etkilenmiyor.
+            .Where(p => scores.GetValueOrDefault(p.Id, 0.0) >= MinimumDisplayScore)
             .OrderByDescending(p => scores.GetValueOrDefault(p.Id, 0.0))
             // Eşit skorlu evlerde sıra rastgele olmasın: aynı istek iki kez
             // atıldığında liste zıplarsa kullanıcı "veri değişti" sanır.
