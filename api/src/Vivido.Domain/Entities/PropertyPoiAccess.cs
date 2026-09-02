@@ -1,6 +1,9 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
+// Diğer entity'ler bu ad alanında; `PropertyPoiAccess` global ad alanında kalmıştı.
+namespace Vivido.Domain.Entities;
+
 [Table("property_poi_access")]
 public class PropertyPoiAccess
     {

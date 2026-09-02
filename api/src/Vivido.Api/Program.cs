@@ -31,10 +31,17 @@ var connectionString = builder.Configuration.GetConnectionString("Default");
 
 Console.WriteLine(
     "---> Veritabanı bağlantısı: "
+    // Zaman aşımı YOK bırakılırsa (SonarQube uyarısı) bu regex teorik
+    // olarak felaketsel geri izleme (catastrophic backtracking) ile
+    // sonsuza kadar takılabilir — burada girdi bizim kendi yapılandırma
+    // dizgimiz olduğu için pratikte risksiz, ama savunma amaçlı bir üst
+    // sınır ucuz bir güvence.
     + System.Text.RegularExpressions.Regex.Replace(
         connectionString ?? "(tanımsız)",
         @"(?i)(password\s*=\s*)[^;]*",
-        "$1***"));
+        "$1***",
+        System.Text.RegularExpressions.RegexOptions.None,
+        TimeSpan.FromMilliseconds(500)));
 
 builder.Services.AddDbContext<VividoDbContext>(options =>
     options.UseNpgsql(connectionString, o => o.UseNetTopologySuite())
