@@ -1,8 +1,31 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_motion.dart';
+import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/widgets/glass_surface.dart';
 import '../../application/location_search_controller.dart';
 import '../../domain/location_search_models.dart';
 
+/// Harita üstündeki adres/mahalle arama çubuğu (R-20).
+///
+/// ⚠️ NELER DEĞİŞTİ
+///
+/// 1. **Yüzey camlaştı.** Opak beyaz bir `Material(elevation: 5)` idi ve
+///    haritaya yapıştırılmış gibi duruyordu.
+///
+/// 2. **İki düğme bire indi.** Sağda hem "temizle" (✕) hem "ara" (→ dolu
+///    yuvarlak) vardı: 52 px'lik bir çubuğun sağ yarısı düğmeydi ve
+///    yazılan metin sıkışıyordu. Arama zaten klavyenin "ara" tuşuyla ve
+///    yazmayı bırakınca tetikleniyor; ayrı bir düğme gereksiz.
+///
+/// 3. **Sonuç listesi yüzen bir panel oldu.** `Card` olarak çubuğun altına
+///    yapışıyordu; artık kendi gölgesiyle onun ÜSTÜNDE duruyor.
+///
+/// 4. **Sabit yükseklik.** Çubuk artık [AppSpacing.mapSearchHeight]
+///    kadar — altındaki kontrol sırası bu ölçüye göre iniyor. Eskiden
+///    yüksekliği içeriğe göre değişiyor ve altındaki düğmeler kimi zaman
+///    üstüne biniyordu.
 class LocationSearchPanel extends StatefulWidget {
   const LocationSearchPanel({
     required this.controller,
@@ -27,7 +50,7 @@ class _LocationSearchPanelState extends State<LocationSearchPanel> {
   void initState() {
     super.initState();
     _textController = TextEditingController();
-    _focusNode = FocusNode();
+    _focusNode = FocusNode()..addListener(() => setState(() {}));
   }
 
   @override
@@ -42,6 +65,7 @@ class _LocationSearchPanelState extends State<LocationSearchPanel> {
     _focusNode.unfocus();
     widget.controller.clear();
     widget.onCleared();
+    setState(() {});
   }
 
   void _select(LocationSearchResult result) {
@@ -56,130 +80,157 @@ class _LocationSearchPanelState extends State<LocationSearchPanel> {
       animation: widget.controller,
       builder: (context, _) {
         final state = widget.controller;
+        final hasText = _textController.text.isNotEmpty;
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Material(
-              elevation: 5,
-              borderRadius: BorderRadius.circular(16),
-              child: TextField(
-                controller: _textController,
-                focusNode: _focusNode,
-                enabled: !state.loading,
-                textInputAction: TextInputAction.search,
-                maxLength: 200,
-                buildCounter:
-                    (
-                      _, {
-                      required currentLength,
-                      required isFocused,
-                      maxLength,
-                    }) => null,
-                onSubmitted: state.search,
-                decoration: InputDecoration(
-                  hintText: 'Mahalle, adres veya konum ara',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_textController.text.isNotEmpty ||
-                          state.selected != null)
-                        IconButton(
-                          tooltip: 'Aramayı temizle',
-                          onPressed: _clear,
-                          icon: const Icon(Icons.close),
-                        ),
-                      IconButton.filled(
-                        tooltip: 'Ara',
-                        onPressed:
+            GlassSurface(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              child: SizedBox(
+                height: AppSpacing.mapSearchHeight,
+                child: Row(
+                  children: [
+                    const SizedBox(width: AppSpacing.sm),
+                    // Yükleme göstergesi büyütecin YERİNE geçiyor, yanına
+                    // değil: aynı yerde değişen bir simge, genişliği
+                    // sabit tutuyor ve metin kaymıyor.
+                    SizedBox.square(
+                      dimension: 20,
+                      child: AnimatedSwitcher(
+                        duration: AppMotion.fast,
+                        child:
                             state.loading
-                                ? null
-                                : () => state.search(_textController.text),
-                        icon:
-                            state.loading
-                                ? const SizedBox.square(
-                                  dimension: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
+                                ? const CircularProgressIndicator(
+                                  strokeWidth: 2,
                                 )
-                                : const Icon(Icons.arrow_forward),
+                                : Icon(
+                                  Icons.search,
+                                  size: 20,
+                                  color:
+                                      _focusNode.hasFocus
+                                          ? AppColors.accent
+                                          : AppColors.inkMuted,
+                                ),
                       ),
-                      const SizedBox(width: 8),
-                    ],
-                  ),
-                  filled: true,
-                  fillColor: Theme.of(context).colorScheme.surface,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Expanded(
+                      child: TextField(
+                        controller: _textController,
+                        focusNode: _focusNode,
+                        enabled: !state.loading,
+                        textInputAction: TextInputAction.search,
+                        maxLength: 200,
+                        style: AppType.sm,
+                        buildCounter:
+                            (
+                              _, {
+                              required currentLength,
+                              required isFocused,
+                              maxLength,
+                            }) => null,
+                        onSubmitted: state.search,
+                        onChanged: (_) => setState(() {}),
+                        decoration: InputDecoration(
+                          hintText: 'Mahalle, cadde veya adres ara',
+                          hintStyle: AppType.muted(AppType.sm),
+                          filled: false,
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                        ),
+                      ),
+                    ),
+                    if (hasText || state.selected != null)
+                      IconButton(
+                        tooltip: 'Aramayı temizle',
+                        onPressed: _clear,
+                        icon: const Icon(Icons.close, size: 19),
+                        visualDensity: VisualDensity.compact,
+                      )
+                    else
+                      const SizedBox(width: AppSpacing.xs),
+                  ],
                 ),
-                onChanged: (_) => setState(() {}),
               ),
             ),
-            if (state.errorMessage != null)
-              _MessageCard(
-                message: state.errorMessage!,
-                color: Theme.of(context).colorScheme.errorContainer,
-              ),
+
+            if (state.errorMessage case final message?)
+              _Notice(message: message, error: true),
+
             if (state.searched &&
                 state.results.isEmpty &&
                 state.errorMessage == null)
-              const _MessageCard(
+              const _Notice(
                 message: 'Çankaya sınırları içinde sonuç bulunamadı.',
               ),
+
             if (state.results.isNotEmpty)
-              Card(
-                margin: const EdgeInsets.only(top: 6),
-                elevation: 5,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 240),
-                  child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    shrinkWrap: true,
-                    itemCount: state.results.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final result = state.results[index];
-                      return ListTile(
-                        dense: true,
-                        leading: Icon(_kindIcon(result.kind)),
-                        title: Text(
-                          result.label,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Text(_sourceLabel(result.source)),
-                        onTap: () => _select(result),
-                      );
-                    },
-                  ),
-                ),
-              ),
-            if (state.selected != null)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: InputChip(
-                    avatar: const Icon(Icons.my_location, size: 18),
-                    label: Text(
-                      state.selected!.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    onDeleted: _clear,
-                  ),
-                ),
-              ),
-            if (state.results.isNotEmpty && state.attribution.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.only(top: 3, right: 4),
-                child: Text(
-                  state.attribution,
-                  textAlign: TextAlign.right,
-                  style: Theme.of(context).textTheme.labelSmall,
+                padding: const EdgeInsets.only(top: 6),
+                child: GlassSurface(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 260),
+                    child: ListView.separated(
+                      padding: EdgeInsets.zero,
+                      shrinkWrap: true,
+                      itemCount: state.results.length,
+                      separatorBuilder:
+                          (_, _) => const Divider(height: 1, indent: 44),
+                      itemBuilder: (context, index) {
+                        final result = state.results[index];
+                        return ListTile(
+                          dense: true,
+                          leading: Icon(_kindIcon(result.kind), size: 20),
+                          title: Text(
+                            result.label,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppType.sm,
+                          ),
+                          subtitle: Text(
+                            _sourceLabel(result.source),
+                            style: AppType.muted(AppType.micro).copyWith(
+                              letterSpacing: 0,
+                            ),
+                          ),
+                          onTap: () => _select(result),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+
+            // Seçili yer çipi ve kaynak atıfı YAN YANA: ikisi de birer
+            // dipnot, alt alta iki satır olarak haritanın üstünde
+            // gereksiz yer kaplıyordu.
+            if (state.selected != null || state.attribution.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(
+                  children: [
+                    if (state.selected case final selected?)
+                      Flexible(
+                        child: _SelectedChip(
+                          label: selected.label,
+                          onClear: _clear,
+                        ),
+                      ),
+                    const Spacer(),
+                    if (state.results.isNotEmpty &&
+                        state.attribution.isNotEmpty)
+                      Text(
+                        state.attribution,
+                        style: AppType.muted(AppType.micro).copyWith(
+                          letterSpacing: 0,
+                        ),
+                      ),
+                  ],
                 ),
               ),
           ],
@@ -189,19 +240,74 @@ class _LocationSearchPanelState extends State<LocationSearchPanel> {
   }
 }
 
-class _MessageCard extends StatelessWidget {
-  const _MessageCard({required this.message, this.color});
+class _SelectedChip extends StatelessWidget {
+  const _SelectedChip({required this.label, required this.onClear});
 
-  final String message;
-  final Color? color;
+  final String label;
+  final VoidCallback onClear;
 
   @override
-  Widget build(BuildContext context) => Card(
-    margin: const EdgeInsets.only(top: 6),
-    color: color,
+  Widget build(BuildContext context) => GlassSurface.thin(
+    borderRadius: BorderRadius.circular(AppRadius.pill),
+    shadow: AppShadows.xs,
     child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      child: Text(message),
+      padding: const EdgeInsets.fromLTRB(10, 5, 6, 5),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.place, size: 14, color: AppColors.accent),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppType.xs.copyWith(fontWeight: AppType.medium),
+            ),
+          ),
+          const SizedBox(width: 2),
+          GestureDetector(
+            onTap: onClear,
+            child: const Padding(
+              padding: EdgeInsets.all(3),
+              child: Icon(Icons.close, size: 13, color: AppColors.inkMuted),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _Notice extends StatelessWidget {
+  const _Notice({required this.message, this.error = false});
+
+  final String message;
+  final bool error;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 6),
+    child: GlassSurface(
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      shadow: AppShadows.md,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: 10,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              error ? Icons.error_outline : Icons.search_off,
+              size: 17,
+              color: error ? AppColors.bad : AppColors.inkMuted,
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Expanded(child: Text(message, style: AppType.xs)),
+          ],
+        ),
+      ),
     ),
   );
 }

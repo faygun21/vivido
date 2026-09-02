@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/models/models.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_typography.dart';
 import '../../application/session_controller.dart';
 import '../../domain/password_policy.dart';
+import '../widgets/auth_scaffold.dart';
 import 'login_page.dart';
+import 'terms_and_privacy_page.dart';
 import 'verify_email_page.dart';
 
+/// Kayıt ekranı (R-3, R-4, R-5, R-59).
+///
+/// ⚠️ `TermsAndPrivacyPage` BURADA TANIMLIYDI ve `terms_and_privacy_page.dart`
+/// içinde ikinci bir kopyası vardı; ikinci dosya hiç kullanılmıyordu ama
+/// ikisi de derleniyordu. Sayfa artık tek yerde.
 class RegisterPage extends StatefulWidget {
   const RegisterPage({required this.controller, super.key});
 
@@ -22,12 +31,6 @@ class _RegisterPageState extends State<RegisterPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
-
-  static const Color primaryKiremit = Color(0xFFC0421D);
-  static const Color backgroundColor = Color(0xFFF9F4ED);
-  static const Color accentOrange = Color(0xFFE27250);
-  static const Color inputFillColor = Color(0xFFECEAE6);
-  static const Color strokeColor = Color(0xFFA79D93);
 
   @override
   void dispose() {
@@ -76,353 +79,142 @@ class _RegisterPageState extends State<RegisterPage> {
     return AnimatedBuilder(
       animation: widget.controller,
       builder:
-          (context, _) => Scaffold(
-            backgroundColor: backgroundColor,
-            body: SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const SizedBox(height: 12),
-                      // Başlık
-                      const Text(
-                        'Aramıza Katılın',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 24,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      // Alt Slogan
-                      const Text(
-                        'Yaşamanıza en uygun evi bulmak\niçin kayıt oluşturun.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 14,
-                          color: Color(0xFF555555),
-                          height: 1.3,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 16),
-                        child: const Divider(
-                          color: strokeColor,
-                          thickness: 0.8,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Ad Alanı
-                      TextFormField(
-                        controller: _nameController,
-                        textInputAction: TextInputAction.next,
-                        autofillHints: const [AutofillHints.givenName],
-                        decoration: InputDecoration(
-                          hintText: 'Ad',
-                          hintStyle: TextStyle(color: Colors.grey.shade600),
-                          filled: true,
-                          fillColor: inputFillColor,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: strokeColor,
-                              width: 1,
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: strokeColor,
-                              width: 1,
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: accentOrange,
-                              width: 1.5,
-                            ),
+          (context, _) => AuthScaffold(
+            title: 'Aramıza katıl',
+            subtitle: 'Sana en uygun evi bulabilmemiz için önce bir hesap.',
+            children: [
+              Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Ad ve soyad YAN YANA: alt alta iki kısa alan,
+                    // formu gereksiz uzatıyor ve kaydırma gerektiriyordu.
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _nameController,
+                            textInputAction: TextInputAction.next,
+                            autofillHints: const [AutofillHints.givenName],
+                            decoration: const InputDecoration(labelText: 'Ad'),
+                            validator:
+                                (value) =>
+                                    (value ?? '').trim().isEmpty
+                                        ? 'Zorunlu'
+                                        : null,
                           ),
                         ),
-                        validator:
-                            (value) =>
-                                (value ?? '').trim().isEmpty
-                                    ? 'Ad alanı boş bırakılamaz.'
-                                    : null,
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Soyad Alanı
-                      TextFormField(
-                        controller: _surnameController,
-                        textInputAction: TextInputAction.next,
-                        autofillHints: const [AutofillHints.familyName],
-                        decoration: InputDecoration(
-                          hintText: 'Soyad',
-                          hintStyle: TextStyle(color: Colors.grey.shade600),
-                          filled: true,
-                          fillColor: inputFillColor,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: strokeColor,
-                              width: 1,
+                        const SizedBox(width: AppSpacing.xs),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _surnameController,
+                            textInputAction: TextInputAction.next,
+                            autofillHints: const [AutofillHints.familyName],
+                            decoration: const InputDecoration(
+                              labelText: 'Soyad',
                             ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: strokeColor,
-                              width: 1,
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: accentOrange,
-                              width: 1.5,
-                            ),
+                            validator:
+                                (value) =>
+                                    (value ?? '').trim().isEmpty
+                                        ? 'Zorunlu'
+                                        : null,
                           ),
                         ),
-                        validator:
-                            (value) =>
-                                (value ?? '').trim().isEmpty
-                                    ? 'Soyad alanı boş bırakılamaz.'
-                                    : null,
-                      ),
-                      const SizedBox(height: 16),
-
-                      // E-posta Alanı
-                      TextFormField(
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        textInputAction: TextInputAction.next,
-                        autofillHints: const [AutofillHints.email],
-                        decoration: InputDecoration(
-                          hintText: 'E-posta adresi',
-                          hintStyle: TextStyle(color: Colors.grey.shade600),
-                          filled: true,
-                          fillColor: inputFillColor,
-                          suffixIcon: Icon(
-                            Icons.email_outlined,
-                            color: strokeColor,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: strokeColor,
-                              width: 1,
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: strokeColor,
-                              width: 1,
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: accentOrange,
-                              width: 1.5,
-                            ),
-                          ),
-                        ),
-                        validator: _validateEmail,
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Şifre Alanı
-                      TextFormField(
-                        key: const ValueKey('register-password'),
-                        controller: _passwordController,
-                        obscureText: _obscurePassword,
-                        textInputAction: TextInputAction.done,
-                        autofillHints: const [AutofillHints.newPassword],
-                        onFieldSubmitted: (_) => _submit(),
-                        decoration: InputDecoration(
-                          hintText: 'Şifre',
-                          helperText: strongPasswordRequirements,
-                          helperMaxLines: 2,
-                          errorMaxLines: 3,
-                          hintStyle: TextStyle(color: Colors.grey.shade600),
-                          filled: true,
-                          fillColor: inputFillColor,
-                          suffixIcon: IconButton(
-                            onPressed:
-                                () => setState(
-                                  () => _obscurePassword = !_obscurePassword,
-                                ),
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.lock_outline
-                                  : Icons.lock_open_outlined,
-                              color: strokeColor,
-                            ),
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: strokeColor,
-                              width: 1,
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: strokeColor,
-                              width: 1,
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: accentOrange,
-                              width: 1.5,
-                            ),
-                          ),
-                        ),
-                        validator: validateStrongPassword,
-                      ),
-
-                      if (widget.controller.errorMessage case final error?) ...[
-                        const SizedBox(height: 12),
-                        _ErrorBox(message: error),
                       ],
-
-                      const SizedBox(height: 24),
-
-                      // Kayıt Ol Butonu
-                      SizedBox(
-                        height: 54,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: accentOrange,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    TextFormField(
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [AutofillHints.email],
+                      decoration: const InputDecoration(
+                        labelText: 'E-posta adresi',
+                        prefixIcon: Icon(Icons.alternate_email, size: 20),
+                      ),
+                      validator: _validateEmail,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    TextFormField(
+                      key: const ValueKey('register-password'),
+                      controller: _passwordController,
+                      obscureText: _obscurePassword,
+                      textInputAction: TextInputAction.done,
+                      autofillHints: const [AutofillHints.newPassword],
+                      onFieldSubmitted: (_) => _submit(),
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        labelText: 'Şifre',
+                        errorMaxLines: 3,
+                        prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                        suffixIcon: IconButton(
+                          onPressed:
+                              () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
+                          tooltip:
+                              _obscurePassword
+                                  ? 'Şifreyi göster'
+                                  : 'Şifreyi gizle',
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                            size: 20,
                           ),
-                          onPressed: widget.controller.busy ? null : _submit,
-                          child:
-                              widget.controller.busy
-                                  ? const SizedBox.square(
-                                    dimension: 22,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                  : const Text(
-                                    'Kayıt Ol',
-                                    style: TextStyle(
-                                      fontFamily: 'Poppins',
-                                      fontSize: 16,
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      validator: validateStrongPassword,
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
 
-                      // Tıklanabilir Sözleşme Metni
-                      SizedBox(
-                        width: double.infinity,
-                        child: Wrap(
-                          alignment: WrapAlignment.center,
-                          children: [
-                            const Text(
-                              'Kayıt olarak ',
-                              style: TextStyle(
-                                fontFamily: 'Poppins',
-                                fontSize: 12,
-                                color: Color(0xFF555555),
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => const TermsAndPrivacyPage(),
-                                  ),
-                                );
-                              },
-                              child: const Text(
-                                'Kullanım Koşulları ve Gizlilik Sözleşmesi\'ni',
-                                style: TextStyle(
-                                  fontFamily: 'Poppins',
-                                  fontSize: 12,
-                                  color: primaryKiremit,
-                                  fontWeight: FontWeight.bold,
-                                  decoration: TextDecoration.underline,
-                                ),
-                              ),
-                            ),
-                            const Text(
-                              ' kabul etmiş olursunuz.',
-                              style: TextStyle(
-                                fontFamily: 'Poppins',
-                                fontSize: 12,
-                                color: Color(0xFF555555),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
+                    // ⚠️ Kural listesi CANLI. Eskiden tek satırlık bir
+                    // `helperText`ti (`strongPasswordRequirements`) ve
+                    // kullanıcı hangi kuralı sağladığını ancak formu
+                    // gönderip hata alınca öğreniyordu.
+                    _PasswordChecklist(value: _passwordController.text),
 
-                      // Giriş Yap Yönlendirmesi
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Zaten bir hesabınız var mı? ',
-                            style: TextStyle(
-                              color: Colors.grey.shade700,
-                              fontSize: 13,
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap:
-                                widget.controller.busy
-                                    ? null
-                                    : () {
-                                      widget.controller.clearError();
-                                      Navigator.of(context).pushReplacement(
-                                        MaterialPageRoute<void>(
-                                          builder:
-                                              (_) => LoginPage(
-                                                controller: widget.controller,
-                                              ),
-                                        ),
-                                      );
-                                    },
-                            child: const Text(
-                              'Giriş Yap',
-                              style: TextStyle(
-                                color: primaryKiremit,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                    if (widget.controller.errorMessage case final error?) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      AuthError(message: error),
                     ],
-                  ),
+                    const SizedBox(height: AppSpacing.md),
+                    AuthSubmitButton(
+                      label: 'Hesap oluştur',
+                      busy: widget.controller.busy,
+                      onPressed: _submit,
+                    ),
+                  ],
                 ),
               ),
-            ),
+              const SizedBox(height: AppSpacing.sm),
+              _TermsNotice(
+                onTap:
+                    () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const TermsAndPrivacyPage(),
+                      ),
+                    ),
+              ),
+              AuthSwitchLink(
+                question: 'Zaten hesabın var mı?',
+                action: 'Giriş yap',
+                onTap:
+                    widget.controller.busy
+                        ? null
+                        : () {
+                          widget.controller.clearError();
+                          Navigator.of(context).pushReplacement(
+                            MaterialPageRoute<void>(
+                              builder:
+                                  (_) =>
+                                      LoginPage(controller: widget.controller),
+                            ),
+                          );
+                        },
+              ),
+            ],
           ),
     );
   }
@@ -435,101 +227,95 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 }
 
-class _ErrorBox extends StatelessWidget {
-  const _ErrorBox({required this.message});
+/// Parola kurallarının canlı kontrol listesi.
+///
+/// Kurallar `password_policy.dart` ile aynı — orası doğrulamayı, burası
+/// göstermeyi yapıyor. İkisi ayrışırsa kullanıcı yeşil tik görüp yine de
+/// hata alır; bu yüzden kural metinleri tek bir yerden geliyor.
+class _PasswordChecklist extends StatelessWidget {
+  const _PasswordChecklist({required this.value});
 
-  final String message;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.red.shade100,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        message,
-        textAlign: TextAlign.center,
-        style: TextStyle(color: Colors.red.shade900),
-      ),
+    final rules = <(String, bool)>[
+      ('8+ karakter', value.length >= 8),
+      ('Büyük harf', value.contains(RegExp('[A-ZÇĞİÖŞÜ]'))),
+      ('Küçük harf', value.contains(RegExp('[a-zçğıöşü]'))),
+      ('Rakam', value.contains(RegExp('[0-9]'))),
+      ('Özel karakter', value.contains(RegExp('[^A-Za-zÇĞİÖŞÜçğıöşü0-9]'))),
+    ];
+
+    return Wrap(
+      spacing: 6,
+      runSpacing: 5,
+      children: [
+        for (final (label, met) in rules)
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color:
+                  met
+                      ? AppColors.ok.withValues(alpha: 0.10)
+                      : AppColors.inputBg,
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  met ? Icons.check_rounded : Icons.circle_outlined,
+                  size: 12,
+                  color: met ? AppColors.ok : AppColors.inkMuted,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: AppType.micro.copyWith(
+                    letterSpacing: 0,
+                    color: met ? AppColors.ok : AppColors.inkMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }
 
-// Sözleşme Detay Sayfası
-class TermsAndPrivacyPage extends StatelessWidget {
-  const TermsAndPrivacyPage({super.key});
+class _TermsNotice extends StatelessWidget {
+  const _TermsNotice({required this.onTap});
 
-  static const Color backgroundColor = Color(0xFFF9F4ED);
-  static const Color primaryKiremit = Color(0xFFC0421D);
+  final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: backgroundColor,
-      appBar: AppBar(
-        backgroundColor: backgroundColor,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: primaryKiremit),
-        title: const Text(
-          'Kullanım Koşulları ve Gizlilik',
-          style: TextStyle(
-            fontFamily: 'Poppins',
-            color: Colors.black,
-            fontSize: 18,
+  Widget build(BuildContext context) => Text.rich(
+    TextSpan(
+      style: AppType.muted(AppType.micro).copyWith(letterSpacing: 0, height: 1.5),
+      children: [
+        const TextSpan(text: 'Kayıt olarak '),
+        WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: GestureDetector(
+            onTap: onTap,
+            child: Text(
+              'Kullanım Koşulları ve Gizlilik Sözleşmesi\'ni',
+              style: AppType.micro.copyWith(
+                letterSpacing: 0,
+                color: AppColors.accent,
+                fontWeight: AppType.semibold,
+                decoration: TextDecoration.underline,
+                decorationColor: AppColors.accent,
+              ),
+            ),
           ),
         ),
-      ),
-      body: const SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Kullanım Koşulları',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: primaryKiremit,
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Bu uygulama (Vivido) üzerinden sunulan hizmetleri kullanarak aşağıdaki koşulları kabul etmiş sayılırsınız. Uygulama içerisindeki harita verileri ve konut bilgileri bilgilendirme amaçlıdır.',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 14,
-                  height: 1.4,
-                  color: Colors.black87,
-                ),
-              ),
-              SizedBox(height: 24),
-              Text(
-                'Gizlilik Sözleşmesi',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: primaryKiremit,
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Kişisel verileriniz (e-posta, ad, soyad vb.) güvenli bir şekilde saklanır ve üçüncü şahıslarla paylaşılmaz. Kayıt olarak veri güvenliği politikamızı onaylamış olursunuz.',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 14,
-                  height: 1.4,
-                  color: Colors.black87,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+        const TextSpan(text: ' kabul etmiş olursun.'),
+      ],
+    ),
+    textAlign: TextAlign.center,
+  );
 }

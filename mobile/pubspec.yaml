@@ -53,7 +53,17 @@ flutter:
     # belirsiz duruyordu. Uygulama ile paketleniyor: 124 KB, ağa bağlı
     # olmadan da çiziliyor. Web tarafı güncellenirse bu dosya da güncellenmeli.
     - assets/geo/cankaya.geojson
+    # Mahalle poligonları — web/public/geo/cankaya-mahalleler.geojson KOPYASI.
+    # Web haritada mahalle sınırlarını çiziyordu, mobil yalnızca ilçe
+    # sınırını; kullanıcı hangi mahallede olduğunu göremiyordu. 252 KB.
+    - assets/geo/cankaya-mahalleler.geojson
     # Harita ikonları — web/public/*.svg'nin KOPYALARI. Konut ve POI
     # kategorileri iki üründe aynı simgeyle gösterilsin diye aynı dosyalar
     # kullanılıyor (web tarafı değişirse buradakiler de yenilenmeli).
+    #
+    # Persona ikonları (kep/pc/family/glasses) ve favori yıldızı
+    # (star_kahve/star_white) sonradan eklendi: mobil bunların yerine
+    # jenerik Material glyph'leri kullanıyordu.
     - assets/icons/
+    # Rehber maskotu — web/public/mascot*.png KOPYALARI.
+    - assets/mascot/

@@ -1,77 +1,81 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_typography.dart';
+
+/// Kullanım koşulları ve gizlilik metni.
+///
+/// ⚠️ Bu sayfanın İKİ kopyası vardı: biri burada (hiç kullanılmıyordu),
+/// biri `register_page.dart`'ın altında (kullanılan). İkisi de aynı metni
+/// taşıyordu ama biri güncellenirse diğeri geride kalacaktı. Tek kopya
+/// burada; kayıt ekranı bunu içe aktarıyor.
 class TermsAndPrivacyPage extends StatelessWidget {
   const TermsAndPrivacyPage({super.key});
-
-  static const Color backgroundColor = Color(0xFFF9F4ED);
-  static const Color primaryKiremit = Color(0xFFC0421D);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: backgroundColor,
-      appBar: AppBar(
-        backgroundColor: backgroundColor,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: primaryKiremit),
-        title: const Text(
-          'Kullanım Koşulları ve Gizlilik',
-          style: TextStyle(
-            fontFamily: 'Poppins',
-            color: Colors.black,
-            fontSize: 18,
+      appBar: AppBar(title: const Text('Koşullar ve gizlilik')),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.xl,
+            AppSpacing.xs,
+            AppSpacing.xl,
+            AppSpacing.xxl,
           ),
-        ),
-      ),
-      body: const SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Kullanım Koşulları',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: primaryKiremit,
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Bu uygulama (Vivido) üzerinden sunulan hizmetleri kullanarak aşağıdaki koşulları kabul etmiş sayılırsınız. Uygulama içerisindeki harita verileri ve konut bilgileri bilgilendirme amaçlıdır.',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 14,
-                  height: 1.4,
-                  color: Colors.black87,
-                ),
-              ),
-              SizedBox(height: 24),
-              Text(
-                'Gizlilik Sözleşmesi',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: primaryKiremit,
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Kişisel verileriniz (e-posta, ad, soyad vb.) güvenli bir şekilde saklanır ve üçüncü şahıslarla paylaşılmaz. Kayıt olarak veri güvenliği politikamızı onaylamış olursunuz.',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 14,
-                  height: 1.4,
-                  color: Colors.black87,
-                ),
-              ),
-            ],
-          ),
+          children: const [
+            _Section(
+              title: 'Kullanım koşulları',
+              body:
+                  'Vivido üzerinden sunulan hizmetleri kullanarak bu '
+                  'koşulları kabul etmiş sayılırsın. Uygulamadaki harita '
+                  'verileri ve konut bilgileri bilgilendirme amaçlıdır.',
+            ),
+            _Section(
+              title: 'Konut verisi',
+              body:
+                  'Uygulamadaki konut ilanları GERÇEK DEĞİL, sentetik olarak '
+                  'üretilmiştir ve arayüzde her yerde bu şekilde '
+                  'etiketlenmiştir. Kiralama kararı için kullanılamaz.',
+            ),
+            _Section(
+              title: 'Gizlilik',
+              body:
+                  'Kişisel verilerin (e-posta, ad, soyad) güvenli biçimde '
+                  'saklanır ve üçüncü kişilerle paylaşılmaz. Konum bilgin '
+                  'yalnızca izin verdiğinde, harita ve navigasyon amacıyla '
+                  'kullanılır; sunucuda saklanmaz.',
+            ),
+            _Section(
+              title: 'Harita verisi',
+              body:
+                  'Harita verisi © OpenStreetMap katkıcıları — ODbL 1.0 '
+                  'lisansıyla kullanılmaktadır.',
+            ),
+          ],
         ),
       ),
     );
   }
+}
+
+class _Section extends StatelessWidget {
+  const _Section({required this.title, required this.body});
+
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: AppType.h3.copyWith(color: AppColors.accent)),
+        const SizedBox(height: 4),
+        Text(body, style: AppType.sm.copyWith(height: 1.6)),
+      ],
+    ),
+  );
 }

@@ -24,6 +24,15 @@ class MapDataController extends ChangeNotifier {
   AnchorCorridor? anchorCorridor;
   bool showAllProperties = false;
   bool propertiesVisible = true;
+
+  /// Favori konut katmanı açık mı.
+  ///
+  /// Konut katmanından BAĞIMSIZ: kullanıcı "Konutlar"ı kapatıp yalnızca
+  /// favorilerini görebilmeli — kalabalık bir haritada favorileri bulmanın
+  /// en hızlı yolu bu. Varsayılan açık: favorisi olan biri onları haritada
+  /// görmeyi bekler, tiki kendi bulup açmasını beklemek yerine.
+  bool favoritesVisible = true;
+
   bool isLoading = false;
   bool isViewportLoading = false;
   String? errorMessage;
@@ -100,6 +109,11 @@ class MapDataController extends ChangeNotifier {
     if (propertiesVisible && !authenticated && properties.isEmpty) {
       _scheduleViewportRefresh(immediate: true);
     }
+  }
+
+  void toggleFavorites() {
+    favoritesVisible = !favoritesVisible;
+    _notify();
   }
 
   Future<void> toggleShowAllProperties() async {

@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/widgets/glass_surface.dart';
+import '../../../../shared/widgets/page_parts.dart';
 import '../../domain/location_analysis.dart';
 
 final class LocationAnalysisSettings {
@@ -30,55 +34,66 @@ class LocationAnalysisLauncher extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     final label =
         hasSelectedLocation
             ? '${_formatRadius(analysisRadiusKm)} km · $walkingMinutes dk'
             : 'Konum analizi';
 
-    return Material(
-      elevation: 3,
-      color: colors.surface,
-      shadowColor: colors.shadow.withValues(alpha: 0.22),
-      borderRadius: BorderRadius.circular(24),
-      clipBehavior: Clip.antiAlias,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          InkWell(
-            key: const Key('open-location-analysis'),
-            onTap: onOpen,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.radar, size: 20, color: colors.primary),
-                  const SizedBox(width: 8),
-                  Text(
-                    label,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(Icons.tune, size: 18),
-                ],
+    // Harita üstündeki her kontrol gibi CAM: opak beyaz bir hap, haritayı
+    // kesiyordu. Yükseklik de ortak — 48 px (bkz. AppSpacing.mapControl).
+    return GlassSurface.thin(
+      borderRadius: BorderRadius.circular(AppRadius.pill),
+      child: SizedBox(
+        height: AppSpacing.mapControl,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            InkWell(
+              key: const Key('open-location-analysis'),
+              onTap: onOpen,
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  AppSpacing.sm,
+                  0,
+                  hasSelectedLocation ? 10 : AppSpacing.sm,
+                  0,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.radar,
+                      size: 19,
+                      color:
+                          hasSelectedLocation
+                              ? AppColors.accent
+                              : AppColors.ink,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      label,
+                      style: AppType.xs.copyWith(
+                        fontWeight: AppType.semibold,
+                        fontFeatures: AppType.tabularFigures,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          if (hasSelectedLocation) ...[
-            SizedBox(
-              height: 28,
-              child: VerticalDivider(width: 1, color: colors.outlineVariant),
-            ),
-            IconButton(
-              key: const Key('clear-location-analysis'),
-              tooltip: 'Analiz alanını temizle',
-              visualDensity: VisualDensity.compact,
-              onPressed: onClear,
-              icon: const Icon(Icons.close, size: 19),
-            ),
+            if (hasSelectedLocation) ...[
+              const SizedBox(height: 24, child: VerticalDivider(width: 1)),
+              IconButton(
+                key: const Key('clear-location-analysis'),
+                tooltip: 'Analiz alanını temizle',
+                visualDensity: VisualDensity.compact,
+                onPressed: onClear,
+                icon: const Icon(Icons.close, size: 18),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -88,12 +103,8 @@ Future<LocationAnalysisSettings?> showLocationAnalysisSettingsSheet(
   BuildContext context, {
   required double analysisRadiusKm,
   required int walkingMinutes,
-}) => showModalBottomSheet<LocationAnalysisSettings>(
-  context: context,
-  useSafeArea: true,
-  isScrollControlled: true,
-  showDragHandle: true,
-  sheetAnimationStyle: AnimationStyle.noAnimation,
+}) => showAppSheet<LocationAnalysisSettings>(
+  context,
   builder:
       (_) => LocationAnalysisSheet(
         analysisRadiusKm: analysisRadiusKm,
@@ -128,46 +139,49 @@ class _LocationAnalysisSheetState extends State<LocationAnalysisSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
     return Padding(
       padding: EdgeInsets.fromLTRB(
-        20,
+        AppSpacing.lg,
         0,
-        20,
-        20 + MediaQuery.viewInsetsOf(context).bottom,
+        AppSpacing.lg,
+        AppSpacing.lg + MediaQuery.viewInsetsOf(context).bottom,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: colors.primaryContainer,
-                foregroundColor: colors.onPrimaryContainer,
-                child: const Icon(Icons.radar),
+          SheetHeader(
+            title: 'Konum analizi',
+            subtitle: 'Bir noktanın çevresini incele.',
+            icon: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.accentSoft,
+                shape: BoxShape.circle,
               ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Konum analizi',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text('Analiz alanını ve yürüme süresini ayarla.'),
-                  ],
-                ),
+              child: const Icon(
+                Icons.radar,
+                size: 20,
+                color: AppColors.accent,
               ),
-            ],
+            ),
           ),
-          const SizedBox(height: 20),
+          // İki alanın ne işe yaradığı ÖNCE, kutular sonra: "Analiz alanı"
+          // ve "Yürüme" etiketleri tek başına neyi ölçtüklerini
+          // söylemiyordu.
+          _LegendRow(
+            color: AppColors.mapAnalysis,
+            title: 'Analiz alanı',
+            description: 'Seçtiğin noktanın etrafındaki inceleme yarıçapı',
+          ),
+          const SizedBox(height: 6),
+          _LegendRow(
+            color: AppColors.mapWalking,
+            title: 'Yürüme erişimi',
+            description: 'Bu sürede yürüyerek ulaşabileceğin yaklaşık alan',
+          ),
+          const SizedBox(height: AppSpacing.md),
           Row(
             children: [
               Expanded(
@@ -197,37 +211,86 @@ class _LocationAnalysisSheetState extends State<LocationAnalysisSheet> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            'Ayarlar seçili konuma uygulanır. Konum seçili değilse haritaya dokun veya bir konum ara.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
-          ),
-          const SizedBox(height: 20),
+          const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
+              const Icon(
+                Icons.touch_app_outlined,
+                size: 16,
+                color: AppColors.inkMuted,
+              ),
+              const SizedBox(width: 6),
               Expanded(
-                child: FilledButton.icon(
-                  key: const Key('apply-location-analysis'),
-                  onPressed: () {
-                    Navigator.of(context).pop(
-                      LocationAnalysisSettings(
-                        analysisRadiusKm: _analysisRadiusKm,
-                        walkingMinutes: _walkingMinutes,
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.check),
-                  label: const Text('Uygula'),
+                child: Text(
+                  'Uygula\'ya bastıktan sonra haritada bir noktaya dokun.',
+                  style: AppType.muted(AppType.xs),
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          FilledButton.icon(
+            key: const Key('apply-location-analysis'),
+            onPressed: () {
+              Navigator.of(context).pop(
+                LocationAnalysisSettings(
+                  analysisRadiusKm: _analysisRadiusKm,
+                  walkingMinutes: _walkingMinutes,
+                ),
+              );
+            },
+            icon: const Icon(Icons.check, size: 18),
+            label: const Text('Uygula ve nokta seç'),
           ),
         ],
       ),
     );
   }
+}
+
+/// Ayar kutusunun ne çizdiğini gösteren renk açıklaması.
+class _LegendRow extends StatelessWidget {
+  const _LegendRow({
+    required this.color,
+    required this.title,
+    required this.description,
+  });
+
+  final Color color;
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Container(
+        width: 14,
+        height: 14,
+        margin: const EdgeInsets.only(top: 2),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.25),
+          border: Border.all(color: color, width: 1.5),
+          borderRadius: BorderRadius.circular(AppRadius.xs),
+        ),
+      ),
+      const SizedBox(width: AppSpacing.xs),
+      Expanded(
+        child: Text.rich(
+          TextSpan(
+            style: AppType.muted(AppType.xs),
+            children: [
+              TextSpan(
+                text: '$title — ',
+                style: AppType.xs.copyWith(fontWeight: AppType.semibold),
+              ),
+              TextSpan(text: description),
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
 }
 
 class _AnalysisDropdown<T> extends StatelessWidget {

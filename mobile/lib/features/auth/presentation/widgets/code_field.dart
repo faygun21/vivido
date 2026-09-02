@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_typography.dart';
+
 /// 6 haneli doğrulama kodu alanı.
 ///
 /// Tek alan, altı ayrı kutu değil: altı kutulu tasarım güzel görünür ama
@@ -33,15 +36,28 @@ class CodeField extends StatelessWidget {
         FilteringTextInputFormatter.digitsOnly,
         LengthLimitingTextInputFormatter(6),
       ],
-      style: const TextStyle(
-        fontSize: 26,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 10,
+      // Sabit genişlikli rakam ŞART: Poppins orantısal rakam kullanıyor ve
+      // "1" yazıldığında alan daralıyor, kod girilirken metin sağa sola
+      // kayıyordu. Tracking de yüksek — altı hane tek bir sayı yığını
+      // gibi değil, ayrı haneler gibi okunmalı.
+      style: AppType.h1.copyWith(
+        fontSize: 28,
+        letterSpacing: 12,
+        fontFeatures: AppType.tabularFigures,
       ),
       decoration: InputDecoration(
         labelText: label,
         counterText: '',
-        hintText: '000000',
+        hintText: '••••••',
+        hintStyle: AppType.h1.copyWith(
+          fontSize: 28,
+          letterSpacing: 12,
+          color: AppColors.line.withValues(alpha: 0.5),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.md,
+        ),
       ),
       onFieldSubmitted: onSubmitted,
       validator: (value) {

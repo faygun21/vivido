@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/models/models.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_motion.dart';
+import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/widgets/page_parts.dart';
+import '../../../../shared/widgets/pressable.dart';
 import '../../../location/application/user_location_controller.dart';
 import '../../../location_search/application/location_search_controller.dart';
 import '../../../location_search/domain/location_search_models.dart';
@@ -355,26 +359,24 @@ class _RoutesPageState extends State<RoutesPage> {
       builder: (context, _) {
         final controller = widget.controller;
         return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.xs,
+            AppSpacing.page,
+            AppSpacing.xxl,
+          ),
           children: [
-            Text(
-              'Ziyaret rotası',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+            // Başlık AppBar'da; gövde doğrudan açıklamayla başlıyor.
+            const PageIntro(
+              'Konut listesinden 2–8 ev ekle; sistem en kısa ziyaret '
+              'sırasını hesaplasın.',
             ),
-            const SizedBox(height: 4),
-            const Text(
-              'Konut listesinden veya favorilerinden 2–8 ev ekle; sistem '
-              'en uygun ziyaret sırasını oluştursun.',
-            ),
-            const SizedBox(height: 14),
             _RouteDraftCard(
               items: controller.draft,
               onRemove: controller.removeProperty,
               onClear: controller.clearDraft,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.md),
             // ROTA ADI BURADAN KALKTI: isim yalnızca KAYDEDERKEN soruluyor.
             // Önizleme için ad istemek, kullanıcıya daha görmediği bir şeyi
             // isimlendirtmek olurdu.
@@ -400,17 +402,19 @@ class _RoutesPageState extends State<RoutesPage> {
               onUseDistrictCenter:
                   () => setState(() => _startKind = _StartKind.districtCenter),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.sm),
+            Text('ULAŞIM', style: AppType.micro),
+            const SizedBox(height: 6),
             SegmentedButton<RouteTravelMode>(
               segments: const [
                 ButtonSegment(
                   value: RouteTravelMode.car,
-                  icon: Icon(Icons.directions_car_outlined),
+                  icon: Icon(Icons.directions_car_outlined, size: 18),
                   label: Text('Araç'),
                 ),
                 ButtonSegment(
                   value: RouteTravelMode.foot,
-                  icon: Icon(Icons.directions_walk),
+                  icon: Icon(Icons.directions_walk, size: 18),
                   label: Text('Yürüme'),
                 ),
               ],
@@ -422,14 +426,33 @@ class _RoutesPageState extends State<RoutesPage> {
                         setState(() => _mode = selection.first);
                       },
             ),
-            if (controller.errorMessage != null) ...[
-              const SizedBox(height: 10),
-              Text(
-                controller.errorMessage!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+            if (controller.errorMessage case final error?) ...[
+              const SizedBox(height: AppSpacing.xs),
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: AppColors.bad.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 17,
+                      color: AppColors.bad,
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Expanded(
+                      child: Text(
+                        error,
+                        style: AppType.xs.copyWith(color: AppColors.bad),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.sm),
             FilledButton.icon(
               // Başlangıç noktası belirlenemiyorsa (canlı konum seçili ama
               // koordinat henüz gelmediyse) düğme pasif: başlangıcı olmayan
@@ -452,7 +475,7 @@ class _RoutesPageState extends State<RoutesPage> {
               ),
             ),
             if (controller.activeRoute != null) ...[
-              const SizedBox(height: 22),
+              const SizedBox(height: AppSpacing.lg),
               KeyedSubtree(
                 key: _activeRouteKey,
                 child: _ActiveRouteCard(
@@ -474,88 +497,54 @@ class _RoutesPageState extends State<RoutesPage> {
                 ),
               ),
             ],
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Kayıtlı rotalarım',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  onPressed:
-                      controller.loading
-                          ? null
-                          : () => controller.loadRoutes(force: true),
-                  tooltip: 'Yenile',
-                  icon: const Icon(Icons.refresh),
-                ),
-              ],
+            SectionHeader(
+              'KAYITLI ROTALARIM',
+              count:
+                  controller.savedRoutes.isEmpty
+                      ? null
+                      : controller.savedRoutes.length,
+              action: IconButton(
+                onPressed:
+                    controller.loading
+                        ? null
+                        : () => controller.loadRoutes(force: true),
+                tooltip: 'Yenile',
+                icon: const Icon(Icons.refresh, size: 18),
+                visualDensity: VisualDensity.compact,
+              ),
             ),
             if (controller.loading && controller.savedRoutes.isEmpty)
               const Padding(
-                padding: EdgeInsets.all(24),
+                padding: EdgeInsets.all(AppSpacing.xl),
                 child: Center(child: CircularProgressIndicator()),
               )
             else if (controller.savedRoutes.isEmpty)
-              const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Text('Henüz kaydedilmiş bir rotan yok.'),
-                ),
+              const EmptyState(
+                icon: Icons.route_outlined,
+                title: 'Kayıtlı rotan yok',
+                message:
+                    'Bir rota oluşturup kaydettiğinde burada durur; '
+                    'navigasyonu buradan başlatırsın.',
               )
             else
-              for (final route in controller.savedRoutes)
-                Card(
-                  child: ListTile(
-                    onTap:
-                        controller.openingRouteId == null
-                            ? () => _openRoute(route)
-                            : null,
-                    leading: CircleAvatar(
-                      child: Icon(
-                        route.mode == RouteTravelMode.car
-                            ? Icons.directions_car
-                            : Icons.directions_walk,
-                      ),
+              for (final (index, route) in controller.savedRoutes.indexed)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                  child: StaggeredEntrance(
+                    index: index,
+                    child: _SavedRouteCard(
+                      route: route,
+                      busy:
+                          controller.openingRouteId == route.id ||
+                          controller.deletingRouteIds.contains(route.id),
+                      offline: widget.offline,
+                      onOpen:
+                          controller.openingRouteId == null
+                              ? () => _openRoute(route)
+                              : null,
+                      onNavigate: () => _startSavedNavigation(route),
+                      onDelete: () => _deleteRoute(route),
                     ),
-                    title: Text(
-                      route.name,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    subtitle: Text(
-                      '${route.stopCount} durak · '
-                      '${formatDistance(route.totalDistanceM)} · '
-                      '${formatDuration(route.totalDurationS)}',
-                    ),
-                    trailing:
-                        controller.openingRouteId == route.id ||
-                                controller.deletingRouteIds.contains(route.id)
-                            ? const SizedBox.square(
-                              dimension: 22,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                            : Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  tooltip: 'Navigasyonu başlat',
-                                  onPressed:
-                                      widget.offline
-                                          ? null
-                                          : () => _startSavedNavigation(route),
-                                  icon: const Icon(Icons.navigation_outlined),
-                                ),
-                                IconButton(
-                                  tooltip: 'Rotayı sil',
-                                  onPressed: () => _deleteRoute(route),
-                                  icon: const Icon(Icons.delete_outline),
-                                ),
-                              ],
-                            ),
                   ),
                 ),
           ],
@@ -565,6 +554,7 @@ class _RoutesPageState extends State<RoutesPage> {
   );
 }
 
+/// Rota taslağı — kullanıcının seçtiği ama henüz hesaplanmamış evler.
 class _RouteDraftCard extends StatelessWidget {
   const _RouteDraftCard({
     required this.items,
@@ -577,46 +567,244 @@ class _RouteDraftCard extends StatelessWidget {
   final VoidCallback onClear;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(14),
+  Widget build(BuildContext context) {
+    final enough = items.length >= minRouteStops;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(
+          color: enough ? AppColors.accentEdge : AppColors.border,
+          width: enough ? 1.5 : 1,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Seçilen konutlar (${items.length}/$maxRouteStops)',
-                  style: const TextStyle(fontWeight: FontWeight.w800),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.sm, 10, 6, 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Seçilen konutlar',
+                        style: AppType.sm.copyWith(
+                          fontWeight: AppType.semibold,
+                        ),
+                      ),
+                      // Sayaç kaç ev GEREKTİĞİNİ de söylüyor: "1/8"
+                      // tek başına rotanın neden oluşturulamadığını
+                      // açıklamıyordu.
+                      Text(
+                        enough
+                            ? '${items.length} / $maxRouteStops ev'
+                            : 'En az $minRouteStops ev gerekiyor '
+                                '(${items.length} seçildi)',
+                        style: AppType.muted(AppType.micro).copyWith(
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              if (items.isNotEmpty)
-                TextButton(onPressed: onClear, child: const Text('Temizle')),
-            ],
+                if (items.isNotEmpty)
+                  TextButton(onPressed: onClear, child: const Text('Temizle')),
+              ],
+            ),
           ),
           if (items.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.sm,
+                0,
+                AppSpacing.sm,
+                AppSpacing.md,
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.add_location_alt_outlined,
+                    size: 18,
+                    color: AppColors.inkMuted,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: Text(
+                      'Konutlar sekmesinden "Rotaya ekle" ile ev seç.',
+                      style: AppType.muted(AppType.xs),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            for (final (index, item) in items.indexed) ...[
+              const Divider(height: 1),
+              _DraftRow(
+                index: index,
+                item: item,
+                onRemove: () => onRemove(item.id),
+              ),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DraftRow extends StatelessWidget {
+  const _DraftRow({
+    required this.index,
+    required this.item,
+    required this.onRemove,
+  });
+
+  final int index;
+  final RouteDraftProperty item;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(AppSpacing.sm, 6, 4, 6),
+    child: Row(
+      children: [
+        // Taslakta numara YOK — sıra henüz belli değil. Nokta, "bu bir
+        // seçim" diyor; numaralı rozet, hesaplanmış rotanın işareti.
+        Container(
+          width: 8,
+          height: 8,
+          decoration: const BoxDecoration(
+            color: AppColors.accent,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${item.roomCount} · ${item.areaM2} m²',
+                style: AppType.sm.copyWith(fontWeight: AppType.medium),
+              ),
+              Text(
+                '${formatRent(item.monthlyRent)} · '
+                '${item.totalScore.round()} puan',
+                style: AppType.muted(AppType.micro).copyWith(letterSpacing: 0),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          tooltip: 'Taslaktan çıkar',
+          onPressed: onRemove,
+          icon: const Icon(Icons.close, size: 18),
+          visualDensity: VisualDensity.compact,
+        ),
+      ],
+    ),
+  );
+}
+
+/// Kayıtlı rota kartı.
+class _SavedRouteCard extends StatelessWidget {
+  const _SavedRouteCard({
+    required this.route,
+    required this.busy,
+    required this.offline,
+    required this.onOpen,
+    required this.onNavigate,
+    required this.onDelete,
+  });
+
+  final RouteSummary route;
+  final bool busy;
+  final bool offline;
+  final VoidCallback? onOpen;
+  final VoidCallback onNavigate;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) => Pressable(
+    onTap: onOpen,
+    borderRadius: BorderRadius.circular(AppRadius.md),
+    child: Container(
+      padding: const EdgeInsets.fromLTRB(AppSpacing.sm, 10, 4, 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.mapRoute.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            ),
+            child: Icon(
+              route.mode == RouteTravelMode.car
+                  ? Icons.directions_car
+                  : Icons.directions_walk,
+              size: 19,
+              color: AppColors.mapRoute,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  route.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppType.sm.copyWith(fontWeight: AppType.semibold),
+                ),
+                Text(
+                  '${route.stopCount} durak · '
+                  '${formatDistance(route.totalDistanceM)} · '
+                  '${formatDuration(route.totalDurationS)}',
+                  style: AppType.muted(AppType.micro).copyWith(
+                    letterSpacing: 0,
+                    fontFeatures: AppType.tabularFigures,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (busy)
             const Padding(
-              padding: EdgeInsets.symmetric(vertical: 14),
-              child: Text('Henüz rota taslağına konut eklenmedi.'),
+              padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+              child: SizedBox.square(
+                dimension: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else ...[
+            IconButton(
+              tooltip:
+                  offline
+                      ? 'Navigasyon için internet gerekiyor'
+                      : 'Navigasyonu başlat',
+              onPressed: offline ? null : onNavigate,
+              icon: const Icon(Icons.navigation_outlined, size: 19),
+              visualDensity: VisualDensity.compact,
             ),
-          for (var index = 0; index < items.length; index++)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: CircleAvatar(child: Text('${index + 1}')),
-              title: Text(
-                '${items[index].roomCount} · ${items[index].areaM2} m²',
-              ),
-              subtitle: Text(
-                '${formatPrice(items[index].monthlyRent)} ₺ · '
-                '${items[index].totalScore.round()} puan',
-              ),
-              trailing: IconButton(
-                tooltip: 'Taslak rotadan çıkar',
-                onPressed: () => onRemove(items[index].id),
-                icon: const Icon(Icons.close),
-              ),
+            IconButton(
+              tooltip: 'Rotayı sil',
+              onPressed: onDelete,
+              icon: const Icon(Icons.delete_outline, size: 19),
+              visualDensity: VisualDensity.compact,
             ),
+          ],
         ],
       ),
     ),
@@ -645,145 +833,308 @@ class _ActiveRouteCard extends StatelessWidget {
   final VoidCallback? onSave;
 
   @override
-  Widget build(BuildContext context) => Card(
-    clipBehavior: Clip.antiAlias,
-    child: Padding(
-      padding: const EdgeInsets.all(14),
+  Widget build(BuildContext context) {
+    final canNavigate = route.legs.any((leg) => leg.steps.isNotEmpty);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.mapRoute.withValues(alpha: 0.35)),
+        boxShadow: AppShadows.sm,
+      ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  route.name,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+          // ── Başlık ────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.sm, 10, 4, 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        route.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.h3,
+                      ),
+                      Text(
+                        route.mode.label,
+                        style: AppType.muted(AppType.micro).copyWith(
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              Chip(label: Text(route.mode.label)),
-              IconButton(
-                tooltip: 'Aktif rotayı kapat',
-                onPressed: onClose,
-                icon: const Icon(Icons.close),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: _RouteMetric(
-                  label: 'Mesafe',
-                  value: formatDistance(route.totalDistanceM),
+                IconButton(
+                  tooltip: 'Aktif rotayı kapat',
+                  onPressed: onClose,
+                  icon: const Icon(Icons.close, size: 19),
+                  visualDensity: VisualDensity.compact,
                 ),
-              ),
-              Expanded(
-                child: _RouteMetric(
-                  label: 'Tahmini süre',
-                  value: formatDuration(route.totalDurationS),
-                ),
-              ),
-              Expanded(
-                child: _RouteMetric(
-                  label: 'Durak',
-                  value: '${route.stopCount}',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          SizedBox(
-            height: 280,
-            child: ExcludeFocus(
-              child: CankayaMap(anchors: const [], route: route),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          // Kaydetme çağrısı — rota HESAPLANDI ama kaydedilmedi.
-          // Kullanıcının kaydedilmemiş bir rotayı kaydedilmiş sanmasını
-          // engelleyen tek işaret bu.
-          if (onSave != null) ...[
-            DecoratedBox(
+
+          // ── Özet sayılar ──────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+            child: Container(
               decoration: BoxDecoration(
-                color: AppColors.inputBg,
+                color: AppColors.surfaceSunken,
                 borderRadius: BorderRadius.circular(AppRadius.md),
               ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+              child: IntrinsicHeight(
+                child: Row(
                   children: [
-                    const Text(
-                      'Bu rota henüz kaydedilmedi.',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: AppColors.inkMuted,
+                    Expanded(
+                      child: _RouteMetric(
+                        label: 'MESAFE',
+                        value: formatDistance(route.totalDistanceM),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    FilledButton.icon(
-                      onPressed: busy ? null : onSave,
-                      icon: const Icon(Icons.bookmark_add_outlined, size: 18),
-                      label: const Text('Rotayı kaydet'),
+                    const VerticalDivider(width: 1),
+                    Expanded(
+                      child: _RouteMetric(
+                        label: 'SÜRE',
+                        value: formatDuration(route.totalDurationS),
+                      ),
+                    ),
+                    const VerticalDivider(width: 1),
+                    Expanded(
+                      child: _RouteMetric(
+                        label: 'DURAK',
+                        value: '${route.stopCount}',
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 14),
-          ],
-          Text(
-            'Ziyaret sırası',
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
           ),
-          for (final stop in route.stops)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: CircleAvatar(child: Text('${stop.sequence}')),
-              title: Text(
-                '${stop.property.roomCount} · ${stop.property.areaM2} m²',
-              ),
-              subtitle: Text(
-                [
-                  stop.property.neighborhood,
-                  if (stop.legDistanceM != null)
-                    formatDistance(stop.legDistanceM!),
-                  if (stop.legDurationS != null)
-                    formatDuration(stop.legDurationS!),
-                ].whereType<String>().join(' · '),
-              ),
-              trailing: IconButton(
-                tooltip: 'Duraktan çıkar ve yeniden hesapla',
-                onPressed:
-                    busy || route.stops.length <= minRouteStops
-                        ? null
-                        : () => onRemoveStop(stop),
-                icon: const Icon(Icons.remove_circle_outline),
+          const SizedBox(height: AppSpacing.sm),
+
+          // ── Harita ────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+            child: SizedBox(
+              height: 220,
+              child: ExcludeFocus(
+                child: CankayaMap(
+                  rounded: true,
+                  anchors: const [],
+                  route: route,
+                ),
               ),
             ),
-          const SizedBox(height: 8),
-          FilledButton.icon(
-            onPressed:
-                route.legs.any((leg) => leg.steps.isNotEmpty)
-                    ? onNavigate
-                    : null,
-            icon: const Icon(Icons.navigation),
-            label: const Text('Navigasyonu başlat'),
           ),
-          const SizedBox(height: 8),
-          FilledButton.tonalIcon(
-            onPressed: onShowOnMainMap,
-            icon: const Icon(Icons.map_outlined),
-            label: const Text('Ana haritada göster'),
+          const SizedBox(height: AppSpacing.sm),
+
+          // ── Kaydetme çağrısı ──────────────────────────────────────
+          // Rota HESAPLANDI ama kaydedilmedi. Kullanıcının kaydedilmemiş
+          // bir rotayı kaydedilmiş sanmasını engelleyen tek işaret bu.
+          if (onSave != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.sm,
+                0,
+                AppSpacing.sm,
+                AppSpacing.sm,
+              ),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(AppSpacing.sm, 8, 8, 8),
+                decoration: BoxDecoration(
+                  color: AppColors.warn.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  border: Border.all(
+                    color: AppColors.warn.withValues(alpha: 0.22),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.bookmark_border,
+                      size: 18,
+                      color: AppColors.warn,
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Expanded(
+                      child: Text(
+                        'Bu rota henüz kaydedilmedi.',
+                        style: AppType.xs.copyWith(color: AppColors.warn),
+                      ),
+                    ),
+                    FilledButton(
+                      onPressed: busy ? null : onSave,
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(0, 38),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm,
+                        ),
+                        textStyle: AppType.xs.copyWith(
+                          fontWeight: AppType.semibold,
+                        ),
+                      ),
+                      child: const Text('Kaydet'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // ── Ziyaret sırası ────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.sm, 0, AppSpacing.sm, 4),
+            child: Text('ZİYARET SIRASI', style: AppType.micro),
+          ),
+          for (final (index, stop) in route.stops.indexed)
+            _StopRow(
+              stop: stop,
+              isLast: index == route.stops.length - 1,
+              canRemove: !busy && route.stops.length > minRouteStops,
+              onRemove: () => onRemoveStop(stop),
+            ),
+
+          const SizedBox(height: AppSpacing.sm),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.sm,
+              0,
+              AppSpacing.sm,
+              AppSpacing.sm,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onShowOnMainMap,
+                    icon: const Icon(Icons.map_outlined, size: 18),
+                    label: const Text('Haritada'),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 46),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: canNavigate ? onNavigate : null,
+                    icon: const Icon(Icons.navigation, size: 18),
+                    label: const Text('Navigasyon'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 46),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
-    ),
-  );
+    );
+  }
+}
+
+/// Rotadaki tek durak.
+///
+/// ⚠️ SIRA ÇİZGİYLE ANLATILIYOR. Eskiden her durak ayrı bir `ListTile`
+/// ve numaralı bir daireydi; aralarında görsel bir bağ yoktu ve liste
+/// "rota" değil "seçim listesi" gibi okunuyordu. Numaraların arasındaki
+/// dikey çizgi, bunun bir GÜZERGÂH olduğunu söylüyor.
+class _StopRow extends StatelessWidget {
+  const _StopRow({
+    required this.stop,
+    required this.isLast,
+    required this.canRemove,
+    required this.onRemove,
+  });
+
+  final RouteStop stop;
+  final bool isLast;
+  final bool canRemove;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final detail = [
+      stop.property.neighborhood,
+      if (stop.legDistanceM != null) formatDistance(stop.legDistanceM!),
+      if (stop.legDurationS != null) formatDuration(stop.legDurationS!),
+    ].whereType<String>().join(' · ');
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AppSpacing.sm, 0, 4, 0),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Column(
+              children: [
+                Container(
+                  width: 22,
+                  height: 22,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    color: AppColors.mapRoute,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    '${stop.sequence}',
+                    style: AppType.micro.copyWith(
+                      color: Colors.white,
+                      letterSpacing: 0,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      color: AppColors.mapRoute.withValues(alpha: 0.25),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(bottom: isLast ? 0 : AppSpacing.sm),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${stop.property.roomCount} · '
+                      '${stop.property.areaM2} m²',
+                      style: AppType.sm.copyWith(fontWeight: AppType.medium),
+                    ),
+                    if (detail.isNotEmpty)
+                      Text(
+                        detail,
+                        style: AppType.muted(AppType.micro).copyWith(
+                          letterSpacing: 0,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Duraktan çıkar ve yeniden hesapla',
+              onPressed: canRemove ? onRemove : null,
+              icon: const Icon(Icons.remove_circle_outline, size: 18),
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _RouteMetric extends StatelessWidget {
@@ -793,11 +1144,20 @@ class _RouteMetric extends StatelessWidget {
   final String value;
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      Text(value, style: const TextStyle(fontWeight: FontWeight.w900)),
-      Text(label, style: Theme.of(context).textTheme.bodySmall),
-    ],
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Column(
+      children: [
+        Text(
+          value,
+          style: AppType.sm.copyWith(
+            fontWeight: AppType.bold,
+            fontFeatures: AppType.tabularFigures,
+          ),
+        ),
+        Text(label, style: AppType.micro.copyWith(fontSize: 10)),
+      ],
+    ),
   );
 }
 
@@ -852,57 +1212,77 @@ class _StartPointPicker extends StatelessWidget {
     }
   }
 
+  /// Başlangıç henüz belli değil mi — düğme o zaman uyarı rengiyle
+  /// çiziliyor, "Rotayı oluştur" da kapalı kalıyor.
+  bool get _unresolved => switch (kind) {
+    _StartKind.live => userLocation.location == null,
+    _StartKind.address => address == null,
+    _StartKind.anchor => anchorId == null,
+    _StartKind.districtCenter => false,
+  };
+
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      Row(
-        children: [
-          const Icon(Icons.trip_origin, size: 18, color: AppColors.inkMuted),
-          const SizedBox(width: 8),
-          Text(
-            'Başlangıç noktası',
-            style: Theme.of(
-              context,
-            ).textTheme.labelLarge?.copyWith(color: AppColors.inkMuted),
-          ),
-        ],
-      ),
-      const SizedBox(height: 8),
-      InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.md),
+      Text('BAŞLANGIÇ NOKTASI', style: AppType.micro),
+      const SizedBox(height: 6),
+      Pressable(
         onTap: enabled ? () => _open(context) : null,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: AppColors.inputBg,
-            borderRadius: BorderRadius.circular(AppRadius.md),
+        scale: 0.99,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: AnimatedContainer(
+          duration: AppMotion.fast,
+          curve: AppMotion.easeOut,
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: 12,
           ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            child: Row(
-              children: [
-                Icon(
+          decoration: BoxDecoration(
+            color: AppColors.surfaceSunken,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(
+              color: _unresolved ? AppColors.warn.withValues(alpha: 0.4) : AppColors.border,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: AppColors.accentSoft,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
                   switch (kind) {
                     _StartKind.live => Icons.my_location,
                     _StartKind.address => Icons.place_outlined,
-                    _StartKind.anchor => Icons.star_outline,
+                    _StartKind.anchor => Icons.push_pin_outlined,
                     _StartKind.districtCenter => Icons.location_city_outlined,
                   },
-                  size: 20,
+                  size: 17,
                   color: AppColors.accent,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    _summary,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  _summary,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppType.sm.copyWith(
+                    fontWeight: AppType.medium,
+                    color: _unresolved ? AppColors.warn : AppColors.ink,
                   ),
                 ),
-                const Icon(Icons.expand_more, color: AppColors.inkMuted),
-              ],
-            ),
+              ),
+              const Icon(
+                Icons.unfold_more,
+                size: 18,
+                color: AppColors.inkMuted,
+              ),
+            ],
           ),
         ),
       ),
@@ -910,9 +1290,8 @@ class _StartPointPicker extends StatelessWidget {
   );
 
   Future<void> _open(BuildContext context) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
+    await showAppSheet<void>(
+      context,
       builder:
           (sheetContext) => _StartPointSheet(
             anchors: anchors,
@@ -989,17 +1368,10 @@ class _StartPointSheetState extends State<_StartPointSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Center(
-                child: Container(
-                  width: 42,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.line,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+              const SheetHeader(
+                title: 'Başlangıç noktası',
+                subtitle: 'Rota buradan başlayacak.',
               ),
-              const SizedBox(height: 16),
               // Canlı konum EN ÜSTTE: en sık istenen seçenek.
               ListTile(
                 contentPadding: EdgeInsets.zero,

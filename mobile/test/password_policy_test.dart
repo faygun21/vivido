@@ -66,8 +66,8 @@ void main() {
       find.byKey(const ValueKey('register-password')),
       'secret123',
     );
-    await tester.ensureVisible(find.text('Kayıt Ol'));
-    await tester.tap(find.text('Kayıt Ol'));
+    await tester.ensureVisible(find.text('Hesap oluştur'));
+    await tester.tap(find.text('Hesap oluştur'));
     await tester.pump();
 
     expect(

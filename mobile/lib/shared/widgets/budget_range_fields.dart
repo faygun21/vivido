@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_typography.dart';
+
 double? parseBudgetInput(String value) {
   final normalized = value.trim().replaceAll(',', '.');
   return normalized.isEmpty ? null : double.tryParse(normalized);
@@ -19,16 +22,11 @@ class BudgetRangeFields extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ⚠️ Kendi başlığını taşımıyor: hem bu bileşen hem çağıran ekran
+    // "Aylık kira aralığı" yazıyordu.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'Aylık kira aralığı (isteğe bağlı)',
-          style: Theme.of(
-            context,
-          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 8),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -41,14 +39,13 @@ class BudgetRangeFields extends StatelessWidget {
                   decimal: true,
                 ),
                 decoration: const InputDecoration(
-                  labelText: 'Minimum',
-                  prefixIcon: Icon(Icons.payments_outlined),
+                  labelText: 'En az',
                   suffixText: '₺',
                 ),
                 validator: _validateBudget,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: AppSpacing.xs),
             Expanded(
               child: TextFormField(
                 key: const ValueKey('maximum-monthly-budget'),
@@ -58,7 +55,7 @@ class BudgetRangeFields extends StatelessWidget {
                   decimal: true,
                 ),
                 decoration: const InputDecoration(
-                  labelText: 'Maksimum',
+                  labelText: 'En çok',
                   suffixText: '₺',
                 ),
                 validator: (value) {
@@ -76,11 +73,21 @@ class BudgetRangeFields extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 6),
-        Text(
-          'İki alanı da boş bırakırsan bütçe filtresi uygulanmaz.',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
+        Row(
+          children: [
+            const Icon(
+              Icons.info_outline,
+              size: 14,
+              color: AppColors.inkMuted,
+            ),
+            const SizedBox(width: 5),
+            Expanded(
+              child: Text(
+                'İkisini de boş bırakırsan bütçe filtresi uygulanmaz.',
+                style: AppType.muted(AppType.micro).copyWith(letterSpacing: 0),
+              ),
+            ),
+          ],
         ),
       ],
     );

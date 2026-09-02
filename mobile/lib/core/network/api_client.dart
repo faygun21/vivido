@@ -317,7 +317,17 @@ class ApiClient {
 
   dynamic _decode(http.Response response) {
     if (response.statusCode == 204 || response.bodyBytes.isEmpty) return null;
-    final text = utf8.decode(response.bodyBytes);
+
+    // ⚠️ `allowMalformed` ŞART. Katı `utf8.decode` tek bir geçersiz baytta
+    // `FormatException` fırlatıyor ve bu istisna `_requestRaw`'ın DIŞINA
+    // sızıyor: çağıran katmanlar `ApiException` bekliyor, onun yerine
+    // beklenmedik bir hata alıyor ve sunucunun asıl mesajı ("Bu konut artık
+    // listede değil") yerine jenerik "…yüklenemedi" gösteriliyor.
+    //
+    // Bir yanıtın gövdesinde bozuk bir bayt olması, o yanıtın TAMAMEN
+    // okunamaz olması demek değil; bozuk karakteri U+FFFD'ye çevirip
+    // devam etmek, isteği düşürmekten her durumda iyi.
+    final text = utf8.decode(response.bodyBytes, allowMalformed: true);
     if (text.trim().isEmpty) return null;
     try {
       return jsonDecode(text);
