@@ -645,10 +645,6 @@ export function ExplorePage() {
         userLocation={userLocation}
         route={activeRoute}
         padLeft={drawerOpen && wideScreen ? DRAWER_WIDTH_PX : 0}
-        // ⚠️ GEÇİCİ: yıldız-koridor değişikliğini gözle doğrulamak için
-        // eklendi — `CankayaMap`'in `anchorArea` prop'u zaten vardı ama
-        // hiçbir çağıran bağlamıyordu. Doğrulama bitince kaldırılabilir.
-        anchorArea={propertiesResponse?.corridorPolygon ?? null}
       />
 
       {selectedProperty && (
