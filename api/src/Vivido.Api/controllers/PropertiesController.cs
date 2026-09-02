@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using NetTopologySuite.Geometries;
+using NetTopologySuite.Geometries.Utilities;
 using Vivido.Api.services; // PropertyScoringService namespace'i
 using Vivido.Application.dtos.property; // DTO'ların
 using Vivido.Domain.Entities;
@@ -575,17 +576,44 @@ public class PropertiesController : ControllerBase
     private static Geometry BuildWidenedLegPolygon(CorridorLeg leg, List<Property> budgetProperties)
     {
         var widthMetres = leg.BaseWidthMetres;
-        var polygon = leg.Geometry.Buffer(widthMetres / MetresPerDegreeLat);
+        var polygon = BufferMetres(leg.Geometry, widthMetres);
 
         for (var attempt = 0; attempt < MaxCorridorWidenAttempts - 1; attempt++)
         {
             if (budgetProperties.Any(p => polygon.Intersects(p.Geom))) break;
 
             widthMetres *= 2;
-            polygon = leg.Geometry.Buffer(widthMetres / MetresPerDegreeLat);
+            polygon = BufferMetres(leg.Geometry, widthMetres);
         }
 
         return polygon;
+    }
+
+    /// <summary>
+    /// Bir geometriyi GERÇEK dünyada (metre cinsinden) düzgün bir daire/şerit
+    /// çıkaracak şekilde buffer'lar.
+    ///
+    /// ⚠️ Çıplak <c>geometry.Buffer(metres / MetresPerDegreeLat)</c> yanlıştı:
+    /// NTS'in buffer'ı DERECE cinsinden çalışır ve 1 derecelik X (boylam) ile
+    /// 1 derecelik Y (enlem) mesafesini EŞİT sanır. Oysa 1 boylam derecesi
+    /// enleme göre KISALIR (Çankaya'nın ~39.9° enleminde bir enlem
+    /// derecesinden yaklaşık %23 daha kısa). Sonuç: tek anchor'lu bir
+    /// koridor gerçek haritada daire değil, doğu-batı yönünde SIKIŞMIŞ bir
+    /// elips çıkıyordu — "her açıdan eşit değil" (2026-09-02, gözle
+    /// bulundu).
+    ///
+    /// Düzeltme: X eksenini enlemin kosinüsüyle "geriyoruz" (bu uzayda 1
+    /// birim X ile 1 birim Y artık gerçekten aynı mesafeyi temsil ediyor),
+    /// dairesel buffer'ı bu gerilmiş uzayda alıyoruz, sonra geri
+    /// sıkıştırıyoruz — sonuç gerçek dünyada doğru bir daire/şerit.
+    /// </summary>
+    private static Geometry BufferMetres(Geometry geometry, double metres)
+    {
+        var stretch = 1.0 / Math.Cos(geometry.Centroid.Y * Math.PI / 180.0);
+
+        var stretched = AffineTransformation.ScaleInstance(stretch, 1.0).Transform(geometry);
+        var buffered = stretched.Buffer(metres / MetresPerDegreeLat);
+        return AffineTransformation.ScaleInstance(1.0 / stretch, 1.0).Transform(buffered);
     }
 
     /// <summary>
