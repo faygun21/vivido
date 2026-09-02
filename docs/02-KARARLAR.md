@@ -27,6 +27,7 @@
 | [K-14](#k-14) | Oturuma bağlı sunucu verisi `useSessionQuery`'den geçer | Kabul |
 | [K-15](#k-15) | Konut adresi yerel `streets` tablosundan; ters geokodlama yok | Kabul |
 | [K-16](#k-16) | Gerekçe tablosu motorun İÇİNDEN üretilir, ikinci kopya yazılmaz | Kabul |
+| [K-17](#k-17) | Mobil tasarım sistemi webin `tokens.css`'ini birebir yansıtır | Kabul |
 
 ---
 
@@ -859,3 +860,123 @@ eklendi çünkü hem `PropertyScoringService` hem de `ScoringEngineTests`
 kaydı POZİSYONEL kuruyor
 (`new(duration, weight, tIdeal, tHalf, tCutoff, poiCount, minPoiCount)`).
 Araya eklenseydi derleme geçer, değerler sessizce yanlış alanlara yazılırdı.
+
+---
+
+## K-17
+### Mobil tasarım sistemi webin `tokens.css`'ini birebir yansıtır
+
+**Durum:** Kabul · 2026-09-02
+
+**Bağlam.** Mobil palet bir kez webe hizalanmıştı (`app_colors.dart`, dokuz
+marka rengi). Web o zamandan beri `web/src/styles/tokens.css` ile tasarım
+sistemini genişletti; mobil geride kaldı ve boşluğu **ekran ekran** elle
+yazılmış değerlerle doldurdu:
+
+| Webde token var | Mobilde ne vardı |
+|---|---|
+| Tipografi ölçeği (boyuta bağlı tracking/leading) | Ekran başına `fontSize: 10.5 / 11.5 / 12.5 / 13.5 / 17 / 25` |
+| Hareket ölçeği (5 süre, 4 eğri) | Birkaç yerde `Duration(milliseconds: 180)` |
+| Malzeme katmanı (`backdrop-filter`) | Harita üstündeki her kontrol OPAK beyaz |
+| Türetilmiş renkler (`--accent-hover`, `--line-soft`, `--ok`/`--warn`/`--bad`) | `Color(0xFFFFEDD5)`, `Colors.red.shade100`, `#047857` |
+| 6 basamak yarıçap, 5 basamak gölge | 4 basamak yarıçap, tek gölge tonu |
+
+Sonuç yalnızca "farklı görünmek" değildi. Üç somut arıza:
+
+1. **Giriş akışı ayrı bir üründü.** `welcome/login/register/splash/verify/
+   forgot` sayfalarının her biri kendi `accentOrange = #E27250` sabitini
+   tanımlıyor ve **birincil düğmeyi ikincil renkle** boyuyordu. Uygulamanın
+   birincil eylem rengi `#C0421D`.
+2. **Aynı ev iki ekranda iki farklı rozet alıyordu.** `property_format.dart`
+   kendi bant renklerini (`#047857/#0F766E/#B91C1C`), `app_colors.dart`
+   başkalarını (`#15803D/#4D7C0F/#9A3412`) taşıyordu; web ise ikincisini.
+   Türkçe etiketler de ayrışmıştı ("Mükemmel" ↔ "Çok uygun").
+3. **Konut pini üç ayrı renkteydi**: mobil harita `#C0421D`, mobil katman
+   paneli `#EA580C`, web `#ea580c`.
+
+**Karar.** `mobile/lib/core/theme/` altında `tokens.css`'in dört bölümlü
+karşılığı kuruldu — `app_colors.dart` (renk + malzeme + gölge + yarıçap +
+boşluk), `app_typography.dart`, `app_motion.dart`, `app_theme.dart`.
+Ekranlar bu belirteçlerin dışında bir değer yazmaz.
+
+Çelişkilerde **web kazanır** (konut pini `#ea580c`, bant renkleri ve
+etiketleri web `BAND_LABEL`). Tek istisna: **favori işareti**. Ekleme
+düğmesi kalp (alışılmış eylem işareti), haritadaki işaret altın yıldız —
+kalp, kırmızı-turuncu konut pinleriyle aynı renk ailesine düşüp
+ayrışmıyor.
+
+**Gerekçe.** Renkler iki ayrı dilde iki ayrı dosyada yaşıyor ve derleyici
+birinin diğerinden ayrıldığını fark edemez. `test/design_tokens_test.dart`
+bu boşluğu kapatıyor: palet, bant renkleri/etiketleri, tipografi ölçeğinin
+yönü ve `pubspec`'te kayıtlı olmayan ağırlıkların kullanılmaması test
+ediliyor.
+
+**`FontWeight.w800/w900` kaldırıldı.** `pubspec.yaml` dört kesim kaydediyor
+(400/500/600/700). Flutter kayıtlı olmayan ağırlığı sentezleyemediği için
+`w800` sessizce 700'e düşüyordu: kodda "daha kalın bir şey var" yanılgısı,
+ekranda hiçbir fark yok.
+
+**Sonuçları.**
+
+- Alt menü beş sekmeden dörde indi (Harita · Konutlar · Rotalar · Profil).
+  Favoriler, Konutlar içinde bir segment **ve** haritada bir katman —
+  webin modeliyle aynı. `HomePage(initialIndex:)` artık 0–3.
+- Harita üstündeki her kontrol ortak bir ızgaradan besleniyor
+  (`AppSpacing.mapGutter/mapStack/mapControl`); eskiden `top + 10`,
+  `top + 74`, `bottom: 74`, genişlik `168` gibi birbiriyle ilgisiz sayılar
+  vardı ve dar telefonda üst üste biniyorlardı.
+- `GlassSurface` haritanın üstündeki yüzeyleri yarı saydam yapıyor.
+  Bulanıklık maliyetli (her biri bir `saveLayer`), bu yüzden yalnızca
+  gerçekten haritanın üstünde duran yüzeylerde kullanılıyor — liste
+  ekranlarındaki kartlarda değil.
+
+### K-17 · ek — cihazda çıkan dört sorun
+
+**Tarih:** 2026-09-02 · ilk gerçek cihaz denemesi
+
+Tasarım geçişi cihazda denendiğinde dört sorun çıktı; ikisi çökme, ikisi
+tasarım eksiği.
+
+1. **Rehber turu her açılışta çöküyordu.** `AnimatedSpotlight` deliği
+   `TweenAnimationBuilder` ile canlandırıyor ve hedef dikdörtgeni `null`
+   olduğunda `RectTween(end: null)` kuruyordu — Flutter bunu kabul etmiyor.
+   Null iki geçerli durumda oluşuyor: hedefi olmayan adımlar (giriş,
+   kapanış) ve her adımın ölçüm öncesi ilk karesi. Delik yokken doğrudan
+   tam karartma çiziliyor. Ayrıca `_enterStep` artık eski dikdörtgeni
+   SİLMİYOR: delik eskisinden yenisine kayıyor, her adımda kapanıp
+   açılmıyor.
+
+2. **Alt sayfaların kapatma düğmesi yoktu.** Tek çıkış sürükleme
+   tutamacıydı; katman paneli gibi uzun bir sayfada tutamaç durum
+   çubuğunun dibine dayanıyor ve aşağı çekmek telefonun BİLDİRİM PANELİNİ
+   açıyordu — sayfa kapanmıyordu. Ortak `SheetHeader` (tutamacın yanında
+   açık bir ✕) ve `showAppSheet` (yükseklik tavanı %88) eklendi.
+
+3. **Marka adı hiçbir yerde yazmıyordu.** Giriş/kayıt ekranı yalnızca
+   İŞARETİ gösteriyordu. Web bunu `.login-wordmark` ile çözmüş durumda;
+   `BrandLockup` artık işaret → **Vivido** → slogan → ayraç. Form ayrıca
+   beyaz bir kartın üstüne alındı ve arkaya logodaki güneş motifinden
+   gelen çok yumuşak bir ışık kondu — krem üstünde krem duran ekran bir
+   zemine oturdu.
+
+4. **Analiz çemberi hiçbir şey anlatmıyordu.** Kullanıcı süreyi seçiyor,
+   noktayı işaretliyor, sarı bir daire çıkıyordu — "bu alanda ne var?"
+   sorusunun cevabı yoktu. Çember bırakıldığında artık bir panel açılıyor:
+   solda dikey kategori şeridi (haritadaki renk ve ikonun aynısı), sağda o
+   kategorinin ALAN İÇİNDEKİ noktaları, merkeze uzaklığa göre sıralı.
+   Listedeki noktalar haritada da vurgulanıyor.
+
+   Uç noktası **yeni değil**: `/pois/near?lat&lon&radiusM&category` konut
+   detayındaki "güçlü yön noktaları" için zaten kullanılıyordu. Kategori
+   başına tek istek atılıyor ve sonuç önbelleğe alınıyor — sekiz kategoriyi
+   birden çekmek daha az kod olurdu ama kullanıcı çoğunlukla bir ikisine
+   bakıyor.
+
+   ⚠️ Mesafe ve süre **kuş uçuşu**. Her nokta için OSRM'den gerçek yol
+   mesafesi istemek bir kategoride 40 istek demek. Yürüme hızı sabiti
+   (80 m/dk) çemberin çizildiği sabitle AYNI: farklı olsaydı çemberin
+   kenarındaki bir nokta çemberin süresinden farklı bir süre gösterirdi.
+
+Ek olarak turun ölçüm gecikmesi iptal edilebilir bir `Timer`'a çevrildi —
+`Future.delayed` iptal edilemiyor ve tur kapandıktan sonra bekleyen bir
+zamanlayıcı bırakıyordu (widget testi bunu yakaladı).

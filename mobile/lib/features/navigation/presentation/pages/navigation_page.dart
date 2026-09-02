@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:maplibre/maplibre.dart';
 
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_motion.dart';
+import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/widgets/glass_surface.dart';
+import '../../../../shared/widgets/mascot.dart';
 import '../../../location/application/user_location_controller.dart';
 import '../../../map/presentation/widgets/cankaya_map.dart';
 import '../../../routes/domain/route_models.dart';
@@ -126,21 +131,32 @@ class _NavigationPageState extends State<NavigationPage> {
                     isLastStep:
                         _controller.progress.stopSequence >= _route.stopCount,
                   );
+          final media = MediaQuery.of(context);
+
+          // ── IZGARA ────────────────────────────────────────────────
+          // Harita TAM EKRAN; şeritler ve kart onun üstünde yüzüyor.
+          // Eskiden harita `Padding(8, 112, 8, 126)` ile kutulanıyor ve
+          // ekranın üstünde/altında iki geniş boş şerit kalıyordu —
+          // navigasyonda en değerli şey görülebilen yol uzunluğu.
+          const gutter = AppSpacing.mapGutter;
+          final topRow = media.padding.top + gutter;
+          const maneuverHeight = 84.0;
+          final secondRow = topRow + maneuverHeight + AppSpacing.mapStack;
+          final bottomRow = media.padding.bottom + gutter;
+
           return Stack(
             children: [
               Positioned.fill(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    8,
-                    _controller.progress.offRoute || _controller.weakSignal
-                        ? 164
-                        : 112,
-                    8,
-                    126,
-                  ),
+                child: RepaintBoundary(
                   child: CankayaMap(
                     anchors: const [],
                     route: _route,
+                    // Kullanıcının konumu alt kartın ARKASINA düşmesin:
+                    // kamerayı yukarı itiyoruz, haritayı küçültmüyoruz.
+                    cameraPadding: EdgeInsets.only(
+                      top: topRow + maneuverHeight,
+                      bottom: bottomRow + 120,
+                    ),
                     followUserLocation: _controller.cameraFollows,
                     followTarget:
                         position == null || !_controller.cameraFollows
@@ -165,9 +181,9 @@ class _NavigationPageState extends State<NavigationPage> {
                 ),
               ),
               Positioned(
-                top: 8,
-                left: 12,
-                right: 12,
+                top: topRow,
+                left: gutter,
+                right: gutter,
                 child: ManeuverBanner(
                   instruction: instruction,
                   distanceM: _controller.progress.distanceToManeuverM,
@@ -176,9 +192,9 @@ class _NavigationPageState extends State<NavigationPage> {
               ),
               if (_controller.progress.offRoute)
                 Positioned(
-                  top: 92,
-                  left: 16,
-                  right: 16,
+                  top: secondRow,
+                  left: gutter,
+                  right: gutter,
                   child: OffRouteBanner(
                     distanceM: _controller.progress.offRouteDistanceM,
                     recalculating: _recalculating,
@@ -187,22 +203,25 @@ class _NavigationPageState extends State<NavigationPage> {
                   ),
                 )
               else if (_controller.weakSignal)
-                const Positioned(
-                  top: 92,
-                  left: 16,
-                  right: 16,
-                  child: _WeakSignalBanner(),
+                Positioned(
+                  top: secondRow,
+                  left: gutter,
+                  right: gutter,
+                  child: const _WeakSignalBanner(),
                 ),
+              // "Ortala" düğmesi ikinci şerit varken bir kat daha aşağıda
+              // durmuyor: sol ALTTA, kartın hemen üstünde — kullanıcının
+              // parmağının doğal olarak durduğu yer.
               if (!_controller.cameraFollows && position != null)
                 Positioned(
-                  left: 20,
-                  bottom: 142,
+                  left: gutter,
+                  bottom: bottomRow + 116,
                   child: _RecenterButton(onPressed: _controller.recenter),
                 ),
               Positioned(
-                left: 12,
-                right: 12,
-                bottom: 12,
+                left: gutter,
+                right: gutter,
+                bottom: bottomRow,
                 child: NextStopSheet(
                   stop: _controller.targetStop,
                   totalStops: _route.stopCount,
@@ -220,32 +239,37 @@ class _NavigationPageState extends State<NavigationPage> {
   );
 }
 
+/// Kamerayı kullanıcının konumuna geri alan düğme.
+///
+/// Yalnızca kullanıcı haritayı ELLE kaydırdıktan sonra beliriyor —
+/// takip zaten açıkken bir "Ortala" düğmesi göstermek, hiçbir şey
+/// yapmayan bir düğme demek.
 class _RecenterButton extends StatelessWidget {
   const _RecenterButton({required this.onPressed});
 
   final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context) => Material(
-    elevation: 4,
-    color: Theme.of(context).colorScheme.surface,
-    shadowColor: Colors.black38,
-    borderRadius: BorderRadius.circular(24),
+  Widget build(BuildContext context) => GlassSurface.thin(
+    borderRadius: BorderRadius.circular(AppRadius.pill),
     child: InkWell(
       onTap: onPressed,
-      borderRadius: BorderRadius.circular(24),
-      child: const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      borderRadius: BorderRadius.circular(AppRadius.pill),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: 10,
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.navigation, size: 20, color: Color(0xFF0F766E)),
-            SizedBox(width: 7),
+            const Icon(Icons.my_location, size: 18, color: AppColors.live),
+            const SizedBox(width: 6),
             Text(
               'Ortala',
-              style: TextStyle(
-                color: Color(0xFF0F766E),
-                fontWeight: FontWeight.w800,
+              style: AppType.xs.copyWith(
+                color: AppColors.live,
+                fontWeight: AppType.semibold,
               ),
             ),
           ],
@@ -255,32 +279,56 @@ class _RecenterButton extends StatelessWidget {
   );
 }
 
+/// Rota tamamlandı ekranı (R-57).
+///
+/// Uygulamanın en olumlu anı — maskot burada yerinde: kullanıcı bütün
+/// rotayı gezdi ve bunu kutlamak, gri bir bayrak ikonundan iyi.
 class _FinishedOverlay extends StatelessWidget {
   const _FinishedOverlay();
 
   @override
   Widget build(BuildContext context) => Positioned.fill(
     child: ColoredBox(
-      color: Colors.black54,
+      color: AppMaterials.scrim,
       child: Center(
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.flag_circle, size: 54),
-                const SizedBox(height: 12),
-                const Text(
-                  'Rota tamamlandı',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: 1),
+            duration: AppMotion.slow,
+            // Taşan yay burada doğru: kullanıcı bir işi BİTİRDİ, bu bir
+            // kutlama anı (bkz. AppMotion.spring notu).
+            curve: AppMotion.spring,
+            builder:
+                (context, value, child) => Transform.scale(
+                  scale: 0.88 + 0.12 * value,
+                  child: Opacity(opacity: value.clamp(0, 1), child: child),
                 ),
-                const SizedBox(height: 12),
-                FilledButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Bitir'),
-                ),
-              ],
+            child: Container(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(AppRadius.xl),
+                boxShadow: AppShadows.xl,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const MascotFigure(height: 96),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text('Rota tamamlandı', style: AppType.h2),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Bütün durakları gezdin.',
+                    style: AppType.muted(AppType.sm),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  FilledButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Bitir'),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -293,16 +341,24 @@ class _WeakSignalBanner extends StatelessWidget {
   const _WeakSignalBanner();
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: const Color(0xFFFFF3E8),
-    borderRadius: BorderRadius.circular(12),
-    child: const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+  Widget build(BuildContext context) => GlassSurface(
+    borderRadius: BorderRadius.circular(AppRadius.md),
+    shadow: AppShadows.md,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 10,
+      ),
       child: Row(
         children: [
-          Icon(Icons.gps_off, size: 19),
-          SizedBox(width: 8),
-          Expanded(child: Text('GPS sinyali zayıf. Açık bir alana geç.')),
+          const Icon(Icons.gps_off, size: 18, color: AppColors.warn),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(
+            child: Text(
+              'GPS sinyali zayıf. Açık bir alana geç.',
+              style: AppType.xs,
+            ),
+          ),
         ],
       ),
     ),
@@ -325,20 +381,43 @@ class _NavigationBlocked extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
     child: Padding(
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.all(AppSpacing.xl),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.location_off_outlined, size: 52),
-          const SizedBox(height: 14),
-          Text(message, textAlign: TextAlign.center),
-          const SizedBox(height: 18),
-          if (showSettings)
-            FilledButton.tonal(
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: AppColors.warn.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.location_off_outlined,
+              size: 28,
+              color: AppColors.warn,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'Konum alınamıyor',
+            style: AppType.h3,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: AppType.muted(AppType.sm),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          if (showSettings) ...[
+            FilledButton(
               onPressed: onSettings,
               child: const Text('Ayarları aç'),
             ),
-          const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.xs),
+          ],
           OutlinedButton(onPressed: onRetry, child: const Text('Tekrar dene')),
         ],
       ),

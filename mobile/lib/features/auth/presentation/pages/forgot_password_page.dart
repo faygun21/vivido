@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_typography.dart';
 import '../../application/session_controller.dart';
 import '../../domain/password_policy.dart';
+import '../widgets/auth_scaffold.dart';
 import '../widgets/code_field.dart';
 
 /// Şifre sıfırlama — K-09.
@@ -106,96 +109,78 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     return AnimatedBuilder(
       animation: widget.controller,
       builder:
-          (context, _) => Scaffold(
-            appBar: AppBar(title: const Text('Şifremi unuttum')),
-            body: SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-                child:
-                    _codeStep
-                        ? _buildResetStep(context)
-                        : _buildEmailStep(context),
+          (context, _) => AuthScaffold(
+            showLogo: false,
+            title: _codeStep ? 'Yeni şifreni belirle' : 'Şifreni sıfırla',
+            subtitle:
+                _codeStep
+                    ? '${_emailController.text.trim()} adresine gelen kodu gir.'
+                    : 'Hesabının e-posta adresini gir; 6 haneli bir kod '
+                        'gönderelim.',
+            children: [
+              // İki adım aynı yeri paylaşıyor. Adımın hangisi olduğu
+              // BAŞLIKTAN okunuyor; içerik çapraz geçiyor.
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 260),
+                child: _codeStep ? _buildResetStep() : _buildEmailStep(),
               ),
-            ),
+            ],
           ),
     );
   }
 
-  Widget _buildEmailStep(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
+  Widget _buildEmailStep() {
     return Form(
       key: _emailFormKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(Icons.lock_reset_outlined, size: 52, color: colors.primary),
-          const SizedBox(height: 20),
-          Text(
-            'Sıfırlama kodu gönderelim',
-            textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+          Center(
+            child: Container(
+              width: 68,
+              height: 68,
+              decoration: BoxDecoration(
+                color: AppColors.accentSoft,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.lock_reset_outlined,
+                size: 30,
+                color: AppColors.accent,
+              ),
+            ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Hesabının e-posta adresini gir; 6 haneli bir kod gönderelim.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: colors.onSurfaceVariant, height: 1.4),
-          ),
-          const SizedBox(height: 28),
+          const SizedBox(height: AppSpacing.lg),
           TextFormField(
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             autofillHints: const [AutofillHints.email],
             decoration: const InputDecoration(
               labelText: 'E-posta',
-              prefixIcon: Icon(Icons.alternate_email),
+              prefixIcon: Icon(Icons.alternate_email, size: 20),
             ),
             validator: _emailValidator,
           ),
-          ..._banners(context),
-          const SizedBox(height: 24),
-          FilledButton(
-            onPressed: widget.controller.busy ? null : _requestCode,
-            child:
-                widget.controller.busy
-                    ? const SizedBox.square(
-                      dimension: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                    : const Text('Sıfırlama kodu gönder'),
+          ..._banners(),
+          const SizedBox(height: AppSpacing.md),
+          AuthSubmitButton(
+            label: 'Sıfırlama kodu gönder',
+            busy: widget.controller.busy,
+            onPressed: _requestCode,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildResetStep(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
+  Widget _buildResetStep() {
     return Form(
       key: _resetFormKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Yeni şifreni belirle',
-            textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${_emailController.text.trim()} adresine gelen kodu gir.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: colors.onSurfaceVariant, height: 1.4),
-          ),
-          const SizedBox(height: 24),
           CodeField(controller: _codeController, label: 'Sıfırlama kodu'),
-          const SizedBox(height: 14),
+          const SizedBox(height: AppSpacing.sm),
           TextFormField(
             key: const ValueKey('reset-password'),
             controller: _passwordController,
@@ -206,26 +191,28 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
               helperText: strongPasswordRequirements,
               helperMaxLines: 2,
               errorMaxLines: 3,
-              prefixIcon: const Icon(Icons.key_outlined),
+              prefixIcon: const Icon(Icons.key_outlined, size: 20),
               suffixIcon: IconButton(
                 onPressed: () => setState(() => _obscure = !_obscure),
+                tooltip: _obscure ? 'Şifreyi göster' : 'Şifreyi gizle',
                 icon: Icon(
                   _obscure
                       ? Icons.visibility_outlined
                       : Icons.visibility_off_outlined,
+                  size: 20,
                 ),
               ),
             ),
             validator: validateStrongPassword,
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: AppSpacing.sm),
           TextFormField(
             controller: _passwordAgainController,
             obscureText: _obscure,
             autofillHints: const [AutofillHints.newPassword],
             decoration: const InputDecoration(
               labelText: 'Yeni parola (tekrar)',
-              prefixIcon: Icon(Icons.key_outlined),
+              prefixIcon: Icon(Icons.key_outlined, size: 20),
             ),
             validator: (value) {
               if (value != _passwordController.text) {
@@ -234,19 +221,13 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
               return null;
             },
           ),
-          ..._banners(context),
-          const SizedBox(height: 24),
-          FilledButton(
-            onPressed: widget.controller.busy ? null : _submitNewPassword,
-            child:
-                widget.controller.busy
-                    ? const SizedBox.square(
-                      dimension: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                    : const Text('Şifreyi güncelle'),
+          ..._banners(),
+          const SizedBox(height: AppSpacing.md),
+          AuthSubmitButton(
+            label: 'Şifreyi güncelle',
+            busy: widget.controller.busy,
+            onPressed: _submitNewPassword,
           ),
-          const SizedBox(height: 10),
           TextButton(
             onPressed: widget.controller.busy ? null : _requestCode,
             child: const Text('Kodu tekrar gönder'),
@@ -256,34 +237,50 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     );
   }
 
-  List<Widget> _banners(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final error = widget.controller.errorMessage;
-
+  /// Bilgi ve hata şeritleri.
+  ///
+  /// Eskiden ikisi de ham `ColorScheme` kutularıydı (gri / kırmızı) ve
+  /// "kod gönderildi" ile "kod yanlış" aynı yerde, birbirine çok benzer
+  /// görünüyordu. Bilgi artık başarı yeşili, hata `--bad`.
+  List<Widget> _banners() {
     return [
-      if (_info != null) ...[
-        const SizedBox(height: 16),
-        _box(_info!, colors.surfaceContainerHighest, colors.onSurfaceVariant),
+      if (_info case final info?) ...[
+        const SizedBox(height: AppSpacing.sm),
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          decoration: BoxDecoration(
+            color: AppColors.ok.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(color: AppColors.ok.withValues(alpha: 0.22)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.check_circle_outline,
+                size: 18,
+                color: AppColors.ok,
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  info,
+                  style: AppType.sm.copyWith(
+                    color: AppColors.ok,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
-      if (error != null) ...[
-        const SizedBox(height: 16),
-        _box(error, colors.errorContainer, colors.onErrorContainer),
+      if (widget.controller.errorMessage case final message?) ...[
+        const SizedBox(height: AppSpacing.sm),
+        AuthError(message: message),
       ],
     ];
   }
-
-  Widget _box(String message, Color background, Color foreground) => Container(
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: background,
-      borderRadius: BorderRadius.circular(14),
-    ),
-    child: Text(
-      message,
-      textAlign: TextAlign.center,
-      style: TextStyle(color: foreground, height: 1.35),
-    ),
-  );
 
   static String? _emailValidator(String? value) {
     final email = value?.trim() ?? '';

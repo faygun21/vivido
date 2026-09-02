@@ -5,7 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vivido_mobile/core/theme/app_colors.dart';
 import 'package:vivido_mobile/core/theme/app_theme.dart';
+import 'package:vivido_mobile/core/theme/app_typography.dart';
 import 'package:vivido_mobile/features/map_data/presentation/poi_category_colors.dart';
+import 'package:vivido_mobile/features/properties/presentation/property_format.dart';
+import 'package:vivido_mobile/shared/widgets/brand_icon.dart';
 
 /// Mobil paletin web ile aynı kaldığını doğrular.
 ///
@@ -49,17 +52,17 @@ void main() {
     //   >=85 excellent · >=70 good · >=55 fair · gerisi poor
     // Renkler: web/src/index.css `.score-badge--*`
     test('eşikler web scoreBand() ile aynı sınırlarda kırılır', () {
-      expect(AppColors.band(100), AppColors.bandExcellent);
-      expect(AppColors.band(85), AppColors.bandExcellent);
-      expect(AppColors.band(84.9), AppColors.bandGood);
+      expect(scoreBandOf(100), 'excellent');
+      expect(scoreBandOf(85), 'excellent');
+      expect(scoreBandOf(84.9), 'good');
 
-      expect(AppColors.band(70), AppColors.bandGood);
-      expect(AppColors.band(69.9), AppColors.bandFair);
+      expect(scoreBandOf(70), 'good');
+      expect(scoreBandOf(69.9), 'fair');
 
-      expect(AppColors.band(55), AppColors.bandFair);
-      expect(AppColors.band(54.9), AppColors.bandPoor);
+      expect(scoreBandOf(55), 'fair');
+      expect(scoreBandOf(54.9), 'poor');
 
-      expect(AppColors.band(0), AppColors.bandPoor);
+      expect(scoreBandOf(0), 'poor');
     });
 
     test('bant renkleri web rozet renkleriyle birebir', () {
@@ -69,11 +72,66 @@ void main() {
       expect(AppColors.bandPoor, const Color(0xFF9A3412));
     });
 
-    test('etiketler bant sınırlarıyla tutarlı', () {
-      expect(AppColors.bandLabel(90), 'Çok iyi');
-      expect(AppColors.bandLabel(75), 'İyi');
-      expect(AppColors.bandLabel(60), 'Orta');
-      expect(AppColors.bandLabel(20), 'Zayıf');
+    test('bant kodu → renk eşlemesi tek kaynaktan geliyor', () {
+      // Regresyon koruması: `property_format.dart` bir zamanlar KENDİ
+      // renk kümesini taşıyordu (#047857/#0F766E/#B91C1C) ve aynı ev
+      // listede bir yeşil, detayda başka bir yeşil rozet alıyordu.
+      expect(scoreBandColor('excellent'), AppColors.bandExcellent);
+      expect(scoreBandColor('good'), AppColors.bandGood);
+      expect(scoreBandColor('fair'), AppColors.bandFair);
+      expect(scoreBandColor('poor'), AppColors.bandPoor);
+    });
+
+    test('etiketler web BAND_LABEL ile aynı', () {
+      // Skor bir kalite yargısı değil, KULLANICIYA UYGUNLUK ölçüsü.
+      // Mobil "Mükemmel/İyi/Orta/Düşük" diyordu — "mükemmel ev" yanlış vaat.
+      expect(scoreBandLabel('excellent'), 'Çok uygun');
+      expect(scoreBandLabel('good'), 'Uygun');
+      expect(scoreBandLabel('fair'), 'Orta');
+      expect(scoreBandLabel('poor'), 'Zayıf');
+    });
+  });
+
+  group('tipografi ölçeği', () {
+    // Kaynak: web/src/styles/tokens.css §7. Mobilde ölçek HİÇ yoktu;
+    // ekranlar 10.5 / 11.5 / 12.5 / 13.5 / 17 / 18 / 20 / 25 px'i elle
+    // yazıyordu.
+    test('tracking boyuta göre yön değiştiriyor', () {
+      // Büyük başlık NEGATİF (harfler optik olarak açılır), küçük etiket
+      // POZİTİF (yoksa okunmaz). Tek bir letterSpacing her boyutta yanlış.
+      expect(AppType.display.letterSpacing, lessThan(0));
+      expect(AppType.h1.letterSpacing, lessThan(0));
+      expect(AppType.body.letterSpacing, 0);
+      expect(AppType.xs.letterSpacing, greaterThan(0));
+      expect(AppType.micro.letterSpacing, greaterThan(0));
+    });
+
+    test('leading boyutla ters orantılı', () {
+      expect(AppType.display.height! < AppType.h1.height!, isTrue);
+      expect(AppType.h1.height! < AppType.body.height!, isTrue);
+    });
+
+    test('yalnızca pubspec\'te kayıtlı ağırlıklar kullanılıyor', () {
+      // w800/w900 kayıtlı değil; Flutter onları sessizce 700'e düşürüyor.
+      // "Burada daha kalın bir şey var" yanılgısı bu yüzden oluşuyordu.
+      final registered = <FontWeight>{
+        FontWeight.w400,
+        FontWeight.w500,
+        FontWeight.w600,
+        FontWeight.w700,
+      };
+      for (final style in [
+        AppType.display,
+        AppType.h1,
+        AppType.h2,
+        AppType.h3,
+        AppType.body,
+        AppType.sm,
+        AppType.xs,
+        AppType.micro,
+      ]) {
+        expect(registered, contains(style.fontWeight));
+      }
     });
   });
 
@@ -162,6 +220,81 @@ void main() {
         features.length,
         greaterThan(polygons.length),
         reason: 'etiket Point kalktıysa haritadaki filtre gözden geçirilmeli',
+      );
+    });
+  });
+
+  group('mahalle katmanı varlığı', () {
+    // Web haritada mahalle poligonlarını çiziyordu, mobil yalnızca ilçe
+    // sınırını: kullanıcı hangi mahallede olduğunu göremiyordu.
+    test('varlık pubspec.yaml içinde kayıtlı', () {
+      expect(
+        File('pubspec.yaml').readAsStringSync(),
+        contains('assets/geo/cankaya-mahalleler.geojson'),
+      );
+    });
+
+    test('çizilebilir poligonlar içeriyor', () {
+      final raw =
+          File('assets/geo/cankaya-mahalleler.geojson').readAsStringSync();
+      final parsed = jsonDecode(raw) as Map<String, Object?>;
+      final features = (parsed['features'] as List<Object?>).length;
+      expect(features, greaterThan(10), reason: 'Çankaya\'da 10+ mahalle var');
+    });
+  });
+
+  group('marka görselleri', () {
+    // Persona ikonları mobilde jenerik Material glyph'leriyle çiziliyordu
+    // (`Icons.school_outlined`), web ise kendi çizilmiş ikonlarını
+    // kullanıyordu — aynı persona iki üründe iki farklı simge alıyordu.
+    test('her personanın ana ve alt ikonları diskte mevcut', () {
+      for (final code in [
+        'student',
+        'remote_worker',
+        'family_kids',
+        'elderly',
+      ]) {
+        final visual = personaVisual(code);
+        expect(
+          File('assets/icons/${visual.main}').existsSync(),
+          isTrue,
+          reason: '$code ana ikonu (${visual.main}) bulunamadı',
+        );
+        for (final sub in visual.sub) {
+          expect(
+            File('assets/icons/$sub').existsSync(),
+            isTrue,
+            reason: '$code alt ikonu ($sub) bulunamadı',
+          );
+        }
+      }
+    });
+
+    test('bilinmeyen persona kırık görsel değil nötr ikon döner', () {
+      final visual = personaVisual('bir-gun-eklenen-persona');
+      expect(File('assets/icons/${visual.main}').existsSync(), isTrue);
+    });
+
+    test('haritadaki favori yıldızı ve konut ikonu mevcut', () {
+      // Favori EKLEME düğmesi kalp, HARİTADAKİ işaret yıldız — ikisi de
+      // bilinçli (bkz. favorite_button.dart). Yıldız haritada altın bir
+      // daire üstünde beyaz çiziliyor.
+      expect(File('assets/icons/star_white.svg').existsSync(), isTrue);
+      expect(File('assets/icons/star_kahve.svg').existsSync(), isTrue);
+      expect(File('assets/icons/home_white.svg').existsSync(), isTrue);
+    });
+
+    test('maskot görselleri mevcut ve pubspec\'te kayıtlı', () {
+      for (final pose in ['mascot', 'mascot_2', 'mascot_on_the_wall']) {
+        expect(
+          File('assets/mascot/$pose.png').existsSync(),
+          isTrue,
+          reason: '$pose.png bulunamadı',
+        );
+      }
+      expect(
+        File('pubspec.yaml').readAsStringSync(),
+        contains('assets/mascot/'),
       );
     });
   });

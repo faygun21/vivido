@@ -2,7 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_typography.dart';
 import '../../application/session_controller.dart';
+import '../widgets/auth_scaffold.dart';
 import '../widgets/code_field.dart';
 
 /// E-posta doğrulama ekranı — K-09.
@@ -49,7 +52,7 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
 
   @override
   void dispose() {
-    // Sayaç bırakılmazsa React'teki gibi ölü bir ekrana setState denenir.
+    // Sayaç bırakılmazsa ölü bir ekrana setState denenir.
     _timer?.cancel();
     _codeController.dispose();
     super.dispose();
@@ -83,8 +86,8 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
 
     if (!mounted) return;
     if (success) {
-      // Oturum açıldı; app.dart faza göre ana ekranı çiziyor.
-      // Bu sayfayı ve altındaki kayıt sayfasını yığından atıyoruz.
+      // Oturum açıldı; app.dart faza göre ana ekranı çiziyor. Bu sayfayı ve
+      // altındaki kayıt sayfasını yığından atıyoruz.
       Navigator.of(context).popUntil((route) => route.isFirst);
     } else {
       _codeController.clear();
@@ -103,123 +106,118 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
     return AnimatedBuilder(
       animation: widget.controller,
       builder:
-          (context, _) => Scaffold(
-            appBar: AppBar(title: const Text('E-postanı doğrula')),
-            body: SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Icon(
-                        Icons.mark_email_read_outlined,
-                        size: 52,
-                        color: colors.primary,
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        'Kodu gir',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.headlineMedium
-                            ?.copyWith(fontWeight: FontWeight.w800),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${widget.email} adresine 6 haneli bir kod gönderdik. '
-                        'Gelmediyse spam klasörüne de bak.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: colors.onSurfaceVariant,
-                          height: 1.4,
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-                      CodeField(
-                        controller: _codeController,
-                        label: 'Doğrulama kodu',
-                        onSubmitted: (_) => _submit(),
-                      ),
-                      if (_info != null) ...[
-                        const SizedBox(height: 16),
-                        _Banner(message: _info!, tone: _BannerTone.info),
-                      ],
-                      if (widget.controller.errorMessage != null) ...[
-                        const SizedBox(height: 16),
-                        _Banner(
-                          message: widget.controller.errorMessage!,
-                          tone: _BannerTone.error,
-                        ),
-                      ],
-                      const SizedBox(height: 24),
-                      FilledButton(
-                        onPressed: widget.controller.busy ? null : _submit,
-                        child:
-                            widget.controller.busy
-                                ? const SizedBox.square(
-                                  dimension: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                                : const Text('Doğrula ve devam et'),
-                      ),
-                      const SizedBox(height: 10),
-                      OutlinedButton(
-                        onPressed:
-                            widget.controller.busy || _secondsLeft > 0
-                                ? null
-                                : _resend,
-                        child: Text(
-                          _secondsLeft > 0
-                              ? 'Kodu tekrar gönder ($_secondsLeft sn)'
-                              : 'Kodu tekrar gönder',
-                        ),
-                      ),
-                    ],
+          (context, _) => AuthScaffold(
+            showLogo: false,
+            title: 'E-postanı doğrula',
+            children: [
+              Center(
+                child: Container(
+                  width: 68,
+                  height: 68,
+                  decoration: BoxDecoration(
+                    color: AppColors.accentSoft,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.mark_email_read_outlined,
+                    size: 30,
+                    color: AppColors.accent,
                   ),
                 ),
               ),
-            ),
+              const SizedBox(height: AppSpacing.md),
+              Text.rich(
+                TextSpan(
+                  style: AppType.muted(AppType.sm).copyWith(height: 1.5),
+                  children: [
+                    // Adres KALIN: kullanıcının kontrol etmesi gereken tek
+                    // bilgi bu — yanlış yazılmış bir adres, kodun neden
+                    // gelmediğinin en sık sebebi.
+                    const TextSpan(text: 'Kodu '),
+                    TextSpan(
+                      text: widget.email,
+                      style: AppType.sm.copyWith(fontWeight: AppType.semibold),
+                    ),
+                    const TextSpan(
+                      text:
+                          ' adresine gönderdik. Gelmediyse spam klasörüne de bak.',
+                    ),
+                  ],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Form(
+                key: _formKey,
+                child: CodeField(
+                  controller: _codeController,
+                  label: 'Doğrulama kodu',
+                  onSubmitted: (_) => _submit(),
+                ),
+              ),
+              if (_info case final info?) ...[
+                const SizedBox(height: AppSpacing.sm),
+                _InfoBanner(message: info),
+              ],
+              if (widget.controller.errorMessage case final error?) ...[
+                const SizedBox(height: AppSpacing.sm),
+                AuthError(message: error),
+              ],
+              const SizedBox(height: AppSpacing.md),
+              AuthSubmitButton(
+                label: 'Doğrula ve devam et',
+                busy: widget.controller.busy,
+                onPressed: _submit,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              OutlinedButton(
+                onPressed:
+                    widget.controller.busy || _secondsLeft > 0 ? null : _resend,
+                child: Text(
+                  _secondsLeft > 0
+                      ? 'Kodu tekrar gönder ($_secondsLeft sn)'
+                      : 'Kodu tekrar gönder',
+                ),
+              ),
+            ],
           ),
     );
   }
 }
 
-enum _BannerTone { info, error }
-
-class _Banner extends StatelessWidget {
-  const _Banner({required this.message, required this.tone});
+/// Nötr bilgi şeridi — "kod gönderildi" gibi başarı bildirimleri.
+///
+/// Hata şeridinden AYRI bir renk ailesinde: ikisi aynı yerde çıkıyor ve
+/// aynı gri kutuda gösterilirse kullanıcı "kod gönderildi" ile "kod
+/// yanlış"ı ayırt edemiyordu.
+class _InfoBanner extends StatelessWidget {
+  const _InfoBanner({required this.message});
 
   final String message;
-  final _BannerTone tone;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final isError = tone == _BannerTone.error;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isError ? colors.errorContainer : colors.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Text(
-        message,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          color: isError ? colors.onErrorContainer : colors.onSurfaceVariant,
-          fontWeight: isError ? FontWeight.w600 : FontWeight.w500,
-          height: 1.35,
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(AppSpacing.sm),
+    decoration: BoxDecoration(
+      color: AppColors.ok.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      border: Border.all(color: AppColors.ok.withValues(alpha: 0.22)),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.check_circle_outline, size: 18, color: AppColors.ok),
+        const SizedBox(width: AppSpacing.xs),
+        Expanded(
+          child: Text(
+            message,
+            style: AppType.sm.copyWith(color: AppColors.ok, height: 1.4),
+          ),
         ),
-      ),
-    );
-  }
+      ],
+    ),
+  );
 }

@@ -28,12 +28,21 @@ void main() {
 
     await tester.pumpAndSettle();
 
+    // Slogan artık elle satır kırılmıyor: sabit `\n`'ler dar ekranda
+    // ortadaki satırı taşırıyordu, metin kendi sarmasını yapıyor.
     expect(
-      find.text('Yeni evini sadece\nkonumuna göre değil,\nyaşamına göre seç.'),
+      find.text(
+        'Yeni evini sadece konumuna göre değil, yaşamına göre seç.',
+      ),
       findsOneWidget,
     );
-    expect(find.text('Giriş Yap'), findsOneWidget);
-    expect(find.text('Kayıt Ol'), findsOneWidget);
+
+    // R-2: üç seçenek de karşılama ekranında. Etiketler cümle
+    // biçiminde ("Giriş yap"), Her Kelime Büyük değil — uygulamanın
+    // geri kalanıyla aynı yazım.
+    expect(find.text('Giriş yap'), findsOneWidget);
+    expect(find.text('Hesap oluştur'), findsOneWidget);
+    expect(find.text('Misafir olarak keşfet'), findsOneWidget);
 
     expect(find.byType(SvgPicture), findsOneWidget);
     expect(find.byType(Image), findsOneWidget);

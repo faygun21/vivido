@@ -70,7 +70,11 @@ void main() {
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(
-      MaterialApp(home: HomePage(controller: controller, initialIndex: 4)),
+      MaterialApp(
+        // Profil artık DÖRDÜNCÜ sekme: Favoriler kendi sekmesinden çıkıp
+        // Konutlar içinde bir segmente dönüştü (bkz. `HomePage` notu).
+        home: HomePage(controller: controller, initialIndex: 3),
+      ),
     );
 
     await tester.tap(find.text('Profil ve tercihleri düzenle'));
@@ -86,7 +90,9 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Profil tercihleri'), findsNothing);
-    expect(find.text('15000 ₺ - 27500 ₺'), findsOneWidget);
+    // Binlik ayracı ve tire artık web ile aynı (`15.000 ₺ – 27.500 ₺`);
+    // eskiden ham sayı basılıyordu.
+    expect(find.text('15.000 ₺ – 27.500 ₺'), findsOneWidget);
     expect(requestedMinBudget, 15000);
     expect(requestedMaxBudget, 27500);
     expect(requestedBody!['firstName'], 'Mert');

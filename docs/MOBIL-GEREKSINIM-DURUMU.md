@@ -42,7 +42,7 @@ varsa “Yarım yapıldı” olarak işaretlenmiştir.
 | **R-19** | Özel Konumlar | Kullanıcı iş yeri, okul, üniversite, spor salonu veya aile evi gibi bir veya birden fazla özel konum tanımlayabilmelidir. | Kullanıcı serbest etiketle en fazla üç anchor ekleyebiliyor. |
 | **R-20** | Özel Konumlar | Kullanıcı özel konumu haritadan seçebilmeli veya adres aramasıyla ekleyebilmelidir. | Gereksinimdeki alternatiflerden haritadan nokta seçme yöntemi çalışıyor. |
 | **R-21** | Özel Konumlar | Kullanıcı özel konumlara isim verebilmeli, silebilmeli ve önem seviyelerini belirleyebilmelidir. | Konum etiketi, silme ve sürükle-bırakla öncelik/ağırlık sıralaması bulunuyor. |
-| **R-23** | Ana Menü | Alt menüden Harita, Rotalarım, Favorilerim ve Profilim ekranlarına geçilebilmelidir. | Alt menüde Harita, Konutlar, Favoriler, Rotalar ve Profil ekranları bulunuyor; konut/favori/rota state'i ortak controller'larda korunuyor. |
+| **R-23** | Ana Menü | Alt menüden Harita, Rotalarım, Favorilerim ve Profilim ekranlarına geçilebilmelidir. | Alt menüde Harita, Konutlar, Rotalar ve Profil sekmeleri var; Favorilerim, Konutlar içinde bir segment **ve** haritada bir katman olarak erişilebiliyor (web modeliyle aynı — [K-17](02-KARARLAR.md#k-17)). Konut/favori/rota state'i ortak controller'larda korunuyor. |
 | **R-24** | Ana Menü | Kullanıcının bulunduğu aktif ekran alt menüde ayırt edilebilir şekilde gösterilmelidir. | Flutter `NavigationBar` seçili sekmeyi farklı renk ve ikonla gösteriyor. |
 | **R-25** | Harita | Ana harita ekranında Ankara Çankaya bölgesi ve proje kapsamındaki kiralık konutlar gösterilmelidir. | Çankaya vektör haritası üzerinde giriş yapan kullanıcıya bütçesine uygun skorlanmış konutlar, misafire görünür alandaki temel konut verileri pinleniyor. |
 | **R-26** | Harita | Kullanıcı harita üzerinde yakınlaştırma, uzaklaştırma ve sürükleme işlemleri yapabilmelidir. | MapLibre'ın yakınlaştırma ve kaydırma hareketleri aktiftir. |
@@ -55,7 +55,7 @@ varsa “Yarım yapıldı” olarak işaretlenmiştir.
 | **R-36** | Uygunluk Skoru | Kullanıcı toplam uygunluk skorunu ve kriterlere ait alt skorları görüntüleyebilmelidir. | Detay sayfası toplam skoru, skor bandını ve her kriterin ölçülen süresini, hedefini ve alt skorunu gösteriyor. |
 | **R-37** | Skor Açıklaması | Sistem konutun kullanıcı açısından güçlü yönlerini ve dikkat edilmesi gereken noktalarını gösterebilmelidir. | Backend skor kırılımındaki güçlü/zayıf yönler, bütçe uyumu ve varsa zayıf halka etkisi mobil detay ekranında açıklanıyor. |
 | **R-40** | Favoriler | Konut favorilere eklenebilmeli ve favorilerden çıkarılabilmelidir. | Liste ve detay ekranları gerçek `POST/DELETE /profile/favorites` endpoint'leriyle favori durumunu güncelliyor. |
-| **R-41** | Favoriler | Favorilerim ekranında kayıtlı konutlar görüntülenmeli ve detaylarına ulaşılabilmelidir. | Favoriler sekmesi `GET /profile/favorites` kartlarını gösteriyor; karta dokununca tam konut detayı açılıyor. |
+| **R-41** | Favoriler | Favorilerim ekranında kayıtlı konutlar görüntülenmeli ve detaylarına ulaşılabilmelidir. | Konutlar sekmesindeki "Favorilerim" segmenti `GET /profile/favorites` kartlarını gösteriyor; karta dokununca tam konut detayı açılıyor. Favoriler ayrıca haritada altın yıldızla işaretleniyor ve katman panelinden açılıp kapatılabiliyor. |
 | **R-42** | Favoriler | Favorilerdeki konutlar ziyaret rotasına eklenebilmelidir. | Her favori kartındaki “Rotaya ekle” işlemi konutu ortak rota taslağına ekliyor. |
 | **R-43** | Rota Optimizasyonu | Sistem seçilen konutların mesafe ve sürelerine göre uygun ziyaret sırası oluşturmalıdır. | Mobil 2–8 seçili konutu başlangıç ve ulaşım moduyla `POST /routes` endpoint'ine gönderiyor; backend OSRM süre matrisi ve Held-Karp TSP ile sırayı optimize ediyor. |
 | **R-44** | Rota | Oluşturulan rota haritada; ziyaret sırası, toplam mesafe ve tahmini toplam süreyle gösterilmelidir. | GeoJSON rota çizgisi, başlangıç ve numaralı duraklar MapLibre üzerinde; toplam mesafe/süre ve sıralı duraklar rota kartında gösteriliyor. |
@@ -84,13 +84,13 @@ varsa “Yarım yapıldı” olarak işaretlenmiştir.
 | **R-22** | Profil | Profil ekranında profil bilgileri, bütçe, tercihler ve özel konumlar görüntülenip güncellenebilmelidir. | Ad, soyad, persona, bütçe ve yaşam kriterleri görüntülenip profil editöründen güncellenebiliyor; özel konum sayısı gösteriliyor ve Profil içindeki bağlantıdan yönetiliyor. | Yaş/cinsiyet/çalışma/medeni hâl alanları yok. |
 | **R-33** | Konut Detayı | Fotoğraf, kira, mahalle, oda, metrekare, asansör, otopark, bina katı ve konut katı bilgileri gösterilmelidir. | Detay API'sinden kira, mahalle/adres, oda, metrekare, asansör, otopark, toplam kat ve konut katı gösteriliyor; sentetik veri için temsili görsel açıkça etiketleniyor. | Backend DTO/veri modelinde gerçek ilana ait fotoğraf URL'si bulunmadığı için gerçek konut fotoğrafı gösterilemiyor. |
 | **R-35** | Uygunluk Skoru | Profil, bütçe, tercihler, özel konumlar ve çevre analiziyle kişiselleştirilmiş konut uygunluk skoru oluşturulmalıdır. | Backend POI erişim süreleri ve persona ağırlıklarından 0–100 skor üretiyor; bütçe aralığına uygun konutlar mobil haritada gösteriliyor ve pin detayında toplam skor sunuluyor. | Kaydedilen kriter sırası, kira aralığı ve özel konumlar skor hesabının bütün bileşenlerine henüz katılmıyor. |
-| **R-38** | Erişim Analizi | Konut ile çevresindeki hizmet noktaları arasındaki mesafe ve erişim süresi gösterilmelidir. | Kullanıcının haritadan veya aramadan seçtiği nokta çevresinde 0,5–5 km analiz alanı ile 5–30 dakikalık yaklaşık yürüme erişim alanı jeodezik poligon olarak gösteriliyor. | Kiralık konut ve POI seçimi ile her hizmet noktası için gerçek yol mesafesi/erişim süresi verisi ve sonuç listesi henüz yok. |
+| **R-38** | Erişim Analizi | Konut ile çevresindeki hizmet noktaları arasındaki mesafe ve erişim süresi gösterilmelidir. | Seçilen nokta çevresinde 0,5–5 km analiz alanı ve 5–30 dk yürüme alanı çiziliyor; **alan içindeki hizmet noktaları kategori kategori listeleniyor** (merkeze uzaklık + yaklaşık yürüme süresiyle, uzaklığa göre sıralı) ve listedeki noktalar haritada vurgulanıyor. | Mesafe/süre KUŞ UÇUŞU; gerçek yol mesafesi (OSRM) kullanılmıyor. Analiz merkezi olarak bir KONUT seçme akışı henüz yok — kullanıcı haritada serbest bir nokta işaretliyor. |
 | **R-61** | Skor Tutarlılığı | Aynı profil, tercihler ve konut için aynı koşullarda aynı uygunluk skoru gösterilmelidir. | Mobil, web ile aynı `/properties` endpoint'inin backend'de hesaplayıp sıraladığı toplam skoru değiştirmeden gösteriyor. | Aynı koşul sonucunu uçtan uca doğrulayan deterministik mobil/backend kabul testi bulunmuyor. |
 | **R-63** | Performans | Harita, konut, rota ve detay ekranları kullanıcıyı uzun süre bekletmeden yüklenmelidir. | Konut/POI kaynakları kümeleniyor; liste ve rota özet endpoint'leri ağır detay/geometriden ayrılıyor; ekranlarda loading/error durumları var. | Gerçek cihazda süre eşikleriyle çalışan ölçülmüş performans kabul testi bulunmuyor. |
 | **R-64** | CBS Performansı | Haritada kullanılan konut, POI ve rota verileri performanslı ve zoom seviyesine göre optimize edilmelidir. | Vektör tile, görünür alan bbox, GPU tabanlı konut/POI cluster'ları ve GeoJSON rota line katmanı kullanılıyor. | Gerçek cihaz ve yüksek veri hacmi için ölçülmüş CBS performans testi bulunmuyor. |
 | **R-66** | Kişisel Veri Gizliliği | Yalnızca gerekli kişisel bilgiler alınmalı ve kullanım amacı belirtilmelidir. | Uygulama şu an sınırlı kullanıcı verisi topluyor. | Gizlilik metni, açık amaç bildirimi ve onay akışı yok. |
 | **R-68** | Hata Yönetimi | Veri, bağlantı, GPS veya servis hatalarında anlaşılır mesaj gösterilmeli ve uygulamanın tamamı kullanılamaz olmamalıdır. | API timeout, bağlantı ve rota `OSRM_UNAVAILABLE`/doğrulama hataları kullanıcı mesajlarına çevriliyor; liste ekranları tekrar deneme sunuyor. | Tile/harita ve GPS için merkezi hata/fallback yönetimi yok. |
-| **R-69** | Kullanılabilirlik | Temel işlemler kolay anlaşılmalı ve arayüz farklı hedef ekran boyutlarında bozulmamalıdır. | SafeArea, kaydırma, küçük ekran ve klavye taşması düzeltmeleri bulunuyor. | Birden fazla cihaz boyutu için kapsamlı responsive/golden test matrisi yok. |
+| **R-69** | Kullanılabilirlik | Temel işlemler kolay anlaşılmalı ve arayüz farklı hedef ekran boyutlarında bozulmamalıdır. | SafeArea, kaydırma, küçük ekran ve klavye taşması düzeltmeleri bulunuyor. Tüm ekranlar ortak tasarım belirteçlerini kullanıyor ve harita kontrolleri tek bir ızgaradan besleniyor ([K-17](02-KARARLAR.md#k-17)); sabit piksel yerine oranlı ölçüler kullanılıyor. Rehber turu ilk açılışta harita ekranını adım adım tanıtıyor. | Birden fazla cihaz boyutu için kapsamlı responsive/golden test matrisi yok. |
 | **R-73** | Veri Gereksinimi | Konut, uygunluk skoru, çevre analizi ve rota bilgilerinin görüntülenmesi için gerekli veriler sistemde bulunmalıdır. | Sentetik konut, POI, erişim matrisi, açıklanabilir skor, OSRM geometrisi, rota/durak/bacak verileri sistemde ve mobilde görüntüleniyor. | Konut çevresindeki POI'leri tek tek mesafe/süreyle veren erişim sonuç listesi tamamlanmadı. |
 | **R-74** | Bağlantı | İnternet/servis bağlantısı yokken çevrimiçi işlemler yapılmamalı ve kullanıcı bilgilendirilmelidir. | API bağlantı hatalarında kullanıcıya sunucuya ulaşılamadığı bildiriliyor. | Harita tile, konut, rota ve navigasyon için ortak çevrimdışı durum ekranı yok. |
 
@@ -122,21 +122,72 @@ varsa “Yarım yapıldı” olarak işaretlenmiştir.
 - Ortak güçlü parola politikası: [`mobile/lib/features/auth/domain/password_policy.dart`](../mobile/lib/features/auth/domain/password_policy.dart)
 - Oturum, profil ve hata yönetimi: [`mobile/lib/features/auth/application/session_controller.dart`](../mobile/lib/features/auth/application/session_controller.dart)
 - Güvenli token saklama: [`mobile/lib/core/storage/token_store.dart`](../mobile/lib/core/storage/token_store.dart)
-- Profil, bütçe ve tercih düzenleme: [`mobile/lib/features/home/presentation/pages/home_page.dart`](../mobile/lib/features/home/presentation/pages/home_page.dart)
+- Uygulama kabuğu ve alt menü: [`mobile/lib/features/home/presentation/pages/home_page.dart`](../mobile/lib/features/home/presentation/pages/home_page.dart)
+- Harita sekmesi ve rehber turu: [`mobile/lib/features/home/presentation/pages/map_tab.dart`](../mobile/lib/features/home/presentation/pages/map_tab.dart)
+- Profil, bütçe ve tercih düzenleme: [`mobile/lib/features/home/presentation/pages/profile_tab.dart`](../mobile/lib/features/home/presentation/pages/profile_tab.dart)
 - Persona/profil/tercih onboarding: [`mobile/lib/features/onboarding/presentation/pages/onboarding_page.dart`](../mobile/lib/features/onboarding/presentation/pages/onboarding_page.dart)
 - Yaşam kriteri sıralama modeli ve bileşeni: [`mobile/lib/features/preferences`](../mobile/lib/features/preferences)
 - Özel konum ekleme/silme/sıralama: [`mobile/lib/features/anchors/presentation/pages/anchor_manager_page.dart`](../mobile/lib/features/anchors/presentation/pages/anchor_manager_page.dart)
-- Konum analizi hesabı ve kontrolleri: [`mobile/lib/features/location_analysis`](../mobile/lib/features/location_analysis)
+- Konum analizi, alan içi POI listesi ve kontroller: [`mobile/lib/features/location_analysis`](../mobile/lib/features/location_analysis)
 - POI/konut API, model, controller ve katman paneli: [`mobile/lib/features/map_data`](../mobile/lib/features/map_data)
 - En uygun konut listesi, gerçek konut detayı ve skor açıklamaları: [`mobile/lib/features/properties`](../mobile/lib/features/properties)
-- Favori konut API'si, ortak durum yönetimi ve Favoriler ekranı: [`mobile/lib/features/favorites`](../mobile/lib/features/favorites)
+- Favori konut API'si ve ortak durum yönetimi: [`mobile/lib/features/favorites`](../mobile/lib/features/favorites)
+- Kişisel not (webde vardı, mobile eklendi): [`mobile/lib/features/property_notes`](../mobile/lib/features/property_notes)
 - Rota taslağı, optimizasyon, kayıtlı rotalar ve rota haritası: [`mobile/lib/features/routes`](../mobile/lib/features/routes)
 - Çankaya MapLibre haritası: [`mobile/lib/features/map/presentation/widgets/cankaya_map.dart`](../mobile/lib/features/map/presentation/widgets/cankaya_map.dart)
 - Mobil API istemcisi: [`mobile/lib/core/network/api_client.dart`](../mobile/lib/core/network/api_client.dart)
+- Tasarım belirteçleri (web `tokens.css` karşılığı): [`mobile/lib/core/theme`](../mobile/lib/core/theme)
+- Ortak arayüz bileşenleri (cam yüzey, maskot, skor rozeti): [`mobile/lib/shared/widgets`](../mobile/lib/shared/widgets)
 - Backend auth endpoint'leri: [`api/src/Vivido.Api/controllers/AuthController.cs`](../api/src/Vivido.Api/controllers/AuthController.cs)
 - Backend profil/anchor endpoint'leri: [`api/src/Vivido.Api/controllers/ProfilesController.cs`](../api/src/Vivido.Api/controllers/ProfilesController.cs), [`api/src/Vivido.Api/controllers/AnchorsController.cs`](../api/src/Vivido.Api/controllers/AnchorsController.cs)
 - Backend POI/konut endpoint'leri: [`api/src/Vivido.Api/controllers/PoisController.cs`](../api/src/Vivido.Api/controllers/PoisController.cs), [`api/src/Vivido.Api/controllers/PropertiesController.cs`](../api/src/Vivido.Api/controllers/PropertiesController.cs)
 - Backend favori ve rota endpoint'leri: [`api/src/Vivido.Api/controllers/FavoritesController.cs`](../api/src/Vivido.Api/controllers/FavoritesController.cs), [`api/src/Vivido.Api/controllers/RoutesController.cs`](../api/src/Vivido.Api/controllers/RoutesController.cs)
+
+## 5b. Gereksinim listesi dışında kapatılan web-mobil farkları
+
+> **Tarih:** 2026-09-02 · branch `feat/mobil-tasarim-sistemi`
+
+`R-1`–`R-78` listesi web ile mobil arasındaki **görsel ve işlevsel
+paritesini** ölçmüyor. Aşağıdakiler webde çalışıyordu ve mobile hiç
+geçmemişti; hiçbiri backend değişikliği gerektirmedi.
+
+| Ne | Durum |
+|---|---|
+| **Sokak adları** haritada | Eklendi — `transportation_name` symbol katmanı. Stilde `glyphs` tanımlıydı ama etiket katmanı hiç yazılmamıştı; yollar vardı, isimleri yoktu. |
+| **Yer/semt adları** haritada | Eklendi — `place` symbol katmanı. |
+| **Mahalle poligonları** | Eklendi — `cankaya-mahalleler.geojson` mobil varlıklara kopyalandı. Mobil yalnızca ilçe sınırını çiziyordu. |
+| **Favoriler harita katmanı** | Eklendi — ayrı GeoJSON kaynağı, altın daire + yıldız ikonu, katman panelinde açma/kapama. |
+| **Yol hiyerarşisi** | Ana arterler kehribar renkte ayrıldı; tek beyaz çizgi otoyolu ara sokaktan ayırmıyordu. |
+| **Kişisel not** (`/properties/{id}/note`) | Eklendi — `PropertyNotesController` aylardır yayındaydı, mobil istemcisi yoktu. Detay sayfasında oku/yaz/sil. |
+| **Persona marka ikonları** | Eklendi — `kep/pc/family/glasses.svg` + kategori alt ikonları. Mobil jenerik Material glyph'leri kullanıyordu. |
+| **Rehber maskotu** | Eklendi — webin `GuideMascot` turunun mobil karşılığı; hedefi karartma katmanında bir delikle vurguluyor. |
+| **Adres iki satıra bölünüyor** | Eklendi — `splitAddress`. Kartın en belirgin metni her konutta aynı olan "Çankaya, Ankara" idi. |
+| **Marka adı giriş ekranında** | Eklendi — web `.login-wordmark` karşılığı. Mobil yalnızca işareti gösteriyordu; "Vivido" kelimesi uygulamanın ilk yüzeyinde hiç geçmiyordu. |
+| **Analiz alanı içi POI listesi** | Eklendi — çember artık yalnızca çizilmiyor, içindeki hizmet noktalarını kategori sekmeleriyle listeliyor. |
+
+Ayrıca üç sessiz tutarsızlık kapatıldı: skor bandı renk/etiketleri
+(`property_format.dart` kendi kümesini taşıyordu), konut pini rengi (üç ayrı
+yerde üç ayrı değer) ve giriş akışının birincil düğme rengi. Gerekçe ve
+regresyon testleri: [K-17](02-KARARLAR.md#k-17),
+`mobile/test/design_tokens_test.dart`, `mobile/test/map_style_test.dart`.
+
+**Bulunan hatalar:**
+
+1. `ApiClient._decode` gövdeyi katı UTF-8 ile çözüyordu; tek bir bozuk bayt
+   `FormatException` fırlatıp `ApiException`'ın dışına sızıyor ve sunucunun
+   asıl hata mesajı yerine jenerik "…yüklenemedi" gösteriliyordu.
+   `allowMalformed: true` ile düzeltildi.
+2. Rehber turu **her açılışta çöküyordu**: `AnimatedSpotlight`,
+   `RectTween(end: null)` kuruyordu (hedefi olmayan adımlarda ve her adımın
+   ölçüm öncesi ilk karesinde). Delik yokken doğrudan tam karartma
+   çiziliyor; regresyon `test/guide_tour_test.dart`.
+3. Turun ölçüm gecikmesi iptal edilemeyen bir `Future.delayed`'di ve tur
+   kapandıktan sonra bekleyen bir zamanlayıcı bırakıyordu → iptal edilebilir
+   `Timer`.
+4. Alt sayfaların **kapatma düğmesi yoktu**; tek çıkış sürükleme tutamacıydı
+   ve uzun sayfalarda (katman paneli) tutamaç durum çubuğunun dibine
+   dayandığı için aşağı çekmek telefonun bildirim panelini açıyordu. Ortak
+   `SheetHeader` + `showAppSheet` (yükseklik tavanı %88).
 
 ## 6. Öncelikli eksik özellik sırası
 

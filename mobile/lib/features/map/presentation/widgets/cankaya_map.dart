@@ -9,6 +9,7 @@ import 'package:maplibre/maplibre.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_typography.dart';
 import '../../../../core/models/models.dart';
 import '../../../location/application/user_location_controller.dart';
 import '../../../location_analysis/domain/location_analysis.dart';
@@ -48,6 +49,41 @@ const _propertyIconLayerId = 'vivido-property-icons';
 const _poiIconLayerId = 'vivido-poi-icons';
 const _propertyIconImageId = 'vivido-ev-ikon';
 
+// ── Mahalle poligonları ────────────────────────────────────────────────
+// Web `cankaya-mahalleler.geojson`'ı çiziyordu, mobil yalnızca ilçe
+// sınırını. Kullanıcı haritada gezerken hangi mahallede olduğunu
+// göremiyordu — oysa konut ilanında mahalle en çok bakılan alan.
+const _neighborhoodSourceId = 'vivido-neighborhoods';
+const _neighborhoodFillLayerId = 'vivido-neighborhood-fill';
+const _neighborhoodLineLayerId = 'vivido-neighborhood-line';
+
+// ── Favori konutlar ────────────────────────────────────────────────────
+// AYRI bir kaynak, `properties`ten türetilmiyor: kullanıcı "Konutlar"
+// katmanını kapatıp yalnızca favorilerini görmek isteyebilir (kalabalık
+// bir haritada favorileri bulmanın en hızlı yolu bu). Türetilseydi konut
+// katmanı kapandığında favoriler de kaybolurdu.
+//
+// KÜMELENMİYOR: konutlar binlerce olduğu için kümeleme şart, favoriler en
+// fazla birkaç düzine ve kullanıcı onları TEK TEK görmek istiyor —
+// "3" yazan bir balon, favorilerin nerede olduğu sorusunu cevaplamaz.
+const _favoriteSourceId = 'vivido-favorites';
+const _favoriteCircleLayerId = 'vivido-favorite-circles';
+const _favoriteIconLayerId = 'vivido-favorite-icons';
+const _favoriteIconImageId = 'vivido-yildiz-ikon';
+
+// ── Etiketler ──────────────────────────────────────────────────────────
+// ⚠️ MOBİLDE SOKAK VE YER ADLARI HİÇ ÇİZİLMİYORDU.
+//
+// Stilde `glyphs` tanımlıydı (küme sayıları çiziliyordu) ama
+// `transportation_name` ve `place` kaynak katmanlarını okuyan hiçbir
+// `symbol` katmanı yoktu. Sonuç: yollar var, isimleri yok; mahalleler
+// var, adları yok. Harita "nerede olduğunu" söylemiyordu.
+//
+// Web bu iki katmanı `vectorLabelLayers()` içinde tanımlıyor
+// (`CankayaMap.tsx`) — buradakiler onların birebir karşılığı.
+const _roadLabelLayerId = 'vivido-yol-adlari';
+const _placeLabelLayerId = 'vivido-yer-adlari';
+
 /// Kategorisi eşleşmeyen POI'ler için — ikon katmanı `icon-image` bulamazsa
 /// MapLibre o simgeyi hiç çizmez, altındaki renkli daire yine görünür.
 const _poiFallbackIconId = 'vivido-poi-ikon-market';
@@ -65,13 +101,18 @@ const double _iconRenderPxD = 72;
 /// Çankaya sınırı — `pubspec.yaml` altında kayıtlı varlık.
 const _districtAssetPath = 'assets/geo/cankaya.geojson';
 
-/// Sınır poligonu bir kez okunup KODLANMIŞ hâliyle burada tutuluyor.
+/// Mahalle poligonları.
+const _neighborhoodAssetPath = 'assets/geo/cankaya-mahalleler.geojson';
+
+/// Poligonlar bir kez okunup KODLANMIŞ hâlleriyle burada tutuluyor.
 ///
-/// Harita her kurulduğunda 124 KB'lık dosyayı yeniden okuyup ayrıştırmak
-/// gereksiz; sekmeler arasında gidip gelirken bu widget defalarca yeniden
-/// kuruluyor. `updateGeoJsonSource` zaten String beklediği için `jsonEncode`
-/// sonucunu saklıyoruz — her seferinde yeniden kodlamaya da gerek kalmıyor.
+/// Harita her kurulduğunda 124 + 252 KB'lık dosyaları yeniden okuyup
+/// ayrıştırmak gereksiz; sekmeler arasında gidip gelirken bu widget
+/// defalarca yeniden kuruluyor. `updateGeoJsonSource` zaten String
+/// beklediği için `jsonEncode` sonucunu saklıyoruz — her seferinde yeniden
+/// kodlamaya da gerek kalmıyor.
 String? _cachedDistrictGeoJson;
+String? _cachedNeighborhoodGeoJson;
 
 class CankayaMap extends StatefulWidget {
   const CankayaMap({
@@ -85,6 +126,7 @@ class CankayaMap extends StatefulWidget {
     this.pois = const [],
     this.highlightedPois = const [],
     this.properties = const [],
+    this.favorites = const [],
     this.anchorCorridor,
     this.onBoundsChanged,
     this.onPoiTap,
@@ -97,6 +139,8 @@ class CankayaMap extends StatefulWidget {
     this.followBearing,
     this.traveledUpToIndex,
     this.onCameraFollowInterrupted,
+    this.rounded = false,
+    this.cameraPadding = const EdgeInsets.only(bottom: 90),
     super.key,
   });
 
@@ -110,6 +154,15 @@ class CankayaMap extends StatefulWidget {
   final List<PoiMapItem> pois;
   final List<PoiMapItem> highlightedPois;
   final List<PropertyMapItem> properties;
+
+  /// Favorilenmiş konutlar — konut katmanının ÜSTÜNDE, altın yıldızla.
+  ///
+  /// Sıra önemli: favori olan ev aynı koordinatta hem [properties] hem
+  /// burada bulunuyor. Favori katmanı sonra çizildiği için turuncu ev
+  /// pinini örtüyor ve kullanıcı o evin favorilendiğini tek bakışta
+  /// görüyor.
+  final List<PropertyMapItem> favorites;
+
   final AnchorCorridor? anchorCorridor;
   final MapBoundsCallback? onBoundsChanged;
   final PoiTapCallback? onPoiTap;
@@ -125,6 +178,23 @@ class CankayaMap extends StatefulWidget {
   final double? followBearing;
   final int? traveledUpToIndex;
   final VoidCallback? onCameraFollowInterrupted;
+
+  /// Harita bir kartın İÇİNDEYSE köşeleri yuvarlanır.
+  ///
+  /// ⚠️ Varsayılan `false`. Harita her kullanıldığı yerde `ClipRRect(22)`
+  /// ile sarılıydı — tam ekran harita sekmesinde bu, ekranın dört köşesinde
+  /// krem renkli üçgen boşluklar bırakıyordu. Yuvarlak köşe bir KART
+  /// özelliği; tam ekran bir yüzeyin köşesi olmaz.
+  final bool rounded;
+
+  /// Kamera takibinde odak noktasının ekranın neresine düşeceği.
+  ///
+  /// ⚠️ Harita TAM EKRAN, kontroller onun ÜSTÜNDE yüzüyor — bu yüzden
+  /// kullanıcının konumu ekranın tam ortasına oturursa alttaki panelin
+  /// arkasında kalıyor. Kamerayı yukarı itmek, haritayı küçültmekten iyi:
+  /// navigasyon ekranı eskiden haritayı `Padding(112, 126)` ile
+  /// kutulayarak çözüyordu ve ekranın üçte biri boşa gidiyordu.
+  final EdgeInsets cameraPadding;
 
   @override
   State<CankayaMap> createState() => _CankayaMapState();
@@ -143,6 +213,7 @@ class _CankayaMapState extends State<CankayaMap> {
     if (!identical(oldWidget.pois, widget.pois) ||
         !identical(oldWidget.highlightedPois, widget.highlightedPois) ||
         !identical(oldWidget.properties, widget.properties) ||
+        !identical(oldWidget.favorites, widget.favorites) ||
         !identical(oldWidget.anchorCorridor, widget.anchorCorridor) ||
         !identical(oldWidget.route, widget.route) ||
         oldWidget.traveledUpToIndex != widget.traveledUpToIndex) {
@@ -185,7 +256,7 @@ class _CankayaMapState extends State<CankayaMap> {
         zoom: 16.5,
         bearing: widget.followBearing ?? widget.userBearing ?? 0,
         pitch: 45,
-        padding: const EdgeInsets.only(bottom: 90),
+        padding: widget.cameraPadding,
         nativeDuration: const Duration(milliseconds: 900),
       ),
     );
@@ -208,6 +279,10 @@ class _CankayaMapState extends State<CankayaMap> {
         style.updateGeoJsonSource(
           id: _propertySourceId,
           data: _propertyFeatureCollection(widget.properties),
+        ),
+        style.updateGeoJsonSource(
+          id: _favoriteSourceId,
+          data: _propertyFeatureCollection(widget.favorites),
         ),
         style.updateGeoJsonSource(
           id: _anchorCorridorSourceId,
@@ -292,10 +367,21 @@ class _CankayaMapState extends State<CankayaMap> {
       }
     }
 
+    // Konut ikonu BEYAZ: altında turuncu dolu bir daire var (web ile aynı
+    // desen). Eskiden `home_kahve.svg` accent rengine boyanıp BEYAZ bir
+    // dairenin üstüne konuyordu — POI'ler renkli daire + beyaz ikon,
+    // konutlar beyaz daire + renkli ikon; iki farklı dil.
     await register(
       _propertyIconImageId,
-      'assets/icons/home_kahve.svg',
-      AppColors.accent,
+      'assets/icons/home_white.svg',
+      Colors.white,
+    );
+
+    // Favori yıldızı — altın dairenin üstünde beyaz.
+    await register(
+      _favoriteIconImageId,
+      'assets/icons/star_white.svg',
+      Colors.white,
     );
 
     for (final entry in poiCategoryIconAssets.entries) {
@@ -343,6 +429,46 @@ class _CankayaMapState extends State<CankayaMap> {
     }
   }
 
+  /// Mahalle poligonlarını varlıklardan okuyup haritaya yazar.
+  ///
+  /// İlçe sınırıyla aynı desen; ayrı bir metot çünkü ayrı bir kaynak ve
+  /// biri yüklenemezken diğeri çizilebilmeli.
+  Future<void> _loadNeighbourhoods() async {
+    final style = _styleController;
+    if (style == null) return;
+
+    try {
+      var geojson = _cachedNeighborhoodGeoJson;
+      if (geojson == null) {
+        final raw = await rootBundle.loadString(_neighborhoodAssetPath);
+        // İlçe dosyasının aksine burada ayıklama gerekmiyor: mahalle
+        // dosyasında yalnızca poligon var. Yine de aynı filtreyi
+        // uyguluyoruz — dosya bir gün etiket noktası kazanırsa `fill`
+        // katmanı sessizce bozulmasın.
+        final parsed = jsonDecode(raw) as Map<String, Object?>;
+        final features =
+            (parsed['features'] as List<Object?>? ?? const [])
+                .whereType<Map<String, Object?>>()
+                .where((feature) {
+                  final type =
+                      (feature['geometry'] as Map<String, Object?>?)?['type'];
+                  return type == 'Polygon' || type == 'MultiPolygon';
+                })
+                .toList();
+        geojson = jsonEncode({
+          'type': 'FeatureCollection',
+          'features': features,
+        });
+        _cachedNeighborhoodGeoJson = geojson;
+      }
+
+      await style.updateGeoJsonSource(id: _neighborhoodSourceId, data: geojson);
+    } on Object {
+      // Mahalle katmanı eksik kalırsa harita yine okunur; ilçe sınırı ve
+      // sokak adları yerinde.
+    }
+  }
+
   void _reportBounds() {
     final controller = _mapController;
     if (controller == null || widget.onBoundsChanged == null) return;
@@ -368,13 +494,17 @@ class _CankayaMapState extends State<CankayaMap> {
       return;
     }
 
+    // Favori katmanı konut katmanının ÜSTÜNDE çiziliyor, o yüzden önce
+    // sorgulanıyor. İkisi de sorgulanmak zorunda: kullanıcı "Konutlar"
+    // katmanını kapatıp yalnızca favorilerini bıraktığında konut katmanı
+    // boş oluyor ve tek başına sorgulamak dokunuşu kaçırırdı.
     final propertyHits = controller.featuresAtPoint(
       event.screenPoint,
-      layerIds: const [_propertyPointLayerId],
+      layerIds: const [_favoriteCircleLayerId, _propertyPointLayerId],
     );
     final propertyId = propertyHits.firstOrNull?.properties['id']?.toString();
     if (propertyId != null) {
-      for (final property in widget.properties) {
+      for (final property in [...widget.favorites, ...widget.properties]) {
         if (property.id == propertyId) {
           widget.onPropertyTap?.call(property);
           return;
@@ -556,19 +686,24 @@ class _CankayaMapState extends State<CankayaMap> {
       for (final anchor in widget.anchors)
         Marker(
           point: Geographic(lon: anchor.lon, lat: anchor.lat),
-          size: const Size(42, 48),
-          alignment: Alignment.bottomCenter,
-          child: _AnchorPin(priority: anchor.priority),
+          size: const Size.square(_pinSize),
+          alignment: Alignment.center,
+          child: MapPin(
+            label: '${anchor.priority}',
+            color: AppColors.accent,
+            tooltip: anchor.label,
+          ),
         ),
       if (widget.pendingPoint != null)
         Marker(
           point: widget.pendingPoint!,
-          size: const Size(46, 52),
-          alignment: Alignment.bottomCenter,
-          child: const Icon(
-            Icons.add_location_alt,
-            size: 46,
-            color: Color(0xFFEF4444),
+          size: const Size.square(_pinSize),
+          alignment: Alignment.center,
+          child: const MapPin(
+            icon: Icons.add,
+            color: AppColors.accentSecondary,
+            pulsing: true,
+            tooltip: 'Yeni konum',
           ),
         ),
       if (widget.focus != null)
@@ -577,20 +712,12 @@ class _CankayaMapState extends State<CankayaMap> {
             lon: widget.focus!.longitude,
             lat: widget.focus!.latitude,
           ),
-          size: const Size(52, 56),
-          alignment: Alignment.bottomCenter,
-          child: const Icon(
-            Icons.location_searching,
-            size: 50,
-            color: Color(0xFFB3261E),
-            shadows: [
-              Shadow(
-                color: Colors.black26,
-                blurRadius: 6,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
+          size: const Size.square(_pinSize + 16),
+          alignment: Alignment.center,
+          // Arama sonucu bir HEDEF, bir içerik değil: halka biçiminde ve
+          // nabız atıyor. Dolu bir pin olsaydı konut pinleriyle karışır,
+          // kullanıcı aradığı yeri bir ev sanırdı.
+          child: const _FocusTarget(),
         ),
       if (analysisCenter != null)
         Marker(
@@ -602,10 +729,10 @@ class _CankayaMapState extends State<CankayaMap> {
           alignment: Alignment.center,
           child: const DecoratedBox(
             decoration: BoxDecoration(
-              color: Color(0xFFF59E0B),
+              color: AppColors.mapWalking,
               shape: BoxShape.circle,
               border: Border.fromBorderSide(
-                BorderSide(color: Color(0xFF7C2D12), width: 2),
+                BorderSide(color: AppColors.mapWalkingCore, width: 2),
               ),
             ),
           ),
@@ -616,9 +743,13 @@ class _CankayaMapState extends State<CankayaMap> {
             lon: widget.route!.start.longitude,
             lat: widget.route!.start.latitude,
           ),
-          size: const Size.square(42),
+          size: const Size.square(_pinSize),
           alignment: Alignment.center,
-          child: const _RouteStartPin(),
+          child: const MapPin(
+            icon: Icons.flag_rounded,
+            color: AppColors.mapRouteCasing,
+            tooltip: 'Rota başlangıcı',
+          ),
         ),
       if (widget.route != null)
         for (final stop in widget.route!.stops)
@@ -627,17 +758,19 @@ class _CankayaMapState extends State<CankayaMap> {
               lon: stop.property.longitude,
               lat: stop.property.latitude,
             ),
-            size: const Size(42, 48),
-            alignment: Alignment.bottomCenter,
-            child: _RouteStopPin(sequence: stop.sequence),
+            size: const Size.square(_pinSize),
+            alignment: Alignment.center,
+            child: MapPin(
+              label: '${stop.sequence}',
+              color: AppColors.mapRoute,
+              tooltip: '${stop.sequence}. durak',
+            ),
           ),
     ];
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(22),
-      child: ColoredBox(
-        color: const Color(0xFFE8F0ED),
-        child: MapLibreMap(
+    final map = ColoredBox(
+      color: AppColors.mapLoading,
+      child: MapLibreMap(
           onMapCreated: (controller) {
             _mapController = controller;
             _focusOnResult();
@@ -649,6 +782,7 @@ class _CankayaMapState extends State<CankayaMap> {
             _styleController = style;
             unawaited(_loadMapIcons());
             unawaited(_loadDistrictBoundary());
+            unawaited(_loadNeighbourhoods());
             unawaited(_updateMapSources());
             if (widget.route != null &&
                 !widget.followUserLocation &&
@@ -661,12 +795,12 @@ class _CankayaMapState extends State<CankayaMap> {
             _reportBounds();
           },
           options: MapOptions(
-            initStyle: _mapStyle,
+            initStyle: vividoMapStyle,
             initCenter: Geographic(lon: 32.85, lat: 39.87),
             initZoom: 10.7,
             minZoom: 8,
             maxZoom: 18,
-            androidForegroundLoadColor: const Color(0xFFE8F0ED),
+            androidForegroundLoadColor: AppColors.mapLoading,
           ),
           onEvent: (event) {
             if (event is MapEventClick) {
@@ -681,20 +815,202 @@ class _CankayaMapState extends State<CankayaMap> {
           layers: [
             PolygonLayer(
               polygons: analysisPolygons,
-              color: const Color(0x1A0F766E),
-              outlineColor: const Color(0xFF0F766E),
+              color: AppColors.mapAnalysis.withValues(alpha: 0.10),
+              outlineColor: AppColors.mapAnalysis,
             ),
             PolygonLayer(
               polygons: walkingPolygons,
-              color: const Color(0x38F59E0B),
-              outlineColor: const Color(0xFFB45309),
+              color: AppColors.mapWalking.withValues(alpha: 0.22),
+              outlineColor: AppColors.mapWalkingEdge,
             ),
           ],
-          children: [WidgetLayer(markers: markers), const SourceAttribution()],
-        ),
+        children: [WidgetLayer(markers: markers), const SourceAttribution()],
       ),
     );
+
+    // Yuvarlak köşe bir KART özelliği. Tam ekran harita sekmesinde bu,
+    // ekranın dört köşesinde krem renkli üçgen boşluklar bırakıyordu —
+    // harita "ekranın içinde yüzen bir kutu" gibi duruyor, ekranın kendisi
+    // olmuyordu.
+    if (!widget.rounded) return map;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      child: map,
+    );
   }
+}
+
+/// Harita pinlerinin ortak boyu. Dokunma hedefi olarak da bu geçerli.
+const double _pinSize = 32;
+
+/// Harita üstündeki nokta işareti — `web/src/index.css` `.map-pin`.
+///
+/// ⚠️ TEK BİR PİN DİLİ
+///
+/// Eskiden dört ayrı işaret vardı ve hiçbiri diğerine benzemiyordu:
+/// anchor 46 px'lik `Icons.location_on` damlası + üstüne yazılmış numara,
+/// rota durağı aynı damlanın mavisi, rota başlangıcı 42 px'lik dolu mavi
+/// daire, bekleyen nokta 46 px'lik kırmızı `add_location_alt`. Üç farklı
+/// boyut, iki farklı biçim, dört farklı renk.
+///
+/// Hepsi tek bir biçime indi: beyaz çerçeveli dolu daire + içinde ya bir
+/// numara ya bir simge. Rengi ANLAMI taşıyor — accent: kullanıcının kendi
+/// yeri, mavi: rota, açık turuncu: henüz kaydedilmemiş.
+class MapPin extends StatelessWidget {
+  const MapPin({
+    required this.color,
+    this.label,
+    this.icon,
+    this.tooltip,
+    this.pulsing = false,
+    super.key,
+  }) : assert(
+         label != null || icon != null,
+         'Pin ya bir numara ya bir simge taşımalı',
+       );
+
+  final Color color;
+  final String? label;
+  final IconData? icon;
+  final String? tooltip;
+
+  /// Henüz onaylanmamış bir nokta (kullanıcı formu doldurmayı bekliyor)
+  /// nabız atarak "burada bir iş yarım kaldı" diyor.
+  final bool pulsing;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget pin = Container(
+      width: 26,
+      height: 26,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.28),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child:
+          label != null
+              ? Text(
+                label!,
+                style: const TextStyle(
+                  fontFamily: AppType.fontFamily,
+                  color: Colors.white,
+                  fontSize: 12,
+                  height: 1,
+                  fontWeight: AppType.bold,
+                  fontFeatures: AppType.tabularFigures,
+                ),
+              )
+              : Icon(icon, size: 14, color: Colors.white),
+    );
+
+    if (pulsing) pin = _Pulse(color: color, child: pin);
+    if (tooltip != null) pin = Tooltip(message: tooltip!, child: pin);
+    return Center(child: pin);
+  }
+}
+
+/// Pinin arkasında genişleyip sönen halka.
+class _Pulse extends StatefulWidget {
+  const _Pulse({required this.color, required this.child});
+
+  final Color color;
+  final Widget child;
+
+  @override
+  State<_Pulse> createState() => _PulseState();
+}
+
+class _PulseState extends State<_Pulse> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1600),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Yavaş, sürekli yanıp sönen büyük yüzeylerden kaçınılmalı; bu halka
+    // 26 px ve "hareketi azalt" açıkken hiç çalışmıyor.
+    if (MediaQuery.disableAnimationsOf(context)) return widget.child;
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final t = _controller.value;
+        return Stack(
+          alignment: Alignment.center,
+          clipBehavior: Clip.none,
+          children: [
+            Opacity(
+              opacity: (1 - t) * 0.5,
+              child: Container(
+                width: 26 + 22 * t,
+                height: 26 + 22 * t,
+                decoration: BoxDecoration(
+                  color: widget.color,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+            child!,
+          ],
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
+/// Arama sonucunu işaretleyen halka.
+///
+/// İçi BOŞ: altındaki şeyi (bir bina, bir kavşak) örtmemesi gerekiyor —
+/// kullanıcı oraya tam olarak neyin olduğunu görmek için gitti.
+class _FocusTarget extends StatelessWidget {
+  const _FocusTarget();
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: AppColors.accent, width: 3),
+        color: AppColors.accent.withValues(alpha: 0.14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.22),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Container(
+          width: 7,
+          height: 7,
+          decoration: const BoxDecoration(
+            color: AppColors.accent,
+            shape: BoxShape.circle,
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 Feature<Polygon> _polygonFeature({
@@ -729,7 +1045,7 @@ class _UserLocationMarker extends StatelessWidget {
         angle: bearing! * math.pi / 180,
         child: const Icon(
           Icons.navigation,
-          color: Color(0xFF1D74F5),
+          color: AppColors.live,
           size: 26,
           shadows: [Shadow(color: Colors.white, blurRadius: 4)],
         ),
@@ -740,7 +1056,7 @@ class _UserLocationMarker extends StatelessWidget {
         width: 18,
         height: 18,
         decoration: BoxDecoration(
-          color: const Color(0xFF1D74F5),
+          color: AppColors.live,
           shape: BoxShape.circle,
           border: Border.all(color: Colors.white, width: 3),
           boxShadow: [
@@ -754,87 +1070,6 @@ class _UserLocationMarker extends StatelessWidget {
       ),
     );
   }
-}
-
-class _AnchorPin extends StatelessWidget {
-  const _AnchorPin({required this.priority});
-
-  final int priority;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      alignment: Alignment.topCenter,
-      children: [
-        Icon(
-          Icons.location_on,
-          size: 46,
-          color: Theme.of(context).colorScheme.primary,
-          shadows: const [
-            Shadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
-          ],
-        ),
-        Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Text(
-            '$priority',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              fontSize: 13,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _RouteStartPin extends StatelessWidget {
-  const _RouteStartPin();
-
-  @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      color: const Color(0xFF1D4ED8),
-      shape: BoxShape.circle,
-      border: Border.all(color: Colors.white, width: 3),
-      boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 5)],
-    ),
-    child: const Icon(Icons.flag, color: Colors.white, size: 22),
-  );
-}
-
-class _RouteStopPin extends StatelessWidget {
-  const _RouteStopPin({required this.sequence});
-
-  final int sequence;
-
-  @override
-  Widget build(BuildContext context) => Stack(
-    alignment: Alignment.topCenter,
-    children: [
-      const Icon(
-        Icons.location_on,
-        size: 46,
-        color: Color(0xFF1D4ED8),
-        shadows: [
-          Shadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
-        ],
-      ),
-      Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: Text(
-          '$sequence',
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w900,
-            fontSize: 13,
-          ),
-        ),
-      ),
-    ],
-  );
 }
 
 String _poiFeatureCollection(List<PoiMapItem> pois) => jsonEncode({
@@ -943,7 +1178,14 @@ List<Object> _poiColorExpression() {
   return expression;
 }
 
-String get _mapStyle => jsonEncode({
+/// Çankaya harita stili (MapLibre Style Spec v8).
+///
+/// PUBLIC çünkü test edilmesi gerekiyor: bu stil bir zamanlar sokak
+/// adlarını, yer adlarını, mahalle poligonlarını ve favori katmanını
+/// hiç içermiyordu ve kimse fark etmedi — eksik bir katman çalışma
+/// zamanında hata vermiyor, sadece "çizilmiyor". Kapalı bir sabit,
+/// bunu yakalayan bir test yazmayı imkânsız kılıyordu.
+String get vividoMapStyle => jsonEncode({
   'version': 8,
   'name': 'Vivido Çankaya',
   // ⚠️ GLYPHS OLMADAN HİÇBİR METİN ÇİZİLMEZ.
@@ -986,7 +1228,18 @@ String get _mapStyle => jsonEncode({
       'clusterMaxZoom': 14,
       'clusterRadius': 45,
     },
+    // Favoriler KÜMELENMİYOR — gerekçe sabitin yanındaki notta.
+    _favoriteSourceId: {
+      'type': 'geojson',
+      'data': {'type': 'FeatureCollection', 'features': <Object>[]},
+    },
     _anchorCorridorSourceId: {
+      'type': 'geojson',
+      'data': {'type': 'FeatureCollection', 'features': <Object>[]},
+    },
+    // Mahalle poligonları. İlçe sınırı gibi boş başlıyor;
+    // `_loadNeighbourhoods()` dolduruyor.
+    _neighborhoodSourceId: {
       'type': 'geojson',
       'data': {'type': 'FeatureCollection', 'features': <Object>[]},
     },
@@ -1042,43 +1295,122 @@ String get _mapStyle => jsonEncode({
       'paint': {
         'fill-color': '#d7d1c8',
         'fill-outline-color': '#c1b9ae',
-        'fill-opacity': 0.78,
+        // Binalar BELİREREK geliyor (web ile aynı). Sabit 0.78 opaklıkta
+        // z13'te aniden ortaya çıkan bir bina katmanı, yakınlaştırmayı
+        // "kırılmış" gösteriyordu.
+        'fill-opacity': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          13,
+          0.25,
+          16,
+          0.85,
+        ],
       },
     },
+    // ── Yol hiyerarşisi ────────────────────────────────────────────────
+    // ⚠️ Eskiden TEK bir gri zemin + TEK bir beyaz çizgi vardı: otoyol da
+    // ara sokak da aynı görünüyordu ve harita "nereden geçilir" sorusuna
+    // cevap vermiyordu. Web ana arterleri kehribar renkte ayırıyor
+    // (`yollar-ana`); ikisi de aynı desene geçti.
     {
       'id': 'yol-zemin',
       'type': 'line',
       'source': 'karolar',
       'source-layer': 'transportation',
+      'layout': {'line-cap': 'round', 'line-join': 'round'},
       'paint': {
-        'line-color': '#c8c8c8',
+        'line-color': '#d6d2cb',
         'line-width': [
           'interpolate',
           ['linear'],
           ['zoom'],
           9,
-          1.2,
+          1.4,
           16,
-          7,
+          7.5,
         ],
       },
     },
     {
-      'id': 'yollar',
+      'id': 'yollar-kucuk',
       'type': 'line',
       'source': 'karolar',
       'source-layer': 'transportation',
+      'filter': [
+        '!',
+        [
+          'in',
+          ['get', 'class'],
+          [
+            'literal',
+            ['motorway', 'trunk', 'primary'],
+          ],
+        ],
+      ],
+      'layout': {'line-cap': 'round', 'line-join': 'round'},
       'paint': {
         'line-color': '#ffffff',
         'line-width': [
           'interpolate',
           ['linear'],
           ['zoom'],
-          9,
-          0.7,
+          11,
+          0.4,
           16,
-          5,
+          3,
         ],
+      },
+    },
+    {
+      'id': 'yollar-ana',
+      'type': 'line',
+      'source': 'karolar',
+      'source-layer': 'transportation',
+      'filter': [
+        'in',
+        ['get', 'class'],
+        [
+          'literal',
+          ['motorway', 'trunk', 'primary'],
+        ],
+      ],
+      'layout': {'line-cap': 'round', 'line-join': 'round'},
+      'paint': {
+        'line-color': '#f7c873',
+        'line-width': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          9,
+          0.8,
+          16,
+          6,
+        ],
+      },
+    },
+    // ── Mahalleler ──────────────────────────────────────────────────────
+    // İlçe sınırının ALTINDA (o daha kalın ve daha önemli), yolların
+    // ÜSTÜNDE. Opaklık düşük: altındaki sokaklar okunur kalmalı — mahalle
+    // bir zemin bilgisi, içeriğin önüne geçmemeli.
+    {
+      'id': _neighborhoodFillLayerId,
+      'type': 'fill',
+      'source': _neighborhoodSourceId,
+      'paint': {
+        'fill-color': '#7fb3a8',
+        'fill-opacity': 0.16,
+      },
+    },
+    {
+      'id': _neighborhoodLineLayerId,
+      'type': 'line',
+      'source': _neighborhoodSourceId,
+      'paint': {
+        'line-color': '#4a8578',
+        'line-width': 0.8,
+        'line-opacity': 0.9,
       },
     },
     // ── Çankaya sınırı ──────────────────────────────────────────────────
@@ -1141,6 +1473,68 @@ String get _mapStyle => jsonEncode({
       'layout': {'line-cap': 'round', 'line-join': 'round'},
       'paint': {'line-color': '#94A3B8', 'line-width': 5, 'line-opacity': 0.9},
     },
+    // ── SOKAK VE YER ADLARI ─────────────────────────────────────────────
+    // ⚠️ BU İKİ KATMAN MOBİLDE HİÇ YOKTU. Stilde `glyphs` tanımlıydı
+    // (küme sayıları çiziliyordu) ama etiket katmanı yazılmamıştı: yollar
+    // vardı, adları yoktu.
+    //
+    // Web'deki `vectorLabelLayers()` ile birebir aynı ayarlar.
+    //
+    // ⚠️ PİNLERİN ALTINDA — webden bilinçli sapma. Web etiketleri en üste
+    // koyuyor; geniş bir ekranda sorun değil. Telefonda konut pini 22 px
+    // ve etiket onun üstüne binince pin okunmuyor. Etiketin halesi (halo)
+    // pinin altında kalsa da okunmasını sağlıyor.
+    {
+      'id': _roadLabelLayerId,
+      'type': 'symbol',
+      'source': 'karolar',
+      'source-layer': 'transportation_name',
+      // z14'ten önce sokak adları birbirine giriyor ve harita okunmaz
+      // hâle geliyor; MapLibre çakışanları eliyor ama kalanlar da
+      // rastgele görünüyor.
+      'minzoom': 14,
+      'layout': {
+        'text-field': ['get', 'name'],
+        'text-font': ['Noto Sans Regular'],
+        'text-size': 11,
+        // Yol boyunca kıvrılarak yazılıyor — yatay bir etiket, hangi
+        // yola ait olduğunu söylemez.
+        'symbol-placement': 'line',
+      },
+      'paint': {
+        'text-color': '#4a4a4a',
+        // Hale ŞART: beyaz yolun üstündeki gri metin, altındaki çizgiyle
+        // aynı tonda kalıyor ve okunmuyor.
+        'text-halo-color': '#ffffff',
+        'text-halo-width': 1.2,
+      },
+    },
+    {
+      'id': _placeLabelLayerId,
+      'type': 'symbol',
+      'source': 'karolar',
+      'source-layer': 'place',
+      'layout': {
+        'text-field': ['get', 'name'],
+        'text-font': ['Noto Sans Regular'],
+        // Yakınlaştıkça büyüyor: uzaktan semt adı bir yön işareti,
+        // yakından bir yer adı.
+        'text-size': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          10,
+          11,
+          15,
+          15,
+        ],
+      },
+      'paint': {
+        'text-color': '#2b3a36',
+        'text-halo-color': '#ffffff',
+        'text-halo-width': 1.4,
+      },
+    },
     // ── Konut kümesi ────────────────────────────────────────────────────
     // Eski hâlde daireler ÇOK BÜYÜKTÜ (16–32 px yarıçap) ve içleri boştu:
     // uzaklaşınca ekran, altındaki haritayı tamamen örten dev turuncu
@@ -1155,7 +1549,7 @@ String get _mapStyle => jsonEncode({
       'source': _propertySourceId,
       'filter': ['has', 'point_count'],
       'paint': {
-        'circle-color': '#C0421D',
+        'circle-color': '#EA580C',
         'circle-opacity': 0.92,
         'circle-stroke-width': 2.5,
         'circle-stroke-color': '#ffffff',
@@ -1188,8 +1582,12 @@ String get _mapStyle => jsonEncode({
       'paint': {'text-color': '#ffffff'},
     },
     // ── Tekil konut ─────────────────────────────────────────────────────
-    // Beyaz zeminli yuvarlak + üstünde ev ikonu. Daire ikonun okunmasını
-    // sağlıyor: ikon doğrudan haritaya basılsaydı açık zeminde kaybolurdu.
+    // TURUNCU dolu daire + üstünde BEYAZ ev ikonu — POI'lerle aynı desen
+    // (renkli daire + beyaz simge) ve web ile aynı.
+    //
+    // ⚠️ Eskiden tersti: beyaz daire + turuncu ikon. Haritada iki farklı
+    // işaret dili vardı — POI'ler dolu renkli, konutlar içi boş. Konut
+    // pini POI'den daha az "var" görünüyordu, oysa ürünün ana nesnesi o.
     {
       'id': _propertyPointLayerId,
       'type': 'circle',
@@ -1199,10 +1597,10 @@ String get _mapStyle => jsonEncode({
         ['has', 'point_count'],
       ],
       'paint': {
-        'circle-radius': 11,
-        'circle-color': '#ffffff',
-        'circle-stroke-color': '#C0421D',
-        'circle-stroke-width': 2,
+        'circle-radius': 12,
+        'circle-color': '#EA580C',
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': 1.5,
       },
     },
     {
@@ -1215,11 +1613,46 @@ String get _mapStyle => jsonEncode({
       ],
       // İKON BOYUTU HESABI: imajlar 3× çözünürlükte kaydediliyor
       // (24 × 3 = 72 px), `icon-size` ise o piksel boyutunu ölçekliyor.
-      // Yani ekrandaki boy = 72 × icon-size. Daire yarıçapı 11 (çap 22 px),
+      // Yani ekrandaki boy = 72 × icon-size. Daire yarıçapı 12 (çap 24 px),
       // ikonun içinde rahat durması için ~13 px hedefliyoruz: 13/72 ≈ 0.18.
       'layout': {
         'icon-image': _propertyIconImageId,
         'icon-size': 0.18,
+        'icon-allow-overlap': true,
+      },
+    },
+    // ── ⭐ FAVORİLER ────────────────────────────────────────────────────
+    // Konut katmanının hemen ÜSTÜNDE. Sıra önemli: favori olan ev aynı
+    // koordinatta iki kaynakta birden bulunuyor; favori katmanı sonra
+    // çizildiği için turuncu ev pinini örtüyor ve kullanıcı o evin
+    // favorilendiğini tek bakışta görüyor.
+    //
+    // ⚠️ FAVORİ HARİTADA YILDIZ, DÜĞMEDE KALP.
+    // Favoriye ekleme düğmesi kalp (alışılmış işaret). Haritada kalp,
+    // kırmızı-turuncu konut pinleriyle aynı renk ailesine düşüp
+    // ayrışmıyor; altın bir yıldız uzaktan bile okunuyor. Renk `#d97706`:
+    // haritadaki hiçbir dolu daireyle çakışmıyor (konut `#ea580c`, okul
+    // POI `#f59e0b`, yemek `#f97316`). Yarıçap da konutunkinden (12) büyük
+    // (15) — üst üste bindiklerinde favori bir halka gibi taşıyor.
+    {
+      'id': _favoriteCircleLayerId,
+      'type': 'circle',
+      'source': _favoriteSourceId,
+      'paint': {
+        'circle-radius': 15,
+        'circle-color': '#D97706',
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': 2,
+      },
+    },
+    {
+      'id': _favoriteIconLayerId,
+      'type': 'symbol',
+      'source': _favoriteSourceId,
+      // Çap 30 px, ikon ~16 px: 16/72 ≈ 0.22.
+      'layout': {
+        'icon-image': _favoriteIconImageId,
+        'icon-size': 0.22,
         'icon-allow-overlap': true,
       },
     },

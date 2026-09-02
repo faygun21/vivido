@@ -1,20 +1,27 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
-import '../../../../core/config/app_config.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_motion.dart';
+import '../../../../core/theme/app_typography.dart';
 import '../../application/session_controller.dart';
+import '../widgets/auth_scaffold.dart';
 import 'login_page.dart';
 import 'register_page.dart';
 
+/// Karşılama ekranı (R-2) — Giriş Yap · Kayıt Ol · Misafir olarak keşfet.
+///
+/// ⚠️ BİRİNCİL DÜĞME YANLIŞ RENKTEYDİ. "Giriş Yap" `#E27250`
+/// (`--accent-secondary`) ile boyanıyordu; uygulamanın birincil eylem
+/// rengi `#C0421D`. Kullanıcı uygulamaya bir turuncuyla giriyor, içeride
+/// başka bir turuncu buluyordu.
+///
+/// ⚠️ MİSAFİR SEÇENEĞİ GÖRÜNMEZDİ. Soluk gri (`strokeColor`) bir
+/// `TextButton`du ve altındaki açıklama ondan daha okunaklıydı. Misafir
+/// akışı ürünün üç ana kapısından biri; bir dipnot gibi durmamalı.
 class WelcomePage extends StatelessWidget {
   const WelcomePage({required this.controller, super.key});
 
   final SessionController controller;
-
-  static const Color backgroundColor = Color(0xFFF9F4ED);
-  static const Color accentOrange = Color(0xFFE27250);
-  static const Color strokeColor = Color(0xFFA79D93);
-  static const Color textPrimaryColor = Color(0xFF333333);
 
   void _openAuth(BuildContext context, {required bool register}) {
     controller.clearError();
@@ -32,151 +39,88 @@ class WelcomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: AppColors.bg,
       body: SafeArea(
         child: LayoutBuilder(
           builder:
               (context, constraints) => SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.xl,
+                  AppSpacing.lg,
+                  AppSpacing.xl,
+                  AppSpacing.md,
+                ),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
-                    minHeight: constraints.maxHeight - 48,
+                    minHeight: constraints.maxHeight - AppSpacing.xxl,
                   ),
                   child: IntrinsicHeight(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const SizedBox(height: 16),
-
-                        // 1. SVG Logo
-                        Center(
-                          child: SvgPicture.asset(
-                            'assets/images/vivido_logo.svg',
-                            height: 70,
-                            semanticsLabel: AppConfig.appName,
-                          ),
-                        ),
-
-                        const SizedBox(height: 12),
-                        Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 40),
-                          child: const Divider(
-                            color: strokeColor,
-                            thickness: 0.8,
-                          ),
-                        ),
-
+                        const BrandLockup(height: 58),
                         const Spacer(),
 
-                        // 2. İllüstrasyon Resmi
-                        Image.asset(
-                          'assets/images/ev_resmi.png',
-                          height: 250,
-                          fit: BoxFit.contain,
-                          semanticLabel: 'Ev ve yaşam alanı illüstrasyonu',
+                        // İllüstrasyon ekranın YÜKSEKLİĞİNE oranlı: sabit
+                        // 250 px, küçük telefonlarda düğmeleri ekran
+                        // dışına itiyordu.
+                        _FadeIn(
+                          delay: Duration.zero,
+                          child: Image.asset(
+                            'assets/images/ev_resmi.png',
+                            height: (constraints.maxHeight * 0.28).clamp(
+                              150.0,
+                              260.0,
+                            ),
+                            fit: BoxFit.contain,
+                            semanticLabel: 'Ev ve yaşam alanı illüstrasyonu',
+                          ),
                         ),
+                        const SizedBox(height: AppSpacing.lg),
 
-                        const SizedBox(height: 32),
-
-                        // 3. Slogan Metni
-                        const Text(
-                          'Yeni evini sadece\nkonumuna göre değil,\nyaşamına göre seç.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 22,
-                            fontWeight: FontWeight.w600,
-                            color: textPrimaryColor,
-                            height: 1.3,
+                        _FadeIn(
+                          delay: const Duration(milliseconds: 90),
+                          child: Text(
+                            'Yeni evini sadece konumuna göre değil, '
+                            'yaşamına göre seç.',
+                            textAlign: TextAlign.center,
+                            style: AppType.display.copyWith(fontSize: 25),
                           ),
                         ),
 
-                        const SizedBox(height: 24),
-
-                        if (controller.errorMessage != null) ...[
-                          const SizedBox(height: 16),
-                          _InlineError(message: controller.errorMessage!),
+                        if (controller.errorMessage case final error?) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          AuthError(message: error),
                         ],
 
                         const Spacer(),
+                        const SizedBox(height: AppSpacing.md),
 
-                        // 4. Giriş Yap Butonu
-                        SizedBox(
-                          height: 54,
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: accentOrange,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: const BorderSide(
-                                  color: strokeColor,
-                                  width: 0.8,
-                                ),
+                        _FadeIn(
+                          delay: const Duration(milliseconds: 180),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              FilledButton(
+                                onPressed:
+                                    () => _openAuth(context, register: false),
+                                child: const Text('Giriş yap'),
                               ),
-                            ),
-                            onPressed:
-                                () => _openAuth(context, register: false),
-                            child: const Text(
-                              'Giriş Yap',
-                              style: TextStyle(
-                                fontFamily: 'Poppins',
-                                fontSize: 16,
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
+                              const SizedBox(height: AppSpacing.xs),
+                              OutlinedButton(
+                                onPressed:
+                                    () => _openAuth(context, register: true),
+                                child: const Text('Hesap oluştur'),
                               ),
-                            ),
+                              const SizedBox(height: AppSpacing.md),
+
+                              // Misafir kapısı: ayrı bir yüzey, kendi
+                              // açıklamasıyla. Artık bir dipnot değil,
+                              // üçüncü bir seçenek.
+                              _GuestCard(onTap: controller.continueAsGuest),
+                            ],
                           ),
                         ),
-
-                        const SizedBox(height: 12),
-
-                        // 5. Kayıt Ol Butonu
-                        SizedBox(
-                          height: 54,
-                          child: OutlinedButton(
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(
-                                color: strokeColor,
-                                width: 1.5,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            onPressed: () => _openAuth(context, register: true),
-                            child: const Text(
-                              'Kayıt Ol',
-                              style: TextStyle(
-                                fontFamily: 'Poppins',
-                                fontSize: 16,
-                                color: textPrimaryColor,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        TextButton(
-                          onPressed: controller.continueAsGuest,
-                          child: const Text(
-                            'Misafir olarak devam et',
-                            style: TextStyle(color: strokeColor),
-                          ),
-                        ),
-                        Text(
-                          'Misafirken haritayı ve konutların temel bilgilerini görebilirsin.',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(
-                            context,
-                          ).textTheme.bodySmall?.copyWith(
-                            color: Colors.grey.shade600,
-                            height: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
                       ],
                     ),
                   ),
@@ -188,22 +132,116 @@ class WelcomePage extends StatelessWidget {
   }
 }
 
-class _InlineError extends StatelessWidget {
-  const _InlineError({required this.message});
+class _GuestCard extends StatelessWidget {
+  const _GuestCard({required this.onTap});
 
-  final String message;
+  final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: Colors.red.shade100,
-      borderRadius: BorderRadius.circular(14),
-    ),
-    child: Text(
-      message,
-      textAlign: TextAlign.center,
-      style: TextStyle(color: Colors.red.shade900),
+  Widget build(BuildContext context) => Material(
+    color: AppColors.surfaceSunken,
+    borderRadius: BorderRadius.circular(AppRadius.md),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: AppColors.accentSoft,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.explore_outlined,
+                size: 18,
+                color: AppColors.accent,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Misafir olarak keşfet',
+                    style: AppType.sm.copyWith(fontWeight: AppType.semibold),
+                  ),
+                  Text(
+                    'Haritayı ve konutların temel bilgilerini hesapsız gez.',
+                    style: AppType.muted(AppType.micro).copyWith(
+                      letterSpacing: 0,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right,
+              size: 20,
+              color: AppColors.inkMuted,
+            ),
+          ],
+        ),
+      ),
     ),
   );
+}
+
+/// Sırayla beliren giriş öğeleri.
+///
+/// Karşılama ekranı uygulamanın ilk yüzü; her şeyin aynı anda belirmesi
+/// "sayfa yüklendi" der, sırayla belirmesi "hoş geldin" der.
+class _FadeIn extends StatefulWidget {
+  const _FadeIn({required this.child, required this.delay});
+
+  final Widget child;
+  final Duration delay;
+
+  @override
+  State<_FadeIn> createState() => _FadeInState();
+}
+
+class _FadeInState extends State<_FadeIn> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: AppMotion.page,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.delayed(widget.delay, () {
+      if (mounted) _controller.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.disableAnimationsOf(context)) return widget.child;
+    final curved = CurvedAnimation(
+      parent: _controller,
+      curve: AppMotion.easeOut,
+    );
+    return FadeTransition(
+      opacity: curved,
+      child: SlideTransition(
+        position: Tween(
+          begin: const Offset(0, 0.05),
+          end: Offset.zero,
+        ).animate(curved),
+        child: widget.child,
+      ),
+    );
+  }
 }

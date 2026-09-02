@@ -1,12 +1,30 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/models/models.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_motion.dart';
+import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/widgets/brand_icon.dart';
+import '../../../../shared/widgets/page_parts.dart';
+import '../../../../shared/widgets/pressable.dart';
+import '../../../../shared/widgets/budget_range_fields.dart';
 import '../../../anchors/presentation/pages/anchor_manager_page.dart';
 import '../../../auth/application/session_controller.dart';
 import '../../../preferences/domain/life_criteria.dart';
 import '../../../preferences/presentation/widgets/life_criteria_order_list.dart';
-import '../../../../shared/widgets/budget_range_fields.dart';
 
+/// Profil kurulum sihirbazı — iki adım: profil, sonra önemli konumlar.
+///
+/// ⚠️ PERSONA KARTLARI MARKA İKONLARINI KULLANMIYORDU
+///
+/// Web'in dört persona görseli var (`kep.svg`, `pc.svg`, `family.svg`,
+/// `glasses.svg`) ve her birinin altında o personanın önemsediği üç
+/// kategoriyi anlatan küçük ikonlar. Mobil bunların yerine Material'ın
+/// jenerik glyph'lerini (`Icons.school_outlined`, `Icons.laptop_mac_outlined`)
+/// kullanıyordu: aynı persona iki üründe iki farklı simgeyle görünüyordu.
+///
+/// Alt ikonlar da eklendi — kart artık "bu persona neyi önemser"i
+/// açıklama metnini okumadan gösteriyor.
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({required this.controller, super.key});
 
@@ -94,9 +112,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
     if (persona == null) return;
     final profile = widget.controller.profile;
     final savedOrder =
-        profile?.personaCode == code
-            ? profile!.categoryOrder
-            : const <String>[];
+        profile?.personaCode == code ? profile!.categoryOrder : const <String>[];
     setState(() {
       _selectedPersona = code;
       _categoryOrder = resolveLifeCriteriaOrder(
@@ -112,20 +128,20 @@ class _OnboardingPageState extends State<OnboardingPage> {
     final persona = _selectedPersona;
     if (persona == null) return;
     if (_categoryOrder.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Yaşam kriterleri yüklenemedi.')),
+      showAppSnack(
+        context,
+        'Yaşam kriterleri yüklenemedi.',
+        tone: SnackTone.error,
       );
       return;
     }
-    final minBudget = parseBudgetInput(_minBudgetController.text);
-    final maxBudget = parseBudgetInput(_maxBudgetController.text);
 
     final success = await widget.controller.saveProfile(
       firstName: _firstNameController.text,
       lastName: _lastNameController.text,
       personaCode: persona,
-      minMonthlyBudget: minBudget,
-      maxMonthlyBudget: maxBudget,
+      minMonthlyBudget: parseBudgetInput(_minBudgetController.text),
+      maxMonthlyBudget: parseBudgetInput(_maxBudgetController.text),
       categoryOrder: _categoryOrder,
     );
     if (success && mounted) setState(() => _step = 1);
@@ -139,16 +155,32 @@ class _OnboardingPageState extends State<OnboardingPage> {
           (context, _) => Scaffold(
             appBar: AppBar(
               automaticallyImplyLeading: false,
-              title: const Text('Profilini hazırla'),
+              title: Text(_step == 0 ? 'Profilini hazırla' : 'Önemli konumlar'),
               actions: [
                 Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: Center(child: Text('${_step + 1}/2')),
+                  padding: const EdgeInsets.only(right: AppSpacing.md),
+                  child: Center(
+                    child: Text(
+                      '${_step + 1}/2',
+                      style: AppType.muted(AppType.sm).copyWith(
+                        fontFeatures: AppType.tabularFigures,
+                      ),
+                    ),
+                  ),
                 ),
               ],
               bottom: PreferredSize(
-                preferredSize: const Size.fromHeight(4),
-                child: LinearProgressIndicator(value: (_step + 1) / 2),
+                preferredSize: const Size.fromHeight(3),
+                // İlerleme çubuğu KAYARAK doluyor: adım atlandığında bir
+                // anda yarıya sıçrayan bir çubuk, ilerlemeyi anlatmıyor.
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: (_step + 1) / 2),
+                  duration: AppMotion.slow,
+                  curve: AppMotion.easeOut,
+                  builder:
+                      (context, value, _) =>
+                          LinearProgressIndicator(value: value, minHeight: 3),
+                ),
               ),
             ),
             body:
@@ -165,102 +197,133 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   Widget _buildProfileStep(BuildContext context) {
     final personas = widget.controller.personas;
+
     return SafeArea(
       child: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 22, 20, 30),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.md,
+            AppSpacing.page,
+            AppSpacing.xxl,
+          ),
           children: [
+            Text('Önce seni tanıyalım', style: AppType.h1),
+            const SizedBox(height: 4),
             Text(
-              'Önce seni tanıyalım',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+              'Bu bilgiler her evin sana uygunluk skorunu hesaplamak için '
+              'kullanılıyor.',
+              style: AppType.muted(AppType.sm),
             ),
-            const SizedBox(height: 8),
+
+            const SectionHeader('ADIN'),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _firstNameController,
+                    textInputAction: TextInputAction.next,
+                    autofillHints: const [AutofillHints.givenName],
+                    decoration: const InputDecoration(labelText: 'Ad'),
+                    validator: _requiredName,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: TextFormField(
+                    controller: _lastNameController,
+                    textInputAction: TextInputAction.next,
+                    autofillHints: const [AutofillHints.familyName],
+                    decoration: const InputDecoration(labelText: 'Soyad'),
+                    validator: _requiredName,
+                  ),
+                ),
+              ],
+            ),
+
+            const SectionHeader('SANA EN YAKIN YAŞAM TARZI'),
             Text(
-              'Profil bilgilerin ve yaşam önceliklerin sana uygun sonuçları hazırlamak için kullanılır.',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                height: 1.45,
-              ),
+              'Seçimin, çevredeki hizmetlerin senin için ne kadar önemli '
+              'olduğunu belirliyor.',
+              style: AppType.muted(AppType.xs),
             ),
-            const SizedBox(height: 20),
-            TextFormField(
-              controller: _firstNameController,
-              textInputAction: TextInputAction.next,
-              autofillHints: const [AutofillHints.givenName],
-              decoration: const InputDecoration(
-                labelText: 'Ad',
-                prefixIcon: Icon(Icons.person_outline),
-              ),
-              validator: _requiredName,
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _lastNameController,
-              textInputAction: TextInputAction.next,
-              autofillHints: const [AutofillHints.familyName],
-              decoration: const InputDecoration(
-                labelText: 'Soyad',
-                prefixIcon: Icon(Icons.badge_outlined),
-              ),
-              validator: _requiredName,
-            ),
-            const SizedBox(height: 28),
-            Text(
-              'Sana en yakın yaşam tarzı hangisi?',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Seçimin, çevredeki hizmetlerin sana göre ağırlıklandırılmasını sağlar.',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                height: 1.45,
-              ),
-            ),
-            const SizedBox(height: 20),
+            const SizedBox(height: AppSpacing.sm),
             if (personas.isEmpty)
               const Center(
                 child: Padding(
-                  padding: EdgeInsets.all(32),
+                  padding: EdgeInsets.all(AppSpacing.xxl),
                   child: CircularProgressIndicator(),
                 ),
               )
             else
-              for (final persona in personas) ...[
-                _PersonaCard(
-                  persona: persona,
-                  selected: persona.code == _selectedPersona,
-                  onTap: () => _selectPersona(persona.code),
+              for (final (index, persona) in personas.indexed)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                  child: StaggeredEntrance(
+                    index: index,
+                    child: _PersonaCard(
+                      persona: persona,
+                      selected: persona.code == _selectedPersona,
+                      onTap: () => _selectPersona(persona.code),
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 10),
-              ],
-            if (_selectedPersona != null) ...[
-              const SizedBox(height: 18),
-              LifeCriteriaOrderList(
-                categoryOrder: _categoryOrder,
-                enabled: !widget.controller.busy,
-                onChanged: (order) => setState(() => _categoryOrder = order),
-              ),
-            ],
-            const SizedBox(height: 18),
+
+            // Kriter sıralaması ve bütçe YALNIZCA persona seçildikten
+            // sonra: boş bir sıralama listesi göstermek, kullanıcıya
+            // henüz anlamı olmayan bir iş veriyordu.
+            AnimatedSize(
+              duration: AppMotion.base,
+              curve: AppMotion.easeOut,
+              alignment: Alignment.topCenter,
+              child:
+                  _selectedPersona == null
+                      ? const SizedBox(width: double.infinity)
+                      : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SectionHeader('ÖNEM SIRASI'),
+                          Text(
+                            'Sürükleyerek sırala — en üsttekinin skora '
+                            'katkısı en yüksek.',
+                            style: AppType.muted(AppType.xs),
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          LifeCriteriaOrderList(
+                            categoryOrder: _categoryOrder,
+                            enabled: !widget.controller.busy,
+                            onChanged:
+                                (order) =>
+                                    setState(() => _categoryOrder = order),
+                          ),
+                        ],
+                      ),
+            ),
+
+            const SectionHeader('AYLIK KİRA ARALIĞI'),
             BudgetRangeFields(
               minController: _minBudgetController,
               maxController: _maxBudgetController,
               enabled: !widget.controller.busy,
             ),
-            if (widget.controller.errorMessage != null) ...[
-              const SizedBox(height: 14),
-              Text(
-                widget.controller.errorMessage!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+
+            if (widget.controller.errorMessage case final error?) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: AppColors.bad.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                child: Text(
+                  error,
+                  style: AppType.sm.copyWith(color: AppColors.bad),
+                ),
               ),
             ],
-            const SizedBox(height: 22),
+
+            const SizedBox(height: AppSpacing.lg),
             FilledButton.icon(
               onPressed:
                   _selectedPersona == null ||
@@ -272,9 +335,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   widget.controller.busy
                       ? const SizedBox.square(
                         dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
-                      : const Icon(Icons.arrow_forward),
+                      : const Icon(Icons.arrow_forward, size: 18),
               label: const Text('Kaydet ve konumlara geç'),
             ),
           ],
@@ -287,6 +353,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       (value ?? '').trim().isEmpty ? 'Bu alan zorunludur.' : null;
 }
 
+/// Persona kartı — marka görseli + ad + açıklama + önemsediği kategoriler.
 class _PersonaCard extends StatelessWidget {
   const _PersonaCard({
     required this.persona,
@@ -300,63 +367,88 @@ class _PersonaCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Material(
-      color: selected ? colors.primaryContainer : colors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(
-          color: selected ? colors.primary : colors.outlineVariant,
-          width: selected ? 2 : 1,
+    final visual = personaVisual(persona.code);
+
+    return Pressable(
+      onTap: onTap,
+      scale: 0.985,
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      child: AnimatedContainer(
+        duration: AppMotion.fast,
+        curve: AppMotion.easeOut,
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.accentSoft : AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(
+            color: selected ? AppColors.accent : AppColors.border,
+            width: selected ? 2 : 1,
+          ),
+          boxShadow: selected ? AppShadows.sm : null,
         ),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CircleAvatar(
-                backgroundColor:
-                    selected ? colors.primary : colors.surfaceContainerHighest,
-                foregroundColor: selected ? colors.onPrimary : colors.primary,
-                child: Icon(_personaIcon(persona.code)),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      persona.displayNameTr,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      persona.descriptionTr,
-                      style: TextStyle(
-                        color: colors.onSurfaceVariant,
-                        height: 1.35,
-                      ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            PersonaAvatar(
+              personaCode: persona.code,
+              size: 46,
+              selected: selected,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(persona.displayNameTr, style: AppType.h3),
+                  Text(
+                    persona.descriptionTr,
+                    style: AppType.muted(AppType.xs).copyWith(height: 1.4),
+                  ),
+                  if (visual.sub.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    // Alt ikonlar personanın önceliklerini SÖZ OLMADAN
+                    // anlatıyor — web'deki `subIcons` ile aynı.
+                    Row(
+                      children: [
+                        for (final icon in visual.sub)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 5),
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color:
+                                    selected
+                                        ? Colors.white.withValues(alpha: 0.7)
+                                        : AppColors.inputBg,
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.xs,
+                                ),
+                              ),
+                              child: BrandIcon(
+                                icon,
+                                size: 14,
+                                color: AppColors.inkMuted,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ],
-                ),
+                ],
               ),
-              if (selected) Icon(Icons.check_circle, color: colors.primary),
-            ],
-          ),
+            ),
+            AnimatedOpacity(
+              opacity: selected ? 1 : 0,
+              duration: AppMotion.fast,
+              child: const Icon(
+                Icons.check_circle,
+                size: 22,
+                color: AppColors.accent,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
-
-IconData _personaIcon(String code) => switch (code) {
-  'student' => Icons.school_outlined,
-  'family_kids' => Icons.family_restroom,
-  'remote_worker' => Icons.laptop_mac_outlined,
-  'elderly' => Icons.accessible_forward_outlined,
-  _ => Icons.person_outline,
-};
