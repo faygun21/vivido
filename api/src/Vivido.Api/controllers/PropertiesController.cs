@@ -432,9 +432,19 @@ public class PropertiesController : ControllerBase
     //  yokmuş gibi göstermek yerine VARMIŞ gibi gösteren, yanıltıcı bir
     //  şekildi; (b) yaya profili çoğu zaman bağlıydı ama anlamsız derecede
     //  uzun (40+ km) "gerçek ama saçma" rotalar üretebiliyordu. Çözüm: her
-    //  ardışık anchor ikilisi (bacak) kendi başına değerlendirilir — normal
-    //  harita uygulamalarının "kısa mesafeyi yürü, uzunu araçla bağla"
-    //  mantığıyla aynı, bkz. <see cref="BuildCorridorLegsAsync"/>.
+    //  bacak (bkz. aşağıdaki "merkez" kuralı) kendi başına değerlendirilir —
+    //  normal harita uygulamalarının "kısa mesafeyi yürü, uzunu araçla
+    //  bağla" mantığıyla aynı, bkz. <see cref="BuildCorridorLegsAsync"/>.
+    //
+    //  ⭐ Merkez anchor (1 numaralı öncelik) — anchor'ların AĞIRLIĞI yok,
+    //  yalnızca kullanıcının belirlediği bir SIRASI var (1, 2, 3...).
+    //  Bacaklar bu sırayı bir ZİNCİR gibi değil (1↔2, 2↔3), 1 numaralı
+    //  (en önemli) anchor'ı MERKEZ alan bir YILDIZ gibi kurar: 1↔2, 1↔3, ...
+    //  Sebep: kullanıcı için en önemli yer neresiyse ("okulum" gibi), evler
+    //  ÖNCELİKLE oraya olan ulaşıma göre değerlendirilmeli — 2. ve 3.
+    //  anchor'lar birbirlerine değil, her zaman 1. anchor'a bağlanır. Zincir
+    //  modelinde ise ortadaki (2 numaralı) anchor hem 1'e hem 3'e bağlanan
+    //  bir "ara durak" gibi davranıp bu önceliği bulanıklaştırırdı.
     // ══════════════════════════════════════════════════════════════
 
     /// <summary>1 derece enlemin metre karşılığı — WGS84'te sabit, boylam enleme göre değişir ama Çankaya ölçeğinde bu yaklaşıklık yeterli.</summary>
@@ -461,7 +471,8 @@ public class PropertiesController : ControllerBase
     ///
     /// AKIŞ:
     ///   1. Anchor yoksa: koridor yok, filtre yok — tüm evler döner.
-    ///   2. Anchor'lar ardışık bacaklara bölünüp gerçek rotalara çevrilir
+    ///   2. Anchor'lar, 1 numaralı (en önemli) anchor'ı merkez alan
+    ///      bacaklara bölünüp gerçek rotalara çevrilir
     ///      (bkz. <see cref="BuildCorridorLegsAsync"/>).
     ///   3. Her bacak KENDİ BAŞINA, çevresinde en az 1 ev bulana kadar (en
     ///      fazla <see cref="MaxCorridorWidenAttempts"/> kez) genişletilir —
@@ -578,8 +589,16 @@ public class PropertiesController : ControllerBase
     }
 
     /// <summary>
-    /// Anchor'lar arasındaki ardışık bacakları (priority sırasına göre)
-    /// gerçek OSRM rotalarına çevirir — her biri kendi buffer genişliğiyle.
+    /// Anchor'ları, 1 numaralı (en önemli) anchor'ı MERKEZ alan bacaklara
+    /// bölüp gerçek OSRM rotalarına çevirir — her biri kendi buffer
+    /// genişliğiyle.
+    ///
+    /// ⭐ YILDIZ, ZİNCİR DEĞİL: bacaklar (1↔2), (1↔3), ... şeklinde kuruluyor
+    /// — ardışık ikili (1↔2, 2↔3) DEĞİL. Anchor'ların bir ağırlığı yok,
+    /// sadece kullanıcının belirlediği bir önem SIRASI var; bu sıradaki en
+    /// önemli (1.) anchor, evlerin değerlendirileceği asıl referans noktası.
+    /// 2. ve 3. anchor'lar birbirine değil, her zaman 1. anchor'a bağlanır —
+    /// "okuluma yakın, oradan da işe/arkadaşa nasıl gidilir" mantığı.
     ///
     /// Bacak başına sıra: (1) yaya rotası dene — kısaysa (≤
     /// <see cref="MaxWalkableLegMetres"/>) onu kullan; (2) uzunsa ya da yaya
@@ -602,14 +621,18 @@ public class PropertiesController : ControllerBase
                 only.Mode == "car" ? CarInitialCorridorMetres : FootInitialCorridorMetres)];
         }
 
+        // `anchors` çağırandan Priority'ye göre sıralı geliyor (bkz.
+        // BuildAnchorAreaAsync) — bu yüzden anchors[0] her zaman kullanıcının
+        // 1 numara verdiği, en önemli anchor'dır: merkez bu.
+        var hub = anchors[0];
+
         var legs = new List<CorridorLeg>();
-        for (var i = 0; i < anchors.Count - 1; i++)
+        for (var i = 1; i < anchors.Count; i++)
         {
-            var from = anchors[i];
-            var to = anchors[i + 1];
+            var to = anchors[i];
             var coords = new List<OsrmCoordinate>
             {
-                new(from.Geom.X, from.Geom.Y),
+                new(hub.Geom.X, hub.Geom.Y),
                 new(to.Geom.X, to.Geom.Y),
             };
 
@@ -628,8 +651,8 @@ public class PropertiesController : ControllerBase
             }
 
             legs.Add(new CorridorLeg(
-                new Point(from.Geom.X, from.Geom.Y) { SRID = 4326 },
-                from.Mode == "car" ? CarInitialCorridorMetres : FootInitialCorridorMetres));
+                new Point(hub.Geom.X, hub.Geom.Y) { SRID = 4326 },
+                hub.Mode == "car" ? CarInitialCorridorMetres : FootInitialCorridorMetres));
             legs.Add(new CorridorLeg(
                 new Point(to.Geom.X, to.Geom.Y) { SRID = 4326 },
                 to.Mode == "car" ? CarInitialCorridorMetres : FootInitialCorridorMetres));
