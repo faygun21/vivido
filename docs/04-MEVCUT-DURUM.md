@@ -1,6 +1,6 @@
 # Mevcut Durum — Çalışır Sistem ve Yapılan Değişiklikler
 
-> **Tarih:** 2026-08-23 · **Branch:** `yazilim`
+> **Tarih:** 2026-08-23 (canlı belge — son güncelleme 2026-09-02) · **Branch:** `yazilim`
 >
 > Bu doküman projenin bugün **gerçekten** hangi noktada olduğunu anlatır ve
 > yol boyunca bulunan/düzeltilen hataları kaydeder. Plan dokümanlarının
@@ -156,19 +156,32 @@ bütçe → harita**. Anchor eklemek için üst menüden **Profil**.
 | Web: profildeki favoriler | Gerçek kartlar — eskiden "Ev ID: 4213" yazıyordu |
 | **E-posta doğrulama** | **Yerelde KAPATILDI** (geçici, README §2.5). Staging'de açık |
 
+### 4.2 ✅ 2026-09-02'de eklenenler — Anchor koridoru
+
+| Alan | Durum |
+|---|---|
+| `GET /properties` · `/properties/top` | Varsayılan olarak artık **anchor koridoru** uygulanıyor: kullanıcının bütçesine uyan evler, anchor'lardan oluşan coğrafi bir şeride düşenlerle sınırlanıyor. `showAll=true` ile kapatılabiliyor |
+| Koridor topolojisi | **1. öncelikli (en önemli) anchor'ı merkez alan yıldız** — bacaklar 1↔2, 1↔3 şeklinde kuruluyor, 2. ve 3. anchor birbirine değil her zaman 1.'ye bağlanıyor (önceden zincir: 1↔2, 2↔3 idi, ortadaki anchor'ı yanlışlıkla "ara durak" gibi davranıyordu) |
+| Bacak şekli | Her bacak için önce **yaya rotası**, olmazsa **araç rotası**, ikisi de yoksa iki ayrı **daire** — OSRM ile gerçek yol geometrisi üzerinden buffer alınıyor |
+| Tek-anchor koridoru | Artık gerçek bir **daire**, önceden elipse çıkıyordu — bkz. §5.18 |
+| Koridor cache | `AnchorsController` her anchor ekleme/silme/sıra değişikliğinde `PropertiesController`'ın 10 dk'lık koridor cache'ini geçersiz kılıyor (`InvalidateCorridorCache`) — anchor **skoru** etkilemiyor ama listelenen evleri anında değiştiriyor |
+| Web: Anchor ekleme/listesi | "Nasıl gidiyorsun? (Araçla/Yürüyerek)" sorusu kaldırıldı — koridor hesabı zaten her bacak için kendi karar veriyor. Backend sözleşmesi değişmedi (`mode` hâlâ zorunlu alan), istemci sabit `'car'` gönderiyor |
+
+> Bu bölüm önceki "❌ Henüz yok" listesindeki "Anchor bileşeni" maddesini kısmen güncelliyor: anchor'lar **skor formülüne** hâlâ girmiyor (AK-W4 karşılanmıyor), ama artık **listeleme/koridor** katmanında gerçek bir etkileri var. §5'e bu turda bulunan bir geometri hatası (elips) da eklendi, bkz. §5.18.
+
 ### ❌ Henüz yok
 
 | Eksik | Not |
 |---|---|
 | ~~Skor kalibrasyonu~~ | **Çözüldü** — motor v1.1 (yumuşak tavan + zayıf halka + yoğunluk). Medyan 93,8 → **75,09**, tam 100 alan konut 767 → **0**. §5.14 |
 | CES birleştirme (ρ = −0.5) | Tam CES yok; yerine **zayıf halka cezası** çarpanı var (aynı amaç, daha basit) |
-| Anchor bileşeni | Anchor sırası skoru **hiç değiştirmiyor** — AK-W4 bugün karşılanmıyor |
+| Anchor bileşeni (skor formülünde) | Anchor sırası **skoru** hâlâ değiştirmiyor — AK-W4 bugün karşılanmıyor. Ama 2026-09-02'den beri anchor'lar ayrı bir mekanizmayla **hangi evlerin listelendiğini** coğrafi olarak filtreliyor (bkz. §4.2, "anchor koridoru") — skora girmiyor, listelemeye giriyor |
 | Bütçe bileşeni | Skora girmiyor; panelde ayrı bilgi olarak gösteriliyor ([K-16](02-KARARLAR.md#k-16)) |
 | `min_poi_count` "veri yetersiz" yolu | Kategori devre dışı bırakma yok |
-| Altın veri seti (72 vaka) + I1–I8 | `Category=Golden` / `Invariant` trait'i taşıyan test yok |
-| Filtre paneli (kira / m² / oda) | FE-1 |
+| Altın veri seti (72 vaka) + I1–I8 | `Category=Golden` / `Invariant` trait'i taşıyan test yok — `test:golden`/`test:invariant` script'leri şu an boş kategoriye karşı çalışıyor |
+| Filtre paneli (kira / m² aralık) | Oda sayısı filtresi ve kira/m² **sıralaması** var ("En uygun evler" paneli); kira/m² için ayrı bir **aralık** (slider/min-max) filtresi hâlâ yok — bütçe aralığı profilden geliyor |
 | Playwright | Kurulu değil |
-| Rota / TSP / mobil navigasyon | Hafta 3 |
+| ~~Rota / TSP / mobil navigasyon~~ | **Çözüldü** — açık TSP (Held-Karp) ve OSRM rota geometrisi çalışıyor, önizle/kaydet akışı ayrıldı (§5.15–§5.17). Mobilde navigasyon ekranı da yazıldı (`navigation_page.dart`) |
 
 ---
 
@@ -604,9 +617,9 @@ pnpm db:check
 | 4 | **`web/public/geo/` git'e girmiyor** | `data/*.geojson`'dan `web/scripts/sync-geo.mjs` ile üretilir; `pnpm dev`/`build` otomatik çalıştırır. İki nüsha tutup ayrışmasını önlemek için |
 | 5 | **`@types/geojson` doğrudan bağımlılık değil** | `CankayaMap.tsx` asgari yerel tipler tanımlıyor. pnpm-lock'u değiştirmemek için bilinçli |
 | 6 | **`api/openapi.yaml` yok** | `pnpm gen:api` çalışamaz; sözleşme elle senkron (`packages/shared` + `vivido-api-sozlesmesi.md`) |
-| 7 | **Skor cache yok** | Bilinçli — 3 haftalık plan Redis'i kesti. `redis` servisi kökteki compose'da duruyor ama **kod hiç kullanmıyor**; staging'de hiç açılmıyor |
+| 7 | **Redis kullanılmıyor** | Bilinçli — 3 haftalık plan Redis'i kesti. `redis` servisi kökteki compose'da duruyor ama **kod hiç kullanmıyor**; staging'de hiç açılmıyor. Not: bu "skor cache hiç yok" demek değil — `score_cache` tablosu (DB-içi, persona+profil bazlı) `PropertyScoringService` tarafından fiilen kullanılıyor ve kategori önceliği değişince temizleniyor; iptal edilen yalnızca Redis'ti |
 | 8 | **Test kapsamı düşük** | `Category=Golden` / `Invariant` trait'i taşıyan tek test yok; kapılar boşa çalışıyor. Playwright kurulu değil |
-| 9 | **Mobil derlenmedi** | Flutter geliştirme makinesinde kurulu değil; `flutter analyze` ve `flutter test` **çalıştırılamadı**. Kod yazıldı, doğrulanmadı |
+| 9 | **Mobil CI'da otomatik doğrulanıyor, yerelde hâlâ görülmedi** | `ci-mobile.yml` her push/PR'da `flutter analyze` + `flutter test` çalıştırıyor — "hiç doğrulanmadı" artık doğru değil. Ama bu makinede Flutter kurulu değil, uygulamanın gerçek cihaz/emülatörde çalıştığı burada gözlemlenmedi |
 
 ### 5.15 🔴 Staging'de rota oluşturma hiç çalışmadı — iki ayrı yapılandırma eksiği
 
@@ -712,3 +725,22 @@ geri göndermesiydi — o da istemciye mesafe/süre uydurma imkânı verirdi.
 - **Planlanan ziyaret zamanı** (`routes.scheduled_at`, migration 013) —
   kayıtlı rotalarda "🗓 29 Ağustos Cumartesi 14:00" olarak görünüyor.
   ⚠️ **Bildirim GÖNDERMİYOR**; gerekçe ve ön koşullar `backlog/v2.md`'de.
+
+### 5.18 🟡 Tek anchor'lu koridor daire değil, elips çıkıyordu
+
+**Tarih:** 2026-09-02 · **Düzeltildi**
+
+Anchor koridoru buffer'ı `.Buffer(metres / MetresPerDegreeLat)` ile **derece**
+cinsinden çiziliyordu — 1° boylam ile 1° enlemin aynı gerçek mesafeye denk
+geldiği varsayılıyordu. Çankaya'nın enleminde (~39.9°) bu yanlış: 1° boylam,
+1° enlemden yaklaşık **%23 daha kısa**. Sonuç: tek anchor'lu bir koridor
+haritada daire değil, doğu-batı yönünde sıkışmış bir **elips** çıkıyordu
+(gözle bulundu — bkz. §4.2 "anchor koridoru").
+
+**Düzeltme:** buffer alınmadan önce X ekseni enlemin kosinüsüyle geriliyor
+(bu uzayda 1 birim X = 1 birim Y gerçek mesafede), dairesel buffer bu
+gerilmiş uzayda alınıp sonra geri sıkıştırılıyor. Aynı düzeltme yol tabanlı
+(LineString) bacaklara da uygulandı; hata sadece tek-anchor durumunda
+gözle daha görünürdü.
+
+Kanıt: `api/src/Vivido.Api/controllers/PropertiesController.cs`.
