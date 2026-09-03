@@ -96,8 +96,9 @@ export function AnchorPanel({ usedCount }: AnchorPanelProps = {}) {
           <div className="pcard-head-text">
             <h2>Düzenli gittiğin yerler</h2>
             <p>
-              En önemli yer, diğerlerinin toplamı kadar ağırlık taşır — sırayı
-              değiştirmek skorları yeniden hesaplatır.
+              En üstteki, senin için en önemli yer — evler öncelikle oraya
+              gerçekten ulaşılabilir olup olmadığına göre daraltılır. Sırayı
+              değiştirmek gösterilen evleri değiştirir.
             </p>
           </div>
 
@@ -129,9 +130,9 @@ export function AnchorPanel({ usedCount }: AnchorPanelProps = {}) {
           <>
             <h2>Düzenli gittiğin yerler</h2>
             <p className="muted">
-              En fazla {MAX_ANCHORS} yer ekleyebilirsin. Önem sırasına dizdiğinde
-              skorlar bu sıraya göre yeniden hesaplanır — en önemli yer,
-              diğerlerinin toplamı kadar ağırlık taşır.
+              En fazla {MAX_ANCHORS} yer ekleyebilirsin. En üste koyduğun,
+              senin için en önemli yer olur — gösterilen evler öncelikle
+              oraya gerçekten ulaşılabilir olup olmadığına göre daraltılır.
             </p>
           </>
         )}

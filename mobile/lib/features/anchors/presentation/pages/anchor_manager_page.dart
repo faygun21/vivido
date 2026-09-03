@@ -31,8 +31,14 @@ import '../../../map_data/presentation/widgets/map_layer_button.dart';
 ///    büyük (seçim yapılacak), konumlar eklendikçe küçülüyor (liste
 ///    öne çıkıyor).
 ///
-/// 3. **Ağırlık ondalık sayı olarak yazılıyordu** ("ağırlık 0.571").
-///    Kullanıcı için anlamsız; artık yüzde ve çubuk.
+/// 3. **Her anchor'ın yanında uydurma bir "ağırlık" yüzdesi vardı**
+///    ("%57" — "skorun %57'si buraya bakıyor" izlenimi veriyordu).
+///    Backend anchor'ları hiç puanlamıyor, yalnızca coğrafi bir koridor
+///    filtresi olarak kullanıyor (bkz. K-18, docs/02-KARARLAR.md) — bu
+///    yüzde tamamen yerel/kurgusal bir hesaptı, kaldırıldı. Aynı sebeple
+///    "nasıl gidiyorsun?" (araçla/yürüyerek) sorusu da kayıt formundan
+///    kaldırıldı — koridor hesabı her bacak için bunu gerçek yol
+///    tarifiyle kendisi belirliyor.
 class AnchorManagerPage extends StatefulWidget {
   const AnchorManagerPage({
     required this.controller,
@@ -175,7 +181,6 @@ class _AnchorManagerPageState extends State<AnchorManagerPage> {
       260.0,
       460.0,
     );
-    final weights = _anchorWeights(_anchors.length);
 
     final content = SafeArea(
       top: !widget.embedded,
@@ -196,8 +201,10 @@ class _AnchorManagerPageState extends State<AnchorManagerPage> {
                   Text('Düzenli gittiğin yerler', style: AppType.h1),
                   const SizedBox(height: 4),
                   Text(
-                    'İş, okul, spor salonu… En fazla üç yer ekle. Skor bu '
-                    'noktalara olan yürüme sürelerine göre hesaplanıyor.',
+                    'İş, okul, spor salonu… En fazla üç yer ekle. En üste '
+                    'koyduğun en önemlisi olur — gösterilen evler öncelikle '
+                    'oraya gerçekten ulaşılabilir olup olmadığına göre '
+                    'daraltılır.',
                     style: AppType.muted(AppType.sm),
                   ),
                 ],
@@ -300,7 +307,6 @@ class _AnchorManagerPageState extends State<AnchorManagerPage> {
                       return _AnchorTile(
                         key: ValueKey(anchor.id),
                         anchor: anchor,
-                        weight: weights[index],
                         index: index,
                         onDelete: _busy ? null : () => _delete(anchor),
                       );
@@ -394,7 +400,12 @@ class _AnchorFormSheet extends StatefulWidget {
 
 class _AnchorFormSheetState extends State<_AnchorFormSheet> {
   final _labelController = TextEditingController();
-  String _mode = 'car';
+  // Kullanıcıya artık ulaşım şekli sorulmuyor — koridor hesabı her bacak
+  // için gerçek yol tarifiyle bunu kendisi belirliyor (bkz. backend
+  // PropertiesController.BuildCorridorLegsAsync: önce yaya, olmazsa araç).
+  // Backend sözleşmesi değişmedi (`mode` hâlâ zorunlu alan), bu yüzden
+  // sabit bir değer gönderiliyor.
+  static const _mode = 'car';
 
   /// Hazır etiketler — kullanıcıların %90'ı bu üçünden birini yazıyor ve
   /// klavye açıp yazmak, haritada nokta seçmekten daha uzun sürüyordu.
@@ -455,26 +466,6 @@ class _AnchorFormSheetState extends State<_AnchorFormSheet> {
                   ),
               ],
             ),
-            const SizedBox(height: AppSpacing.md),
-            Text('BURAYA NASIL GİDİYORSUN?', style: AppType.micro),
-            const SizedBox(height: 6),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(
-                  value: 'car',
-                  icon: Icon(Icons.directions_car_outlined, size: 18),
-                  label: Text('Araçla'),
-                ),
-                ButtonSegment(
-                  value: 'foot',
-                  icon: Icon(Icons.directions_walk, size: 18),
-                  label: Text('Yürüyerek'),
-                ),
-              ],
-              selected: {_mode},
-              onSelectionChanged:
-                  (value) => setState(() => _mode = value.first),
-            ),
             const SizedBox(height: AppSpacing.lg),
             FilledButton(
               // Etiket boşken kapalı: boş bir etiketle kaydedip sonra
@@ -493,14 +484,12 @@ class _AnchorFormSheetState extends State<_AnchorFormSheet> {
 class _AnchorTile extends StatelessWidget {
   const _AnchorTile({
     required this.anchor,
-    required this.weight,
     required this.index,
     required this.onDelete,
     super.key,
   });
 
   final Anchor anchor;
-  final double weight;
   final int index;
   final VoidCallback? onDelete;
 
@@ -549,56 +538,6 @@ class _AnchorTile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        Icon(
-                          anchor.mode == 'car'
-                              ? Icons.directions_car_outlined
-                              : Icons.directions_walk,
-                          size: 13,
-                          color: AppColors.inkMuted,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          anchor.mode == 'car' ? 'Araçla' : 'Yürüyerek',
-                          style: AppType.muted(AppType.micro).copyWith(
-                            letterSpacing: 0,
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.xs),
-                        // ⚠️ Ağırlık artık ONDALIK DEĞİL YÜZDE. "ağırlık
-                        // 0.571" bir hesap ara değeri; kullanıcı için
-                        // anlamı "skorun %57'si buraya bakıyor".
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(
-                                    AppRadius.pill,
-                                  ),
-                                  child: LinearProgressIndicator(
-                                    value: weight,
-                                    minHeight: 4,
-                                    backgroundColor: AppColors.inputBg,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 5),
-                              Text(
-                                '%${(weight * 100).round()}',
-                                style: AppType.micro.copyWith(
-                                  letterSpacing: 0,
-                                  color: AppColors.accent,
-                                  fontFeatures: AppType.tabularFigures,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
@@ -632,12 +571,4 @@ class _AnchorDraft {
 
   final String label;
   final String mode;
-}
-
-/// Sıraya göre ağırlık: her sıra bir öncekinin yarısı, toplam 1.
-List<double> _anchorWeights(int count) {
-  if (count <= 0) return const [];
-  final raw = List<double>.generate(count, (index) => 1 / (1 << index));
-  final sum = raw.fold<double>(0, (total, item) => total + item);
-  return raw.map((item) => item / sum).toList();
 }
