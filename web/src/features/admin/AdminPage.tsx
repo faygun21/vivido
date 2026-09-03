@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  Eye,
+  EyeOff,
+  MailCheck,
+  ShieldCheck,
+  ShieldOff,
+  UserCheck,
+  UserX,
+} from 'lucide-react';
 import { api, ApiError } from '@/shared/api/client';
 import { useAuthStore } from '@/features/auth/authStore';
+import { AdminIconAction } from './AdminIconAction';
 
 interface AdminUser {
   id: string;
@@ -23,6 +33,18 @@ interface AdminUserPage {
 }
 
 const PAGE_SIZE = 25;
+
+/**
+ * Satır eylemlerinin ikon ölçüsü.
+ *
+ * `lucide-react` öntanımlı olarak 24px ve `strokeWidth: 2` çizer; 17px'e
+ * küçültülen bir ikonda o kalınlık tıkanır, ince çizgili bir tabloda da
+ * gereğinden fazla ağırlık taşır.
+ */
+const ICON = { size: 17, strokeWidth: 1.75 } as const;
+
+/** Bir istek uçarken diğer eylemler kapalı — sebebi ipucunda yazsın. */
+const BUSY_REASON = 'Önceki işlem sürüyor…';
 
 /**
  * Sunucudan gelen hatayı okunur bir cümleye çevirir.
@@ -238,58 +260,90 @@ export function AdminPage() {
 
                       <td>
                         <div className="admin-actions">
-                          <button
-                            type="button"
-                            className="btn-sm btn-secondary"
+                          <AdminIconAction
+                            label={
+                              detailUserId === user.id
+                                ? 'Detayı gizle'
+                                : 'Detay'
+                            }
+                            icon={
+                              detailUserId === user.id ? (
+                                <EyeOff {...ICON} />
+                              ) : (
+                                <Eye {...ICON} />
+                              )
+                            }
+                            active={detailUserId === user.id}
                             onClick={() =>
                               setDetailUserId((current) =>
                                 current === user.id ? null : user.id,
                               )
                             }
-                          >
-                            {detailUserId === user.id ? 'Gizle' : 'Detay'}
-                          </button>
+                          />
 
                           {!verified && (
-                            <button
-                              type="button"
-                              className="btn-sm btn-secondary"
-                              disabled={busy}
+                            <AdminIconAction
+                              label="Elle doğrula"
+                              icon={<MailCheck {...ICON} />}
+                              intent="ok"
+                              disabledReason={busy ? BUSY_REASON : null}
                               onClick={() => handleVerify(user)}
-                            >
-                              Elle doğrula
-                            </button>
+                            />
                           )}
 
-                          <button
-                            type="button"
-                            className="btn-sm btn-secondary"
+                          <AdminIconAction
+                            label={user.isAdmin ? 'Yetkiyi al' : 'Admin yap'}
+                            icon={
+                              user.isAdmin ? (
+                                <ShieldOff {...ICON} />
+                              ) : (
+                                <ShieldCheck {...ICON} />
+                              )
+                            }
+                            intent="accent"
                             // Kendi yetkisini alamaz: sistemde hiç admin
                             // kalmama riski. Sunucu da ayrıca engelliyor.
-                            disabled={busy || isSelf}
+                            disabledReason={
+                              isSelf
+                                ? 'Kendi yönetici yetkini değiştiremezsin.'
+                                : busy
+                                  ? BUSY_REASON
+                                  : null
+                            }
                             onClick={() =>
                               adminMutation.mutate({
                                 userId: user.id,
                                 isAdmin: !user.isAdmin,
                               })
                             }
-                          >
-                            {user.isAdmin ? 'Yetkiyi al' : 'Admin yap'}
-                          </button>
+                          />
 
-                          <button
-                            type="button"
-                            className="btn-sm btn-secondary"
-                            disabled={busy || isSelf}
+                          <AdminIconAction
+                            label={
+                              user.isActive ? 'Pasifleştir' : 'Aktifleştir'
+                            }
+                            icon={
+                              user.isActive ? (
+                                <UserX {...ICON} />
+                              ) : (
+                                <UserCheck {...ICON} />
+                              )
+                            }
+                            intent={user.isActive ? 'danger' : 'ok'}
+                            disabledReason={
+                              isSelf
+                                ? 'Kendi hesabının durumunu değiştiremezsin.'
+                                : busy
+                                  ? BUSY_REASON
+                                  : null
+                            }
                             onClick={() =>
                               activeMutation.mutate({
                                 userId: user.id,
                                 isActive: !user.isActive,
                               })
                             }
-                          >
-                            {user.isActive ? 'Pasifleştir' : 'Aktifleştir'}
-                          </button>
+                          />
                         </div>
                       </td>
                     </tr>
