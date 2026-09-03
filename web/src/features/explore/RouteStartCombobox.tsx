@@ -270,6 +270,10 @@ function describeSearchError(cause: unknown): string {
   if (cause instanceof ApiError && cause.problem.code === 'LOCATION_SEARCH_UNAVAILABLE') {
     return 'Adres arama servisi şu anda kullanılamıyor.';
   }
-  if (cause instanceof ApiError) return cause.problem.title;
+  // `code` VARSA `title` bizim `ApiProblem` yardımcımızdan gelen, kasıtlı
+  // Türkçe bir metin. YOKSA (ASP.NET Core'un otomatik ürettiği beklenmeyen
+  // bir hata) `title` çerçevenin İngilizce varsayılanı olabilir ("Not
+  // Found" gibi) — göstermiyoruz.
+  if (cause instanceof ApiError && cause.problem.code) return cause.problem.title;
   return 'Arama sırasında beklenmeyen bir hata oluştu.';
 }

@@ -92,7 +92,11 @@ export function useAreaPois({
 }
 
 function messageFor(error: unknown): string {
-  if (error instanceof ApiError) {
+  // `code` VARSA gövde bizim `ApiProblem` yardımcımızdan geldi demektir —
+  // `detail`/`title` kasıtlı ve Türkçe. YOKSA (ASP.NET Core'un otomatik
+  // ürettiği beklenmeyen bir hata) `title` çerçevenin İngilizce
+  // varsayılanı olabilir ("Not Found" gibi) — göstermiyoruz.
+  if (error instanceof ApiError && error.problem.code) {
     return error.problem.detail ?? error.problem.title;
   }
   return 'Çevredeki hizmet noktaları yüklenemedi.';

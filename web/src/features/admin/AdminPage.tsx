@@ -54,7 +54,13 @@ const BUSY_REASON = 'Önceki işlem sürüyor…';
  * kullanıcıya hiç ulaşmıyordu.
  */
 function describeError(error: unknown, fallback: string): string {
-  if (error instanceof ApiError) {
+  // `code` VARSA gövde bizim `ApiProblem` yardımcımızdan geldi demektir —
+  // `detail`/`title` kasıtlı ve Türkçe (yukarıdaki "Kendi admin yetkinizi
+  // kaldıramazsınız" örneği gibi). YOKSA (ASP.NET Core'un otomatik
+  // ürettiği beklenmeyen bir hata) `title` çerçevenin İngilizce
+  // varsayılanı olabilir ("Not Found" gibi) — çağıranın verdiği `fallback`
+  // kullanılır.
+  if (error instanceof ApiError && error.problem.code) {
     return error.problem.detail ?? error.problem.title ?? fallback;
   }
   return fallback;
