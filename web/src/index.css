@@ -1374,10 +1374,112 @@ button, a, [role='button'] {
   text-align: center;
 }
 
+/* ── Satır eylemleri ──
+   Eskiden burada dört DOLU METİN düğmesi vardı ("Detay", "Elle doğrula",
+   "Admin yap", "Pasifleştir") ve satırın yarısını kaplıyorlardı: asıl
+   içerik olan ad ve e-posta sıkışıyor, tablo yatay kaymaya zorluyordu.
+   Eylem adı artık yalnızca ilgilenene, ipucu olarak gösteriliyor. */
 .admin-actions {
   display: flex;
-  gap: 0.4rem;
+  gap: 0.1rem;
   justify-content: flex-end;
+}
+
+.admin-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+/* Satırın kendi `:hover` zemini de `--surface-sunken`: düğme aynı tonu
+   kullansaydı fare üzerindeyken hiçbir şey değişmemiş gibi görünürdü. */
+.admin-icon-btn:hover { background: var(--input-bg); color: var(--ink); }
+
+/* Renk yalnızca ÜZERİNE GELİNCE: dinlenme hâlinde dört renkli ikon,
+   satırın asıl içeriğinden çok dikkat çekerdi — rozetlerin dolu değil
+   tonlu olmasının gerekçesiyle aynı. Renk burada eylemin AĞIRLIĞINI
+   söylüyor: bu ikon basılınca ne kadar şey değişir. */
+.admin-icon-btn--accent:hover { color: var(--accent); }
+.admin-icon-btn--ok:hover { color: var(--ok); }
+.admin-icon-btn--danger:hover {
+  background: color-mix(in srgb, var(--bad) 10%, var(--surface));
+  color: var(--bad);
+}
+
+/* Açık detayın düğmesi BASILI kalır: hangi satırın altındaki panelin
+   açık olduğu, panele bakmadan da görünsün. */
+.admin-icon-btn.is-active {
+  background: var(--accent-soft-strong);
+  color: var(--accent);
+}
+
+/* `disabled` özniteliği DEĞİL `aria-disabled` kullanılıyor: pasif bir
+   düğme fare olayı üretmez, dolayısıyla ipucu da açılmaz ve kullanıcı
+   yalnızca silik bir ikon görüp neden basamadığını öğrenemezdi. */
+.admin-icon-btn[aria-disabled='true'] {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.admin-icon-btn[aria-disabled='true']:hover {
+  background: transparent;
+  color: var(--ink-muted);
+}
+
+/* Genel basma geri bildirimi (`scale(0.97)`) yalnızca yerel `disabled`ı
+   dışlıyor; `aria-disabled` düğme onun gözünde etkin. Basılınca büzülüp
+   hiçbir şey yapmayan bir düğme, tepkisiz olandan daha kötü — yalan
+   söyler. */
+.admin-icon-btn[aria-disabled='true']:active { transform: none; }
+
+/* Parmakla dokunulan hedef fareyle nişan alınandan büyük olmalı. */
+@media (pointer: coarse) {
+  .admin-icon-btn { width: 2.6rem; height: 2.6rem; }
+}
+
+/* ── İpucu balonu ──
+   Gövdeye portal ile taşınıyor ve `position: fixed`: `.admin-table-wrap`
+   yatay kaydırma için `overflow-x: auto` taşıyor, bu da `overflow-y`yi
+   kırpar hâle getiriyor. Satırın içine konan mutlak konumlu bir balon
+   tablonun kenarında KESİLİRDİ.
+
+   Konum ve `transform-origin` JS'te ölçülüp yazılıyor (bkz.
+   `AdminIconAction.tsx`); balon her zaman düğmesinin merkezinden büyür. */
+.admin-tip {
+  position: fixed;
+  z-index: 40;
+  max-width: 15rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: var(--r-xs);
+  background: color-mix(in srgb, #2a231d 94%, transparent);
+  color: #fff;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  /* Küçük metin optik olarak sıkışır; koyu zemin üzerinde daha da
+     sıkı görünür — pozitif tracking okunurluğu geri verir. */
+  letter-spacing: var(--ls-xs);
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+  /* Balon fareyi YAKALAMAMALI: düğmenin üstüne taşan bir katman,
+     kendi tetikleyicisinden `pointerleave` almasına yol açardı. */
+  pointer-events: none;
+  transform: translateY(-100%);
+  animation: v-tip-in var(--dur-fast) var(--ease-out);
+}
+
+/* Yukarıda yer yoksa balon düğmenin altına geçer — tepeye yapışmış bir
+   satırda ekranın dışında kalmasındansa. */
+.admin-tip[data-below='true'] {
+  transform: none;
+  animation-name: v-tip-in-below;
 }
 
 /* Rozetler DOLU değil TONLU: bir tabloda yan yana üç dolu renkli

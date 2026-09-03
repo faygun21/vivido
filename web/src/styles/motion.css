@@ -51,6 +51,28 @@
   to   { opacity: 1; transform: none; }
 }
 
+/* İpucu balonu — düğmesinden ÇIKARAK belirir.
+   `transform-origin` çalışma anında tetikleyici düğmenin merkezine
+   yazılıyor (bkz. `AdminIconAction.tsx`): merkezden büyüyen bir balon,
+   hangi ikonu anlattığını söylemez.
+
+   Yer değiştirme (`translateY`) animasyonun DIŞINDA, çünkü balonun
+   konumunu o taşıyor; animasyona karışsaydı her kare balonu yerinden
+   oynatırdı. Geriye kalan ölçek + opaklık, malzemenin gelişini anlatır.
+
+   Aşağı açılan hâli için ayrı bir dizi gerekiyor: ikisi farklı
+   `translateY` taban değeri taşıyor ve tek bir dizi ikisini de
+   anlatamaz. */
+@keyframes v-tip-in {
+  from { opacity: 0; transform: translateY(-100%) scale(0.92); }
+  to   { opacity: 1; transform: translateY(-100%) scale(1); }
+}
+
+@keyframes v-tip-in-below {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
 /* Hata için sarsıntı — 3px, iki salınım. Daha fazlası dramatik ve
    okumayı zorlaştırır; amaç dikkat çekmek, cezalandırmak değil. */
 @keyframes v-shake {
