@@ -215,6 +215,11 @@ function toSearchError(cause: unknown): string {
   if (cause instanceof ApiError && cause.problem.code === 'LOCATION_SEARCH_UNAVAILABLE') {
     return 'Adres arama servisi şu anda kullanılamıyor. Lütfen yeniden dene.';
   }
-  if (cause instanceof ApiError) return cause.problem.title;
+  // `code` VARSA `title` bizim `ApiProblem` yardımcımızdan gelen, kasıtlı
+  // Türkçe bir metin. YOKSA (ASP.NET Core'un otomatik ürettiği beklenmeyen
+  // bir hata) `title` çerçevenin İngilizce varsayılanı olabilir ("Not
+  // Found" gibi — tam olarak bu hata kullanıcıya böyle sızmıştı) —
+  // göstermiyoruz.
+  if (cause instanceof ApiError && cause.problem.code) return cause.problem.title;
   return 'Konum aranırken beklenmeyen bir hata oluştu.';
 }

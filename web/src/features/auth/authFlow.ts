@@ -86,7 +86,16 @@ export function describeAuthError(err: unknown): string {
     if (err.problem.errors) {
       return Object.values(err.problem.errors).flat().join(' ');
     }
-    return err.problem.title;
+
+    // `code` VARSA bu gövde bizim `ApiProblem` yardımcımızdan geldi demektir
+    // — `title` Türkçe ve kasıtlı. `code` YOKSA (ASP.NET Core'un otomatik
+    // ürettiği, eşleşmeyen bir rota gibi beklenmeyen bir 4xx/5xx) `title`
+    // çerçevenin kendi İngilizce varsayılanı olabilir ("Not Found" gibi) —
+    // onu kullanıcıya göstermek K-D'yi ihlal eder.
+    if (err.problem.code) {
+      return err.problem.title;
+    }
+    return 'Beklenmeyen bir hata oluştu.';
   }
 
   return 'Beklenmeyen bir hata oluştu.';

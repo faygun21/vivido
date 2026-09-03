@@ -220,7 +220,9 @@ export function AnchorEditor({
       ) : anchors.length === 0 ? (
         <p className="muted">
           Henüz yer eklemedin. Düzenli gittiğin yerleri ekleyip önem sırasına
-          dizdiğinde skorlar bu sıraya göre hesaplanır.
+          dizdiğinde, en üstteki en önemli yer olur — gösterilen evler
+          öncelikle oraya gerçekten ulaşılabilir olup olmadığına göre
+          daraltılır.
         </p>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -294,7 +296,11 @@ function describeAnchorError(err: unknown): string {
       case 'INVALID_ANCHOR_ORDER':
         return 'Sıralama kaydedilemedi, liste yeniden yüklendi.';
       default:
-        return err.problem.title;
+        // `code` VARSA `title` bizim `ApiProblem` yardımcımızdan gelen,
+        // kasıtlı Türkçe bir metin. YOKSA (ASP.NET Core'un otomatik
+        // ürettiği beklenmeyen bir hata) `title` çerçevenin İngilizce
+        // varsayılanı olabilir ("Not Found" gibi) — göstermiyoruz.
+        return err.problem.code ? err.problem.title : 'Beklenmeyen bir hata oluştu.';
     }
   }
   return 'Beklenmeyen bir hata oluştu.';
