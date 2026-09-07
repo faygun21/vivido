@@ -249,7 +249,7 @@ ama kullanıcı hesapları geri gelmez.
 | `password authentication failed` | `.env`'deki `POSTGRES_PASSWORD` volume oluşturulduğundaki parolayla aynı değil. Parola volume'e gömülüdür, sonradan değiştirilemez |
 | Sertifika alınamıyor | A kaydı henüz çözümlenmiyor, ya da Cloudflare proxy açık |
 | Web API'ye ulaşamıyor | Tek origin'de olmamalı. Ayrı origin kullanıyorsanız `Cors__AllowedOrigins` |
-| Doğrulama e-postası gitmiyor | `Email__Password` 16 haneli uygulama şifresi mi, boşluklar silindi mi (README §2.5) |
+| Doğrulama e-postası gitmiyor | `Email__Password` 16 haneli uygulama şifresi mi, boşluklar silindi mi ([KURULUM §2.5](../docs/KURULUM.md)) |
 
 ---
 
