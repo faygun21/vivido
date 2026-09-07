@@ -73,7 +73,7 @@ a {
    `:hover` çalışmadığı için basma anında EKRANDA HİÇBİR ŞEY OLMUYORDU.
    `:where()` sıfır özgüllük taşır, bileşenlerin kendi kuralları bunu
    tek satırla ezebilir. */
-:where(button, [role='button'], .cta, .btn-secondary):not(:disabled) {
+:where(button, [role='button'], .btn-secondary):not(:disabled) {
   transition:
     transform var(--dur-fast) var(--ease-out),
     background-color var(--dur-fast) var(--ease-out),
@@ -82,7 +82,7 @@ a {
     box-shadow var(--dur-fast) var(--ease-out);
 }
 
-:where(button, [role='button'], .cta, .btn-secondary):not(:disabled):active {
+:where(button, [role='button'], .btn-secondary):not(:disabled):active {
   transform: scale(0.97);
   transition-duration: var(--dur-instant);
 }
@@ -1688,31 +1688,17 @@ button, a, [role='button'] {
   color: var(--ink-muted);
 }
 
-.admin-stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-}
-
 @media (max-width: 720px) {
   .admin-page { padding: 24px 20px; }
-  .admin-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
-@media (max-width: 420px) {
-  .admin-stats-grid { grid-template-columns: 1fr; }
 }
 
 /* ─── Sayfalar ─── */
 
-.page h1,
-.landing h1 {
+.page h1 {
   letter-spacing: -0.025em;
   margin-top: 0;
   color: #000;
 }
-
-.landing p { max-width: 46rem; }
 
 .muted { color: var(--ink-muted); }
 
@@ -1721,17 +1707,6 @@ button, a, [role='button'] {
   place-items: center;
   min-height: 40vh;
   color: var(--ink-muted);
-}
-
-.cta {
-  display: inline-block;
-  margin-top: 0.5rem;
-  padding: 0.6rem 1.4rem;
-  border-radius: 0.5rem;
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 600;
-  text-decoration: none;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -2275,13 +2250,6 @@ button {
 
 .row-actions { display: flex; gap: 0.5rem; align-items: center; }
 
-/* ── Form yardımcı metinleri ── */
-.field-hint {
-  font-size: var(--fs-xs);
-  color: var(--ink-muted);
-  font-weight: 400;
-}
-
 /* Hata ve onay satırları bir SİMGE de taşır: "Parolalar uyuşmuyor" ile
    "Parolalar eşleşiyor" yalnızca renkle ayrılıyordu ve kırmızı-yeşil
    ayırt edemeyen kullanıcı için ikisi aynı satırdı. */
@@ -2304,16 +2272,6 @@ button {
 .field-ok { color: var(--ok); }
 .field-ok::before { content: '✓'; }
 
-.form-links {
-  margin: 0;
-  font-size: 0.9rem;
-  text-align: right;
-}
-.form-links a {
-  color: var(--accent);
-  font-weight: 600;
-}
-
 /* Diğer harita ve anchor bileşenlerinin stilleri */
 /* Kart kenarlığı `--line`ın TAMAMI değil yumuşatılmışı: dolu bir
    kahve-gri çizgi, kartın içeriğinden daha çok dikkat çekiyor ve
@@ -2332,8 +2290,6 @@ button {
   font-size: var(--fs-h3);
   letter-spacing: var(--ls-h3);
 }
-
-.profile-routes { margin-top: 2rem; }
 
 .kv {
   display: grid;
@@ -2459,7 +2415,6 @@ button {
    +/− düğmeleri boş kutuya döner. */
 .brand-logo,
 .login-logo,
-.illustration,
 .maplibregl-ctrl svg,
 .maplibregl-ctrl-attrib svg {
   max-width: none;
@@ -2915,12 +2870,6 @@ button {
 }
 
 .map-topbar > * { pointer-events: auto; }
-
-.map-topbar-search {
-  flex: 1;
-  min-width: 0;
-  max-width: 30rem;
-}
 
 .explore-drawer .location-search,
 .drawer-body .location-search,
@@ -3404,44 +3353,10 @@ button {
   color: #15803d;
 }
 
-/* ── Bütçe uyumu ──
-   Skor satırlarından AYRI ve görsel olarak da ayrı: mevcut skor motoru
-   bütçeyi hesaba katmıyor, gerekçe tablosuna karıştırırsak kullanıcı
-   "bütçem skorumu düşürmüş" sanır. */
-.budget-note {
-  margin-top: 1rem;
-  padding: 0.7rem 0.85rem;
-  border-radius: 0.8rem;
-  border-left: 3px solid var(--line);
-  background: var(--input-bg);
-}
-
-.budget-note h3 { margin: 0 0 0.25rem; font-size: 0.85rem; }
-.budget-note p { margin: 0; font-size: 0.82rem; }
-
-.budget-note--fits  { border-left-color: #15803d; }
-.budget-note--tight { border-left-color: #b45309; }
-.budget-note--over  { border-left-color: #9a3412; }
-.budget-note--under { border-left-color: #0f766e; }
-
-.budget-bar {
-  height: 0.35rem;
-  margin-top: 0.5rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--line) 40%, transparent);
-  overflow: hidden;
-}
-
-.budget-bar span {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  background: var(--accent);
-}
-
-.budget-note--fits .budget-bar span  { background: #15803d; }
-.budget-note--tight .budget-bar span { background: #b45309; }
-.budget-note--over .budget-bar span  { background: #9a3412; }
+/* ⚠️ `.budget-note*` / `.budget-bar` KALDIRILDI: `PropertyBudgetFit`
+   sunucudan geliyor ama panel onu hiç çizmiyor — hiçbir bileşen bu
+   sınıfları kullanmıyordu. Bütçe kutusu geri geldiğinde stiller git
+   geçmişinden alınabilir. */
 
 /* ── Neden uygun / neden uygun değil ── */
 .reason-columns { display: grid; gap: 0.8rem; }
@@ -3486,33 +3401,9 @@ button {
 .reason-empty { margin: 0; font-size: 0.8rem; }
 .reason-toggle { margin-top: 0.7rem; }
 
-/* ── Zayıf halka cezası ──
-   Bir KRİTER değil, tüm skora uygulanan bir kısıtlama — o yüzden
-   güçlü/zayıf sütunlarının dışında, kendi kutusunda duruyor. */
-.weak-link-note {
-  margin-top: 0.7rem;
-  padding: 0.55rem 0.7rem;
-  border-radius: 0.7rem;
-  border-left: 3px solid #9a3412;
-  background: color-mix(in srgb, #9a3412 8%, var(--surface));
-}
-
-.weak-link-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.weak-link-label { font-size: 0.82rem; font-weight: 700; color: #9a3412; }
-
-.weak-link-points {
-  font-size: 0.95rem;
-  color: #9a3412;
-  font-variant-numeric: tabular-nums;
-}
-
-.weak-link-note p { margin: 0.2rem 0 0; font-size: 0.78rem; }
+/* ⚠️ `.weak-link-*` KALDIRILDI: `PropertyScoreDetail.weakLink` sunucudan
+   geliyor ama panelde hiç çizilmiyor — hiçbir bileşen bu sınıfları
+   kullanmıyordu. Zayıf halka kutusu eklendiğinde stiller git geçmişinde. */
 
 /* Hedef süre, ölçülenin ALTINDA — ayrı sütun olsaydı tablo dar panele
    sığmazdı. */

@@ -5,8 +5,14 @@
  * ve rota id'leri STRING'dir (uuid). Aynı projede iki tip var, karıştırmayın.
  */
 
-import type { ScoreBand, ScoreSummary } from './score';
+import type { ScoreBand } from './score';
 
+/**
+ * ⚠️ Bu tip DOĞRUDAN hiçbir uçtan dönmüyor; yalnızca `route.ts` içindeki
+ * `RouteStop.property` bir `Pick<Property, …>` ile alanlarını ödünç alıyor.
+ * Sunucunun gerçekten döndürdüğü konut şekilleri aşağıdaki API DTO'ları
+ * bölümünde (`PropertyDetail`, `PropertySummary`, `PropertyMapItem`).
+ */
 export interface Property {
   id: number;
   lat: number;
@@ -28,33 +34,15 @@ export interface Property {
   isSynthetic: boolean;
 }
 
-export interface ScoredProperty extends Property {
-  score: ScoreSummary;
-}
-
-/** Liste başlığındaki mini çubuk için — kaç ev hangi bantta. */
-export interface ScoreDistribution {
-  excellent: number;
-  good: number;
-  fair: number;
-  poor: number;
-}
-
-export interface PropertySearchResponse {
-  items: ScoredProperty[];
-  page: number;
-  totalPages: number;
-  totalCount: number;
-  scoreDistribution: ScoreDistribution;
-}
-
 // ══════════════════════════════════════════════════════════════════════
 //  API DTO'ları — `/api/v1/properties` uçlarının GERÇEK yanıt şekilleri
 //
-//  Yukarıdaki `Property` / `ScoredProperty` planlanmış (Hafta 2) sözleşme;
-//  aşağıdakiler bugün sunucunun DÖNDÜĞÜ şekil. İkisi henüz birleşmedi —
-//  `api/openapi.yaml` yazılınca tek kaynaktan üretilecekler
-//  (docs/04-MEVCUT-DURUM §8, madde 6).
+//  ⚠️ Burada eskiden `ScoredProperty` / `ScoreDistribution` /
+//  `PropertySearchResponse` de vardı: Hafta 2'de PLANLANAN arama yanıtı.
+//  Sunucu o şekli hiç döndürmedi, hiçbir dosya import etmiyordu ve gerçek
+//  DTO'ların yanında durması hangisinin canlı olduğunu belirsizleştiriyordu.
+//  Gerekirse git geçmişinde. Doğru birleşme yolu `api/openapi.yaml` ile
+//  tek kaynaktan üretim (docs/04-MEVCUT-DURUM §8).
 // ══════════════════════════════════════════════════════════════════════
 
 /**

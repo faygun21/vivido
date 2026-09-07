@@ -117,12 +117,6 @@
   flex: none;
 }
 
-.vivido-popup-meta {
-  font-size: var(--fs-xs);
-  color: var(--ink-muted);
-}
-
-.vivido-popup-rent {
-  color: var(--accent);
-  font-weight: 600;
-}
+/* ⚠️ `.vivido-popup-meta` / `.vivido-popup-rent` KALDIRILDI: balon HTML'i
+   `CankayaMap.tsx` içinde dizge olarak kuruluyor ve orada bu iki sınıf hiç
+   üretilmiyor — meta satırı `.vivido-popup-category` sınıfını kullanıyor. */

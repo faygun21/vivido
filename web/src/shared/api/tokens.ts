@@ -50,7 +50,3 @@ export function clearTokens(): void {
     /* yoksay */
   }
 }
-
-export function hasRefreshToken(): boolean {
-  return getRefreshToken() !== null;
-}
