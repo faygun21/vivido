@@ -257,7 +257,7 @@ build şart.
 **Öneri.** EAS Build (bulut), yerel Android Studio derlemesi yerine.
 
 **Gerekçe.** Makinede Android SDK yok; yerel yol ~10 GB indirme demek. EAS
-doğrudan paylaşılabilir APK linki veriyor — README §2.4'ün "bir kişi üretir,
+doğrudan paylaşılabilir APK linki veriyor — [KURULUM §2.4](KURULUM.md)'ün "bir kişi üretir,
 ekip aynı APK'yı kurar" akışına birebir uyuyor. Native modül listesi sabit
 olduğu için tek derleme üç haftayı götürür.
 
@@ -410,7 +410,7 @@ için birlikte kararlaştırıldı.
 
 **Durum:** Kabul · 2026-08-21
 
-**Bağlam.** [README §1](../README.md) kapsam listesi W1 ile başlıyor: kullanıcı
+**Bağlam.** [KURULUM §1](KURULUM.md) kapsam listesi W1 ile başlıyor: kullanıcı
 önce kaydolur. Uygulamayı ilk açan kişi ne gördüğünü bilmeden bir hesap açmaya
 zorlanıyordu — üstelik K-09 ile araya bir de e-posta doğrulama adımı girdi.
 
@@ -1043,3 +1043,46 @@ değişiklik; koridor bunu beklemeden kullanıcıya somut bir fayda veriyor.
 Kanıt: `api/src/Vivido.Api/controllers/PropertiesController.cs`,
 `api/src/Vivido.Api/controllers/AnchorsController.cs`,
 `web/src/features/anchors/AnchorEditor.tsx`.
+
+---
+
+## K-19
+### Ters vekile güven AĞ (CIDR) olarak tanımlanır, tek tek IP olarak değil
+
+**Durum:** Kabul · 2026-09-07
+
+**Bağlam.** `Program.cs` istek sınırlarını (rate limit) IP başına
+bölümlüyor: `ctx.Connection.RemoteIpAddress`. Staging/production'da API'ye
+gelen her istek Caddy'den geçtiği için bu değer **her seferinde Caddy'nin
+konteyner IP'si**. `UseForwardedHeaders` bu sorunu çözmek için var ama
+ASP.NET Core `X-Forwarded-For` başlığını yalnızca **bilinen bir vekilden**
+geldiğinde kabul ediyor — aksi halde herkes sahte başlıkla IP taklit edip
+sınırları aşabilirdi. `deploy/docker-compose.prod.yml` bu güven listesini
+hiç tanımlamamıştı.
+
+Sonuç iki katmanlıydı:
+
+1. `"auth"` limiti (10/dk) kullanıcı başına değil **tüm site için tek
+   sayaç**tı; kaba kuvvet koruması saldırgan başına çalışmıyordu.
+2. Daha kötüsü bir **erişilebilirlik** arızasıydı: tek bir kişinin dakikada
+   10 giriş denemesi herkesin girişini 429 ile kilitliyordu.
+
+**Karar.** `Program.cs` `ForwardedHeaders:KnownProxies` (tek tek IP) yanında
+`ForwardedHeaders:KnownNetworks` (CIDR) da okur; prod compose ikincisini
+`172.16.0.0/12` ile doldurur.
+
+**Neden ağ, tek IP değil.** Caddy'nin konteyner IP'si sabit değil — compose
+her `up`ta farklı bir adres verebiliyor. Tek tek IP yazmak ilk yeniden
+başlatmada **sessizce** geçersizleşir ve kimse fark etmez: hata vermez,
+yalnızca sınırlar yeniden tek sayaca döner. Ağın tamamına güvenmek burada
+güvenli, çünkü `api` servisinin `ports:` tanımı yok — o ağa yalnızca kendi
+konteynerlerimiz bağlı, dışarıdan hiç kimse erişemiyor.
+
+**Sonucu.** Ayar yokken üretimde açık bir uyarı loglanıyor; sessiz
+başarısızlık ortadan kalktı. Ayrıntı ve aynı turda kapatılan diğer açıklar:
+[04-MEVCUT-DURUM §5.19](04-MEVCUT-DURUM.md).
+
+**Reddedilen alternatif.** `ForwardedHeaders` yerine rate limiter'ı doğrudan
+`X-Forwarded-For` başlığını okuyacak şekilde yazmak. Daha az yapılandırma
+isterdi ama **istemcinin kendi yazdığı** bir başlığa güvenmek demekti:
+saldırgan her istekte farklı bir IP uydurup sınırı tamamen etkisiz kılardı.
