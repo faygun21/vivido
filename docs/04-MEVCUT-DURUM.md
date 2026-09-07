@@ -1,6 +1,6 @@
 # Mevcut Durum — Çalışır Sistem ve Yapılan Değişiklikler
 
-> **Tarih:** 2026-08-23 (canlı belge — son güncelleme 2026-09-02) · **Branch:** `yazilim`
+> **Tarih:** 2026-08-23 (canlı belge — son güncelleme 2026-09-07) · **Branch:** `yazilim`
 >
 > Bu doküman projenin bugün **gerçekten** hangi noktada olduğunu anlatır ve
 > yol boyunca bulunan/düzeltilen hataları kaydeder. Plan dokümanlarının
@@ -17,8 +17,12 @@
 Kullanıcı kayıt olup **e-postasına gelen kodla** hesabını doğrulayabiliyor,
 şifresini sıfırlayabiliyor, **misafir olarak** kayıtsız gezebiliyor, persona
 seçip bütçesini girebiliyor, **sokaklı/binalı gerçek Çankaya haritasını**
-gezebiliyor ve anchor ekleyip sürükle-bırakla sıralayabiliyor — hepsi ekibin
-ortak kullandığı **https://vividoapp.xyz** adresinde canlı.
+gezebiliyor, anchor ekleyip sürükle-bırakla sıralayabiliyor, evleri
+**satır satır gerekçeli skoruyla** görüp favorileyebiliyor, kendine not
+bırakabiliyor ve seçtiği 2–8 ev için **ziyaret rotası** oluşturup
+kaydedebiliyor. Ekip tarafında ayrıca bir **admin paneli** var (kullanıcı
+yönetimi, sistem sağlığı, kullanım metrikleri) — hepsi ekibin ortak
+kullandığı **https://vividoapp.xyz** adresinde canlı.
 
 ---
 
@@ -154,7 +158,25 @@ bütçe → harita**. Anchor eklemek için üst menüden **Profil**.
 | Web: konut detay paneli | Gerekçe tablosu, güçlü/zayıf yönler, favori düğmesi |
 | Web: "En uygun evler" paneli | Sağdan açılan sıralı liste, karta tıklayınca harita uçuyor |
 | Web: profildeki favoriler | Gerçek kartlar — eskiden "Ev ID: 4213" yazıyordu |
-| **E-posta doğrulama** | **Yerelde KAPATILDI** (geçici, README §2.5). Staging'de açık |
+
+> ⚠️ Bu tablodaki **"E-posta doğrulama → yerelde KAPATILDI"** satırı
+> kaldırıldı: doğrulama artık **her ortamda AÇIK**
+> (`appsettings.Development.json` → `Auth:RequireEmailVerification: true`),
+> yani yerel davranış staging/production ile aynı. Ayrıntı: [KURULUM §2.5](KURULUM.md).
+
+### ✅ 2026-08-26 → 09-07 arasında eklenenler
+
+| Alan | Durum |
+|---|---|
+| `POST /routes` · `/routes/preview` · `GET/DELETE /routes` | **Yazıldı** — Held-Karp TSP (`Vivido.RouteOptimization`) + OSRM `/table` ve `/route`. Önizleme kaydetmeden hesaplar (§5.17) |
+| Rota planı (`scheduledAt`) | `013_add_route_schedule.sql`. **Bildirim GÖNDERMEZ**, yalnızca saklanır ve listede görünür |
+| `GET/PUT/DELETE /properties/{id}/note` | Kullanıcıya özel konut notu (`016_add_property_notes.sql`), 1–1000 karakter |
+| **Admin paneli** — `AdminController` | Kullanıcı listesi (sunucu tarafı arama + sayfalama), kullanıcı detayı, admin/aktiflik anahtarları, **elle e-posta doğrulama**, e-posta yapılandırma durumu |
+| **Admin paneli** — `AdminInsightsController` | `system-health` (OSRM car/foot + DB yoklaması, veri sayımları, veri sürümü dağılımı) ve `metrics` (kullanım + skor dağılımı) |
+| İlk admin | `BootstrapAdmin:Email` ile — kurulum [KURULUM §2.6](KURULUM.md) |
+| `GET /pois` · `/pois/by-id` · `/pois/near` · `/pois/categories` | Harita POI katmanları; hepsi `[AllowAnonymous]`, IP başına sınırlı |
+| Web: alan analizi paneli | Haritada seçilen noktanın çevresindeki hizmet noktaları (`AreaPoiPanel`) |
+| Mobil | `flutter analyze` **temiz çalışıyor** (aşağıdaki §8.9 borcu kapandı) |
 
 ### 4.2 ✅ 2026-09-02'de eklenenler — Anchor koridoru
 
@@ -176,12 +198,13 @@ bütçe → harita**. Anchor eklemek için üst menüden **Profil**.
 | ~~Skor kalibrasyonu~~ | **Çözüldü** — motor v1.1 (yumuşak tavan + zayıf halka + yoğunluk). Medyan 93,8 → **75,09**, tam 100 alan konut 767 → **0**. §5.14 |
 | CES birleştirme (ρ = −0.5) | Tam CES yok; yerine **zayıf halka cezası** çarpanı var (aynı amaç, daha basit) |
 | Anchor bileşeni (skor formülünde) | Anchor sırası **skoru** hâlâ değiştirmiyor — AK-W4 bugün karşılanmıyor. Ama 2026-09-02'den beri anchor'lar ayrı bir mekanizmayla **hangi evlerin listelendiğini** coğrafi olarak filtreliyor (bkz. §4.2, "anchor koridoru") — skora girmiyor, listelemeye giriyor |
-| Bütçe bileşeni | Skora girmiyor; panelde ayrı bilgi olarak gösteriliyor ([K-16](02-KARARLAR.md#k-16)) |
+| Bütçe bileşeni | Skora girmiyor ([K-16](02-KARARLAR.md#k-16)). ⚠️ Sunucu `PropertyBudgetFit` **döndürüyor** ama web paneli onu HİÇ ÇİZMİYOR; stilleri de kaldırıldı (2026-09-07) |
+| Zayıf halka kutusu (web) | `PropertyScoreDetail.weakLink` sunucudan geliyor, panelde gösterilmiyor — ceza skora uygulanıyor ama kullanıcı sebebini göremiyor |
 | `min_poi_count` "veri yetersiz" yolu | Kategori devre dışı bırakma yok |
 | Altın veri seti (72 vaka) + I1–I8 | `Category=Golden` / `Invariant` trait'i taşıyan test yok — `test:golden`/`test:invariant` script'leri şu an boş kategoriye karşı çalışıyor |
 | Filtre paneli (kira / m² aralık) | Oda sayısı filtresi ve kira/m² **sıralaması** var ("En uygun evler" paneli); kira/m² için ayrı bir **aralık** (slider/min-max) filtresi hâlâ yok — bütçe aralığı profilden geliyor |
 | Playwright | Kurulu değil |
-| ~~Rota / TSP / mobil navigasyon~~ | **Çözüldü** — açık TSP (Held-Karp) ve OSRM rota geometrisi çalışıyor, önizle/kaydet akışı ayrıldı (§5.15–§5.17). Mobilde navigasyon ekranı da yazıldı (`navigation_page.dart`) |
+| ~~Rota / TSP / mobil navigasyon~~ | **Çözüldü** — açık TSP (Held-Karp) ve OSRM rota geometrisi çalışıyor, önizle/kaydet akışı ayrıldı (§5.15–§5.17). Mobilde navigasyon ekranı da yazıldı (`navigation_page.dart`); gerçek cihazda uçtan uca akış hâlâ doğrulanmadı |
 
 ---
 
@@ -619,7 +642,10 @@ pnpm db:check
 | 6 | **`api/openapi.yaml` yok** | `pnpm gen:api` çalışamaz; sözleşme elle senkron (`packages/shared` + `vivido-api-sozlesmesi.md`) |
 | 7 | **Redis kullanılmıyor** | Bilinçli — 3 haftalık plan Redis'i kesti. `redis` servisi kökteki compose'da duruyor ama **kod hiç kullanmıyor**; staging'de hiç açılmıyor. Not: bu "skor cache hiç yok" demek değil — `score_cache` tablosu (DB-içi, persona+profil bazlı) `PropertyScoringService` tarafından fiilen kullanılıyor ve kategori önceliği değişince temizleniyor; iptal edilen yalnızca Redis'ti |
 | 8 | **Test kapsamı düşük** | `Category=Golden` / `Invariant` trait'i taşıyan tek test yok; kapılar boşa çalışıyor. Playwright kurulu değil |
-| 9 | **Mobil CI'da otomatik doğrulanıyor, yerelde hâlâ görülmedi** | `ci-mobile.yml` her push/PR'da `flutter analyze` + `flutter test` çalıştırıyor — "hiç doğrulanmadı" artık doğru değil. Ama bu makinede Flutter kurulu değil, uygulamanın gerçek cihaz/emülatörde çalıştığı burada gözlemlenmedi |
+| 9 | **Mobil: statik doğrulama temiz, cihazda görülmedi** | `ci-mobile.yml` her push/PR'da `flutter analyze` + `flutter test` çalıştırıyor; ayrıca 2026-09-07'de bu makinede `flutter analyze` elle koşuldu ve "No issues found" verdi. Kalan borç: uygulamanın gerçek cihaz/emülatörde uçtan uca çalıştığı hâlâ gözlemlenmedi |
+| 10 | **`LocationSearchServiceIntegrationTests` yerelde KIRIK** | `MahalleAdresVeKonumAramasiCalisir` başarısız — test canlı Photon/Nominatim'e ve yüklü bir veritabanına ihtiyaç duyuyor, ikisi de yoksa düşüyor. Kodla ilgisi yok; ya izole edilmeli (sahte sağlayıcı) ya da `Category=Integration` ile varsayılan koşudan çıkarılmalı |
+| 11 | **İçerik Güvenlik Politikası (CSP) yok** | Refresh token `localStorage`'da ([K-A](02-KARARLAR.md)); XSS'e karşı en etkili katman CSP ama MapLibre'ın `blob:` worker'ları ve karo/font kaynakları dikkatli bir liste istiyor. Diğer güvenlik başlıkları (`nosniff`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`) 2026-09-07'de `deploy/Caddyfile`'a eklendi; CSP `Report-Only` ile başlatılmalı |
+| 12 | **Kullanılmayan `redis` ve `openapi-typescript-codegen`** | İkisi de bağımlılıkta duruyor, hiçbir kod kullanmıyor. `redis` §8.7'de; `gen:api` betiği `api/openapi.yaml` olmadığı için çalışamıyor (§8.6) |
 
 ### 5.15 🔴 Staging'de rota oluşturma hiç çalışmadı — iki ayrı yapılandırma eksiği
 
@@ -744,3 +770,131 @@ gerilmiş uzayda alınıp sonra geri sıkıştırılıyor. Aynı düzeltme yol t
 gözle daha görünürdü.
 
 Kanıt: `api/src/Vivido.Api/controllers/PropertiesController.cs`.
+
+### 5.19 🔴 Güvenlik taraması — beş açık kapatıldı, ölü kod temizlendi
+
+**Tarih:** 2026-09-07 · **Düzeltildi**
+
+Kod tabanının tamamı güvenlik ve ölü kod açısından tarandı. Bulunanların
+tamamı **kod incelemesiyle** doğrulandı; sömürü denemesi yapılmadı.
+
+#### 1. 🔴 Ters vekil arkasında istek sınırları tek sayaca düşüyordu
+
+`deploy/docker-compose.prod.yml` içinde `ForwardedHeaders__KnownProxies`
+(veya `KnownNetworks`) **hiç tanımlı değildi**. ASP.NET Core
+`X-Forwarded-For` başlığını yalnızca bilinen bir vekilden gelirse kabul
+ettiği için, `Program.cs`'teki rate limiter'ın bölümleme anahtarı
+(`ctx.Connection.RemoteIpAddress`) **her istekte Caddy'nin IP'sini**
+görüyordu. Sonuç:
+
+- `"auth"` limiti (10/dk) kullanıcı başına değil, **tüm site için tek
+  sayaç**tı — kaba kuvvet koruması saldırgan başına çalışmıyordu;
+- daha kötüsü, tek bir kişinin (ya da bir botun) dakikada 10 giriş denemesi
+  **herkesin girişini** 429 ile kilitliyordu.
+
+**Düzeltme:** `Program.cs` artık `ForwardedHeaders:KnownNetworks` ile CIDR
+kabul ediyor (`KnownProxies` tek tek IP istiyordu, Caddy'nin konteyner IP'si
+ise her `up`ta değişebiliyor). Prod compose'a
+`ForwardedHeaders__KnownNetworks=172.16.0.0/12` eklendi — `api` servisinin
+`ports:` tanımı olmadığı için o ağa yalnızca kendi konteynerlerimiz bağlı.
+Ayar yokken üretimde artık açık bir uyarı loglanıyor. Karar kaydı ve
+reddedilen alternatif: [K-19](02-KARARLAR.md#k-19).
+
+#### 2. 🟠 Girişte zamanlama üzerinden kullanıcı sızıntısı
+
+`POST /auth/login`, e-posta kayıtlı değilse BCrypt doğrulamasını **hiç
+çalıştırmadan** dönüyordu. BCrypt bilerek yavaş (~100–300 ms); kayıtlı ve
+kayıtsız adres arasındaki fark ölçülebilir büyüklükteydi. Yanıt gövdesi aynı
+olduğu hâlde saldırgan yalnızca süreye bakarak *"bu adres Vivido'da kayıtlı
+mı"* sorusunu güvenilir biçimde cevaplayabiliyordu.
+
+**Düzeltme:** kullanıcı bulunamadığında da açılışta üretilen sabit bir sahte
+hash'e karşı BCrypt çalıştırılıyor. Hash gömülü DEĞİL, `HashPassword` ile
+üretiliyor — elle yazılmış bir hash, kütüphanenin iş faktörü değiştiği gün
+sessizce ucuzlar ve fark geri gelirdi.
+
+#### 3. 🟠 `GET /pois/near` yarıçapı sınırsızdı
+
+Uç `[AllowAnonymous]` ve sorgu `ST_DistanceSphere` kullanıyor — bu fonksiyon
+**indeks kullanmaz**, PostGIS her satır için mesafeyi tek tek hesaplar.
+`radiusM` üst sınırı olmadığından `radiusM=40000000` göndermek tüm POI
+tablosunu dolaşan bir tam tarama demekti; dakikada 120 istek hakkıyla
+çarpıldığında saldırgana hiçbir maliyeti olmayan bir yük saldırısı.
+
+**Düzeltme:** yarıçap 20 km ile sınırlandı (Çankaya'nın en uzak iki ucundan
+bile geniş), kategori kodu için de uzunluk kontrolü eklendi.
+
+#### 4. 🟠 Konum arama sınırsızdı — üçüncü tarafı yakma riski
+
+`GET /locations/search` dışarıya (Photon, ardından Nominatim) istek doğuruyor
+ve arayüz **her tuş vuruşunda** arama tetikliyor. Nominatim'in kullanım
+politikası saniyede en fazla 1 istek; aşan IP'ler kalıcı olarak engelleniyor.
+`[Authorize]` bunu engellemiyordu: giriş yapmış tek bir kullanıcı bile
+Vivido'nun sunucu IP'sini yaktırabilirdi ve o andan sonra konum araması
+**herkes için** biterdi.
+
+**Düzeltme:** yeni `"geocoding"` rate limit politikası (IP başına 30/dk).
+
+#### 5. 🟡 Serbest metin alanlarında üst sınır yoktu
+
+`users.display_name`, `anchors.label`, `routes.name`, `routes.start_label`,
+`user_profiles.first_name`/`last_name` şemada sınırsız `text` ve hiçbir
+controller uzunluk kontrolü yapmıyordu — istek gövdesi sınırına (~30 MB)
+kadar her şey kabul edilip saklanıyordu. `display_name` üstelik **kimlik
+doğrulaması istemeyen** kayıt ucundan geliyor. Hepsi admin panelinde de
+listeleniyor. (`property_notes.note` zaten 1000 karakterle sınırlıydı;
+tutarsızlık buradaydı.)
+
+**Düzeltme:** sırasıyla 100 / 120 / 120 / 120 / 80 karakter sınırı.
+Bu sırada `UpdateProfileRequest.FirstName`'in `string` (nullable değil)
+yazıldığı hâlde JSON'dan `null` gelebildiği de görüldü — sütun
+`NOT NULL DEFAULT ''` olduğu için istek `SaveChanges`'te patlayıp anlamsız
+bir `INTERNAL_ERROR`'a düşerdi; artık boş dizgeye normalize ediliyor.
+
+#### 6. 🟡 Git'te duran, admin yetkisi veren e-posta adresi
+
+`appsettings.Development.json` içinde `BootstrapAdmin:Email` gerçek bir
+kişisel adresle **dolu geliyordu**. O adrese sahip olan herkes, dosyanın
+yüklendiği her ortamda ilk girişinde admin oluyordu; kurum/üniversite
+adresleri geri dönüşümlü olabildiği için yetki adresle birlikte el
+değiştirebilirdi.
+
+**Düzeltme:** değer boşaltıldı, dosyaya neden yazılmaması gerektiği notu
+eklendi. Yerelde admin paneli açmanın yolu [KURULUM §2.6](KURULUM.md)'da (user-secrets ya
+da `.env`). ⚠️ **Yerelde panele erişimi olan ekip üyelerinin bu adımı bir
+kez yapması gerekiyor.**
+
+#### Ayrıca eklenen tarayıcı başlıkları
+
+`deploy/Caddyfile`'da yalnızca `header -Server` ve HSTS vardı. Eklendi:
+`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+`Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`
+(konum **bilerek açık** — "konumumu kullan" ona dayanıyor). CSP bilerek
+eklenmedi, gerekçesi §8.11'de.
+
+#### Bakılıp temiz çıkanlar
+
+| Kontrol | Sonuç |
+|---|---|
+| SQL enjeksiyonu | Temiz. Tek ham SQL `PoisController` içinde ve `FromSqlInterpolated` ile **parametreli** |
+| Yetki kaçağı (IDOR) | Temiz. Kullanıcıya ait her sorgu (`favorites`, `routes`, `notes`, `anchors`, `profile`) `userId` ile süzülüyor |
+| XSS | Temiz. React varsayılan kaçışı; tek ham HTML `CankayaMap` balonlarında ve `escapeHtml`'den geçiyor. `dangerouslySetInnerHTML` hiç kullanılmıyor |
+| SSRF | Temiz. Geocoding sorgusu `Uri.EscapeDataString` ile kaçırılıyor, taban adres sabit; admin sağlık yoklaması URL'i yapılandırmadan geliyor, istekten değil |
+| Sırların git'e girmesi | Temiz. `.env` `.gitignore`'da, `deploy/.env.example` yalnızca yer tutucu içeriyor |
+| Mobil kimlik saklama | Temiz. Her şey `FlutterSecureStorage`'da; çevrimdışı giriş parolayı değil, PBKDF2-benzeri 60.000 turluk türetilmiş anahtarı saklıyor ve sabit zamanlı karşılaştırıyor |
+| Kod doğrulama | Temiz. Kriptografik rastgele, kullanıcı id'siyle tuzlanmış SHA-256, sabit zamanlı karşılaştırma, deneme sayacı, yeni kod eskileri iptal ediyor |
+
+#### Kaldırılan ölü kod
+
+| Yer | Ne |
+|---|---|
+| `packages/shared/src/score.ts` | `ScoreRow`, `ScoreResult`, `ScoreRowKind`, `ScoreRowStatus`, `ScoreSummary` — Hafta 2'de **planlanan** skor sözleşmesi. Sunucu hiç döndürmedi, hiçbir dosya import etmiyordu; gerçek şekiller `property.ts` içindeki `PropertyScoreRow` / `PropertyScoreDetail`. İki "skor satırı" tipinin yan yana durması hangisinin canlı olduğunu belirsizleştiriyordu |
+| `packages/shared/src/property.ts` | `ScoredProperty`, `ScoreDistribution`, `PropertySearchResponse` — aynı gerekçe |
+| `packages/shared/src/errors.ts` | `isProblemDetails()` — hiçbir çağıran yok; istemci `ApiError.problem` üzerinden tip güvenli ilerliyor |
+| `web/src/shared/api/tokens.ts` | `hasRefreshToken()` — çağrılmıyor |
+| `web/src/shared/route/routeFormat.ts` | `DEFAULT_ROUTE_START` — başlangıç artık konum kutusundan geliyor (§5.17) |
+| `web/src/index.css` · `PoiLayers.css` | `.budget-note*`, `.budget-bar`, `.weak-link-*`, `.admin-stats-grid`, `.landing`, `.cta`, `.field-hint`, `.form-links`, `.illustration`, `.profile-routes`, `.map-topbar-search`, `.vivido-popup-meta`, `.vivido-popup-rent` — hiçbir bileşen üretmiyor |
+| `web/public/` | `glasses_kahve.svg`, `home.svg`, `mascot2.png`, `pc_kahve.svg`, `sport.svg` — hiçbir yerden referans verilmiyor |
+
+`.dart` ve `.cs` tarafında adı kod tabanında yalnızca kendi tanımında geçen
+**hiçbir** bildirim bulunmadı; ölü kod tamamen web/paylaşılan katmandaydı.

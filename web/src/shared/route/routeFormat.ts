@@ -6,13 +6,6 @@
  * Explore (rota oluşturucu) ve Profil (kayıtlı rotalar) bu modülü paylaşır.
  */
 
-/** Başlangıç haritadan seçilmezse kullanılacak varsayılan nokta. */
-export const DEFAULT_ROUTE_START: { lat: number; lon: number; label: string } = {
-  lat: 39.87,
-  lon: 32.85,
-  label: 'Çankaya Merkez',
-};
-
 /** Metre → '12,3 km' ya da '850 m'. */
 export function formatRouteDistance(meters: number): string {
   if (meters < 1000) return `${Math.round(meters)} m`;

@@ -9,7 +9,8 @@
 # makinede OOM ile çöker ve iki gün kaybettirir.
 #
 # Kullanım:  ./data/scripts/00_fetch_artifacts.sh [SÜRÜM]
-#            gh auth login  ile giriş yapmış olmalısın (private repo).
+#            `gh auth login` ile giriş yapmış olmalısın — betik aşağıda
+#            `gh auth status` ile bunu zorunlu tutuyor.
 
 set -euo pipefail
 

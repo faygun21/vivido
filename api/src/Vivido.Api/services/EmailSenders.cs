@@ -53,7 +53,7 @@ public class ConsoleEmailSender : IEmailSender
 /// <summary>
 /// SMTP gönderici — Gmail "Uygulama Şifresi" ile çalışır.
 ///
-/// Kurulum adımları: README §2.5 ve .env.example → Email__*.
+/// Kurulum adımları: docs/KURULUM.md §2.5 ve .env.example → Email__*.
 ///
 /// Neden System.Net.Mail.SmtpClient: .NET tarafından "obsolete değil ama
 /// yeni kod için önerilmez" diye işaretli, çünkü modern SMTP uzantılarının

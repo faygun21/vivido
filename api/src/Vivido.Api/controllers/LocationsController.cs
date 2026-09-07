@@ -1,13 +1,26 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Vivido.Application.dtos.location;
 
 namespace Vivido.Api.Controllers;
 
-/// <summary>R-105 mahalle, adres ve yer adı araması.</summary>
+/// <summary>
+/// R-105 mahalle, adres ve yer adı araması.
+///
+/// ⚠️ Bu uç ÜÇÜNCÜ TARAF servislere (Photon, ardından Nominatim) istek
+/// doğuruyor — kendi veritabanımıza değil. Nominatim'in kullanım politikası
+/// saniyede en fazla 1 istek diyor ve aşan IP'leri kalıcı olarak
+/// engelliyor. Arayüz her tuş vuruşunda arama tetiklediği için, giriş
+/// yapmış TEK bir kullanıcı bile sınırsız bırakıldığında Vivido'nun sunucu
+/// IP'sini yaktırabilir; o andan sonra konum araması HERKES için biter.
+/// Bu yüzden `[Authorize]` yetmiyor, ayrıca IP başına sınırlı — bkz.
+/// Program.cs "geocoding" policy'si.
+/// </summary>
 [ApiController]
 [Route("api/v1/locations")]
 [Authorize]
+[EnableRateLimiting("geocoding")]
 public sealed class LocationsController : ControllerBase
 {
     private const int MaximumQueryLength = 200;

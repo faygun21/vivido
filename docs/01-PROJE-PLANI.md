@@ -1379,7 +1379,7 @@ Then  PATCH /routes/{id}/stops/{seq} çağrılır
 | **R4** | **Anchor sıralaması skoru anlamlı değiştirmiyor** → W4 demoda etkisiz kalır | Orta / Yüksek | Hafta 4'te sırayı değiştirince skor 1-2 puan oynuyor | Geometrik ağırlık (0.5ⁱ⁻¹) seçildi — ters sıradan çok daha keskin · **I5 değişmezlik testi** bunu koruma altına alır · demo için sıralamaya duyarlı "vitrin evleri" önceden seçilir |
 | **R5** | **ETL herkesin makinesinde çalıştırılmaya kalkılır** → OOM, kayıp günler | Orta / Orta | Hafta 1-2'de "Killed" logları | ETL **tek makinede bir kez**; artefaktlar paylaşımdan indirilir (§12.2) · `00_fetch_artifacts.sh` ilk gün hazır olmalı |
 | **R6** | **Skor cache tutarsızlığı** — anchor değişti, liste eski skoru gösteriyor | Orta / Orta | Aynı ev listede 71, detayda 78 | `score_cache` PK'sında `scoring_version` · tek noktadan `IScoreCacheInvalidator.Invalidate(profileId)` · DB trigger ikinci emniyet · E2E testi: liste skoru == detay skoru |
-| **R7** | **Kapsam yeniden şişer** — "bir de isochrone koyalım" | Orta / Yüksek | Sprint ortasında planda olmayan issue | §2 kapsam sözleşmesi README'nin ilk bölümü · yeni istek `backlog/v2.md`'ye, sprint'e alınmaz · Hafta 4 ve 6 demolarında yalnız sözleşmedeki maddeler |
+| **R7** | **Kapsam yeniden şişer** — "bir de isochrone koyalım" | Orta / Yüksek | Sprint ortasında planda olmayan issue | §2 kapsam sözleşmesi `docs/KURULUM.md`'nin ilk bölümü · yeni istek `backlog/v2.md`'ye, sprint'e alınmaz · Hafta 4 ve 6 demolarında yalnız sözleşmedeki maddeler |
 | **R8** | **Navigasyon gerçek cihazda test edilmiyor**, sadece emülatörde çalışıyor | Orta / Yüksek | Hafta 7'ye kadar kimse arabada denemedi | Hafta 6 sonunda **zorunlu saha testi**: Çankaya'da gerçek bir rotayı arabayla gez, ekran kaydı al · bu kayıt demo yedeği de olur |
 | **R9** | **Demo günü sistem çöker** (sunucu, ağ, GPS) | Düşük / Kritik | — | Demo ortamı Hafta 8 başında dondurulur · `pg_dump` yedeği · **tam akışın ekran kaydı videosu** hazır · sunum makinesinde `localhost` yedeği · mobil için önceden kaydedilmiş GPS izi |
 
@@ -1436,4 +1436,4 @@ psql -f db/checks/dq.sql                       # DQ-01..06, hepsi boş dönmeli
 5. `data/scripts/01_download.sh` … `06_seed_db.sh`
 6. `data/lua/vivido_pois.lua` — POI tag eşlemesi
 7. `docker-compose.yml` — 8 servis
-8. README'nin ilk bölümü = **§2 kapsam sözleşmesi**
+8. `docs/KURULUM.md`'nin ilk bölümü = **§2 kapsam sözleşmesi**

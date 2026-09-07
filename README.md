@@ -1,372 +1,302 @@
+<div align="center">
+
+<img src="web/public/images/logo.svg" width="140" alt="Vivido" />
+
 # Vivido
 
-**Kiralık ev bul · kişiselleştirilmiş skorla · gezilecek en kısa rotayı kur · telefonda navigasyonla gez.**
+### Find a rental home that fits *your* life — not just your budget.
 
-Başarsoft stajyer projesi · CBS tabanlı web + mobil uygulama · Pilot bölge: **Ankara Çankaya**
+Vivido scores every rental listing against the places **you** actually go,
+explains the score line by line, and plans the shortest route to visit the
+homes you shortlisted.
 
----
+<!-- ── DEMO BLOCK — delete these lines when the demo server is retired ── -->
+[**Live demo →**](https://vividoapp.xyz) &nbsp;·&nbsp; [🇹🇷 Türkçe](README.tr.md) &nbsp;·&nbsp; [Documentation](docs/)
 
-## 1. Kapsam Sözleşmesi
+<sub>No account needed to look around — pick **“Continue as guest”**.<br />
+The demo runs on a temporary server and will be taken offline at some point.
+The screenshots below cover every screen, and the whole stack starts locally
+with a single `docker compose` command — see [running it yourself](#running-it-yourself).</sub>
+<!-- ── END DEMO BLOCK — after deleting, keep the language/docs links: ──
+[🇹🇷 Türkçe](README.tr.md) · [Documentation](docs/)
+-->
 
-> ⛔ **Bu liste kapalıdır.** Yeni özellik fikirleri [`backlog/v2.md`](backlog/v2.md)'ye yazılır, sprint'e alınmaz.
-> Kapsam şişmesi bu projedeki 1 numaralı risktir.
+<br />
 
-### Web uygulaması
+![.NET](https://img.shields.io/badge/.NET_10-512BD4?style=flat-square&logo=dotnet&logoColor=white)
+![React](https://img.shields.io/badge/React_19-20232A?style=flat-square&logo=react&logoColor=61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![Flutter](https://img.shields.io/badge/Flutter-02569B?style=flat-square&logo=flutter&logoColor=white)
+![PostGIS](https://img.shields.io/badge/PostGIS-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+![MapLibre](https://img.shields.io/badge/MapLibre-295DAA?style=flat-square&logo=maplibre&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
 
-| # | Gereksinim |
-|---|---|
-| **W1** | Kullanıcı kaydolur / giriş yapar |
-| **W2** | Hazır **persona** listesinden birini seçer (6 arketip) ve aylık **kira bütçesini** girer |
-| **W3** | Varsayılan görünüm: personaya göre **skoru yüksek kiralık evler** harita + listede |
-| **W4** | Kullanıcı **düzenli gittiği yerleri (anchor)** ekler ve **önem sırasına dizer**; skor bu sıraya göre yeniden hesaplanır |
-| **W5** | Her ev için tek bir **0–100 skor**; liste yüksek skorluların yanı sıra **düşük skorluları da içerir** |
-| **W6** | Her ev için **skorun gerekçe tablosu**: neden uygun / neden uygun değil, satır satır puan katkısıyla |
-| **W7** | Kullanıcı 2–8 ev seçer → sistem **en kısa ziyaret rotasını** üretir (açık TSP) → rota kaydedilir |
-
-### Mobil uygulama
-
-| # | Gereksinim |
-|---|---|
-| **M1** | Giriş yapar (web ile aynı hesap) |
-| **M2** | Web'de oluşturulmuş **kayıtlı rotaları** listeler |
-| **M3** | Rota seçilir → harita üzerinde **rota çizgisi + numaralı ev durakları** |
-| **M4** | **Adım listeli navigasyon**: manevra kartı + canlı GPS takibi + otomatik adım ilerlemesi + rotadan sapma uyarısı |
-| **M5** | Her durakta **ev skor kartı**, **"ziyaret ettim"** işaretleme |
-
-### Kapsam DIŞI
-
-Isochrone · toplu taşıma/GTFS · bisiklet modu · günlük yaşam senaryoları · konut karşılaştırma matrisi · zaman avantajı · kaydedilmiş aramalar · satılık konut · **sesli navigasyon** · **mobilde arama/filtreleme/rota oluşturma** · gerçek ilan verisi · offline çalışma · gerçek zamanlı trafik.
-
-📖 Tam teknik tasarım: [`docs/01-PROJE-PLANI.md`](docs/01-PROJE-PLANI.md)
-🧭 Uygulama sırasında verilen kararlar ve gerekçeleri: [`docs/02-KARARLAR.md`](docs/02-KARARLAR.md)
+</div>
 
 ---
 
-## 2. Hızlı Başlangıç
+## The problem
 
-> ### ⚠️ ÖNCE BUNU OKU — klasör konumu
-> Depoyu **OneDrive / Masaüstü / Belgeler altına KLONLAMA** ve yolda **Türkçe karakter kullanma**.
-> - OneDrive `node_modules` içindeki on binlerce dosyayı senkronlamaya çalışır → git kilitlenir, `index.lock` hataları alırsın.
-> - Yoldaki `ü`, `ı`, `ş` gibi karakterler Java (Planetiler), osmium ve Docker mount'larını bozar.
+Every rental site lets you filter by price, size and room count. None of them
+answer the question you actually care about:
+
+> *"If I live here, what will my daily life feel like?"*
+
+A flat that is 15% cheaper is a bad deal if the nearest metro stop is a
+25-minute walk uphill, the pharmacy is across a highway, and your kid's school
+is on the other side of the city. Those costs are real, they are paid every
+single day, and no listing page shows them.
+
+**Vivido turns that daily-life question into a number you can compare** — and,
+just as importantly, into an explanation you can argue with.
+
+---
+
+## How it works
+
+<table>
+<tr>
+<td width="50" align="center"><h3>1</h3></td>
+<td><b>Tell it who you are</b><br />
+Pick one of four ready-made profiles — student, family with kids, remote
+worker, or retiree — and enter your monthly rent budget. Each profile comes
+with a starting sense of what matters: a student weighs transit and cafés
+heavily, a family weighs schools and parks.</td>
+</tr>
+<tr>
+<td align="center"><h3>2</h3></td>
+<td><b>Add the places you actually go</b><br />
+Your campus, your office, your parents' house. Up to three of these
+"anchors", ordered by how much they matter. This is what separates Vivido
+from a generic neighbourhood rating: the map is scored around <i>your</i>
+life, not an average person's.</td>
+</tr>
+<tr>
+<td align="center"><h3>3</h3></td>
+<td><b>See the map score itself</b><br />
+Every home gets a single <b>0–100</b> score. High scorers and low scorers are
+both shown — hiding the bad ones would just be a filter with extra steps.
+Click any home to see <i>why</i> it got that score.</td>
+</tr>
+<tr>
+<td align="center"><h3>4</h3></td>
+<td><b>Plan the viewing trip</b><br />
+Shortlist 2–8 homes and Vivido computes the shortest route that visits all of
+them, then hands it to the mobile app for turn-by-turn navigation on
+viewing day.</td>
+</tr>
+</table>
+
+---
+
+## Screenshots
+
+<div align="center">
+
+<img src="docs/screenshots/01-explore-map.png" alt="Explore map with scored homes" />
+
+**Every home on the map carries its score.** The left panel is your profile,
+the right one ranks the best matches. Note the footer: the map data credit and
+the *"listing data is synthetic"* label are always visible.
+
+<br />
+
+<table>
+<tr>
+<td width="50%" align="center"><img src="docs/screenshots/02-score-breakdown.png" width="420" alt="Score breakdown" /></td>
+<td width="50%" align="center"><img src="docs/screenshots/06-mobile-navigation.jpeg" width="320" alt="Mobile navigation" /></td>
+</tr>
+<tr>
+<td align="center"><b>Why this score</b><br /><sub>Each criterion with the walking time actually measured against its target. This home scored <b>52.4</b> — low scorers are shown, not filtered away.</sub></td>
+<td align="center"><b>Mobile navigation</b><br /><sub>Maneuver card, numbered stops, and the next home in the queue. When the GPS fix is poor the app says so instead of quietly showing a wrong position.</sub></td>
+</tr>
+</table>
+
+<br />
+
+<img src="docs/screenshots/03-persona-budget.png" alt="Persona selection and budget" />
+
+**Pick the profile closest to your life.** Each one starts with a different
+sense of what matters — and you can reorder those criteria yourself in the
+step below.
+
+<br />
+
+<img src="docs/screenshots/04-anchors.png" alt="Anchor places" />
+
+**Your regular places, in priority order.** Work, school, gym — dragged into
+the order that matters to you. The map re-scores around them.
+
+<br />
+
+<img src="docs/screenshots/05-route.png" alt="Visit route" />
+
+**The viewing route.** Three of eight possible homes selected, the shortest
+path through them drawn on the map, with total distance and time.
+
+</div>
+
+---
+
+## What makes the score trustworthy
+
+Most "walkability" numbers are computed as the crow flies. That is fast, and
+it is wrong: a park 300 m away across a six-lane road with no crossing is not
+a 4-minute walk.
+
+Vivido measures **real walking time along the actual street network**, using a
+routing engine over OpenStreetMap data. The difference is not academic — when
+we switched from straight-line distance to real routing, measured times went
+up by an average factor of **1.37**. Every score computed the old way was
+flattering by roughly a third.
+
+Four more things the scoring engine does on purpose:
+
+| | |
+|---|---|
+| **It shows its work** | Every score comes with a row-by-row table: which criterion, what was measured, what the target was, and exactly how many points it contributed. The rows sum to the total — that's enforced by a unit test, not by convention. |
+| **It refuses to average away a dealbreaker** | A home that is excellent at seven things and hopeless at the one thing you said matters most does not get a comfortable average. A "weakest link" penalty scales the whole score down — proportionally to how much you said that criterion matters. |
+| **It doesn't pretend to certainty it lacks** | Being 50 m from a market and 500 m from a market are not the same, so the score keeps a slight gradient even inside the "ideal" zone. Before that change, 767 homes were tied at a perfect 100. |
+| **It separates budget from fit** | Rent is shown alongside the score, never folded into it. Otherwise you could never tell whether a home scored low because it's far from everything or just because it's expensive. |
+
+---
+
+## Features
+
+### Web
+
+| | Feature |
+|---|---|
+| ✅ | Account sign-up with e-mail verification, password reset |
+| ✅ | **Guest mode** — browse the map without an account |
+| ✅ | Profile: one of four personas + monthly rent budget |
+| ✅ | Up to 3 "anchor" places, drag-and-drop priority ordering |
+| ✅ | Real Çankaya map — streets, buildings, water, green space, 124 neighbourhoods |
+| ✅ | Homes scored 0–100 on the map and in a ranked list |
+| ✅ | Row-by-row score explanation, strengths and weaknesses |
+| ✅ | Points of interest as toggleable map layers (8 categories) |
+| ✅ | Area analysis — draw a circle, see what services are inside it |
+| ✅ | Favourites and private per-home notes |
+| ✅ | Visit route for 2–8 homes, preview before saving, optional scheduled date |
+| ✅ | Location search by neighbourhood, address or place name |
+| ✅ | Admin panel — user management, system health, usage metrics |
+
+### Mobile (Flutter)
+
+| | Feature |
+|---|---|
+| ✅ | Same account as web |
+| ✅ | Saved routes list |
+| ✅ | Route line with numbered home stops on the map |
+| ✅ | Step-by-step navigation: maneuver cards, live GPS, automatic step advance, off-route warning |
+| ✅ | Score card at each stop, "visited" marking |
+| ✅ | Offline-capable session and cached favourites |
+
+---
+
+## The data
+
+Vivido runs on a real geographic dataset for **Çankaya, Ankara** — the pilot
+region — built from OpenStreetMap:
+
+| | |
+|---|---|
+| **124** | neighbourhoods, with real boundaries |
+| **8** | point-of-interest categories: market, pharmacy, transit stop, café & restaurant, park, gym, school, health centre |
+| **~48,000** | precomputed walking-time measurements between homes and nearby services |
+| **~6,000** | rental listings |
+
+> ### ⚠️ The listings are synthetic
+> The 6,000 homes are **generated**, not scraped from a real listing site.
+> Rent, size and room counts are modelled to be statistically plausible for
+> each neighbourhood, and every home is placed on a real building footprint —
+> but none of them is a real advertisement.
 >
-> ✅ Doğru: `C:\dev\vivido` &nbsp;&nbsp;❌ Yanlış: `C:\Users\ad\OneDrive\Masaüstü\vivido`
+> This is a deliberate choice, and the app labels it visibly everywhere it
+> shows a listing. The geography, the walking times and the scoring are all
+> real; only the listings are stand-ins.
 
-### 2.1 Araçları kur
+---
 
-```powershell
-winget install --id Microsoft.DotNet.SDK.10 -e
-winget install --id OpenJS.NodeJS.LTS       -e
-winget install --id pnpm.pnpm               -e
-winget install --id GitHub.cli              -e
-dotnet tool install --global dotnet-ef
-```
+## Built with
 
-**Docker Desktop** ayrıca kurulu ve **çalışıyor** olmalı ([indir](https://www.docker.com/products/docker-desktop/)).
-Kurulumdan sonra **terminali kapat-aç** (PATH yenilensin).
-
-| Araç | Beklenen |
+| Layer | Stack |
 |---|---|
-| `dotnet --list-sdks` | `10.x` |
-| `node -v` | `v22` veya `v24` |
-| `pnpm -v` | `11.x` |
-| `gh --version` | herhangi |
-| `docker info` | hata vermemeli |
+| **API** | .NET 10 · ASP.NET Core · Entity Framework Core |
+| **Database** | PostgreSQL + PostGIS |
+| **Routing** | OSRM (foot and car profiles) for real travel times |
+| **Web** | React 19 · TypeScript · Vite · MapLibre GL JS · TanStack Query · Zustand |
+| **Mobile** | Flutter · MapLibre |
+| **Map tiles** | Self-hosted vector tiles (Planetiler → tileserver-gl) — no third-party tile service |
+| **Data pipeline** | osm2pgsql · Python · OSRM · SQL |
+| **Infrastructure** | Docker Compose · Caddy (automatic HTTPS) · GitHub Actions |
 
-### 2.2 Git ayarları (bir kez, herkes yapmalı)
+The scoring engine is a **pure, dependency-free C# library** — no database, no
+HTTP client, no clock. It takes a struct in and returns a score out, which
+means the whole thing can be tested in milliseconds against hundreds of cases
+without any infrastructure running.
 
-```powershell
-git config --global core.longpaths true
-git config --global core.autocrlf input
-git config --global init.defaultBranch main
-git config --global pull.rebase true
-```
+---
 
-`core.longpaths` olmadan `node_modules` derinliği yüzünden checkout hataları alırsın.
+## Project status
 
-### 2.3 Depoyu kur ve çalıştır
+This was built as an internship project at **Başarsoft**, on a fixed
+three-week scope that was deliberately frozen at the start — scope creep was
+identified as the project's number-one risk, and new ideas were parked in a
+backlog rather than added mid-flight.
 
-```powershell
-git clone https://github.com/faygun21/vivido.git C:\dev\vivido
-cd C:\dev\vivido
+Everything in the feature tables above is **working and deployed**. The
+honest list of what is *not* done — known gaps, technical debt, and things
+that were cut — is kept in the open in
+[`docs/04-MEVCUT-DURUM.md`](docs/04-MEVCUT-DURUM.md) (Turkish). That document
+also records every real bug found along the way and how it was diagnosed,
+which is arguably the more interesting read.
 
-copy .env.example .env      # gerekirse şifreleri düzenle
-copy web\.env.example web\.env    # ⚠️ Vite .env'i web/ altından okur
-pnpm install                # workspace bağımlılıkları
-pnpm infra:up               # postgis + redis + pgadmin
+---
 
-pnpm db:migrate             # ⭐ ZORUNLU — şemayı kurar
-pnpm dev:api                # → http://localhost:5000/swagger
-pnpm dev:web                # → http://localhost:5173   (ayrı terminal)
-```
+## Running it yourself
 
-> ⭐ **`pnpm db:migrate` atlanamaz.** Şema eskiden postgis konteyneri ilk
-> açılışta kendiliğinden kuruluyordu; o mekanizma **kaldırıldı** çünkü
-> sonradan eklenen şema dosyalarını sessizce "uygulandı" sayıp eksik şema
-> üretiyordu ([K-12](docs/02-KARARLAR.md#k-12)).
-
-**Doğrulama:** `curl http://localhost:5000/health/ready` → `Healthy`
-
-Konut/POI verisini de istiyorsan: [`docs/04-MEVCUT-DURUM.md §3`](docs/04-MEVCUT-DURUM.md).
-
-**Konut adreslerinde sokak adı görünsün istiyorsan** (isteğe bağlı, ~2 dk):
+The demo server is temporary, but the project is not tied to it. Everything —
+database, routing engines, map tile server, API and web app — is defined in
+Docker Compose, and the ~1 GB of prepared map data is published as a GitHub
+release, so no one has to re-run the multi-hour data pipeline.
 
 ```bash
-./data/scripts/05_load_streets.sh    # cankaya.osm.pbf → streets tablosu
+git clone https://github.com/faygun21/vivido.git && cd vivido
+./data/scripts/00_fetch_artifacts.sh        # prepared map + routing data
+cp .env.example .env && cp web/.env.example web/.env
+docker compose --profile full up -d         # everything, one command
 ```
 
-Atlanabilir: tablo boşken API adres alanını NULL döner ve arayüz mahalle
-adına düşer, hata görünmez. Ters geokodlama neden kullanılmadığı:
-[K-15](docs/02-KARARLAR.md#k-15).
+Full instructions, including the local development loop without Docker:
+[`docs/KURULUM.md`](docs/KURULUM.md).
 
-### 2.4 Ortak staging ortamı
+---
 
-**🔒 https://vividoapp.xyz** — ekibin tamamı buradan test eder, **SSH gerekmez.**
+## Documentation
 
-Tek veritabanı: bir bilgisayarda açılan hesapla başka bir cihazdan giriş
-yapılabilir. Doğrulama e-postaları gerçekten gönderilir. Mobil uygulama da
-buraya bağlanınca M1 ("web ile aynı hesap") gösterilebilir hale gelir.
+The project documentation is in **Turkish**.
 
-Geliştirme staging'de yapılmaz — yerel kurulum aynen devam eder.
-Kurulum, erişim modeli, deploy ve sorun giderme:
-[`deploy/README.md`](deploy/README.md) · Karar: [K-11](docs/02-KARARLAR.md#k-11).
-
-### 2.4b Mobil uygulama
-
-Mobil **Flutter** ile yazılıyor ([K-08](docs/02-KARARLAR.md#k-08)) — Expo/React
-Native terk edildi, `Expo Go` / dev client ayrımı gündemden düştü.
-
-```powershell
-flutter doctor              # yeşil olmalı (Android Studio + SDK gerekli, ~10 GB)
-pnpm dev:mobile             # → cd mobile && flutter run
-```
-
-Fiziksel cihazda yerel API'ye bağlanacaksan telefon ve bilgisayar **aynı Wi-Fi**
-ağında olmalı ve `mobile/lib/core/config/app_config.dart` içindeki adres
-bilgisayarının yerel IP'si olmalı (`ipconfig` → IPv4). Daha kolayı: uygulamayı
-staging adresine (`https://vividoapp.xyz/api/v1`) bağlamak — aynı ağda olma
-zorunluluğu kalkar.
-
-> ⚠️ Android 9+ düz HTTP'yi varsayılan olarak engelliyor. Release APK yalnızca
-> **HTTPS** adrese bağlanabilir; `http://<IP>` yalnızca debug build'de çalışır.
-
-### 2.5 E-posta doğrulama ve şifre sıfırlama
-
-> ### ✅ E-posta doğrulaması HER ORTAMDA AÇIK
-> Bir süre yerel geliştirmede kapalıydı (her kayıtta terminalden 6 haneli
-> kod kopyalamak akışı yavaşlatıyordu); akış yeniden test edileceği için
-> geri açıldı. Artık **yerel davranış staging/production ile aynı**.
->
-> | Nerede | Dosya | Değer |
-> |---|---|---|
-> | `pnpm dev:api` | `api/src/Vivido.Api/appsettings.Development.json` | `true` |
-> | docker-compose | `.env` (`.env.example`'dan kopyalanır) | `true` |
-> | staging / production | `deploy/.env` ortam değişkeni | `true` |
->
-> ⚠️ **`.env` dosyan compose varsayılanını EZER.** Doğrulama açılmıyorsa
-> önce oraya bak: eski kurulumlardan kalma
-> `Auth__RequireEmailVerification=false` satırı varsa `true` yap ya da sil.
->
-> Kodu almak için posta kutusuna bakmana gerek yok: `Email__Provider`
-> varsayılanı `console`, kod **api loglarına** basılıyor —
-> `docker compose logs -f api` ya da `pnpm dev:api` çıktısı.
->
-> Geçici olarak kapatmak isteyen `.env` içine
-> `Auth__RequireEmailVerification=false` yazabilir; izlenen dosyaları
-> değiştirmesi gerekmez.
-
-Kayıt olan kullanıcıya **6 haneli bir kod** gider; kod girilene kadar giriş
-kapalıdır. "Şifremi unuttum" aynı mekanizmayı kullanır. Karar ve gerekçe:
-[`docs/02-KARARLAR.md` K-09](docs/02-KARARLAR.md#k-09).
-
-#### Geliştirme — kimlik bilgisi GEREKMEZ
-
-Varsayılan `Email__Provider=console`: e-posta **gönderilmez**, kod
-`pnpm dev:api` çalıştırdığın terminale basılır.
-
-```
-┌─ E-POSTA (gönderilmedi, Email:Provider=console) ─────────────
-│ Kime : ornek@gmail.com
-│ Konu : Vivido doğrulama kodun: 418305
-├───────────────────────────────────────────────────────────────
-Vivido doğrulama kodun: 418305
-└───────────────────────────────────────────────────────────────
-```
-
-Kodu kopyalayıp forma yapıştır. Ekipteki herkes akışın tamamını böyle deneyebilir.
-
-Doğrulama adımını tamamen kapatmak istersen (şu an **varsayılan bu**), `.env`:
-
-```
-Auth__RequireEmailVerification=false
-```
-
-`pnpm dev:api` bu dosyayı okumaz — onun karşılığı
-`api/src/Vivido.Api/appsettings.Development.json` içindeki `Auth` bölümü.
-
-#### Gerçek e-posta gönderimi — Gmail Uygulama Şifresi (~5 dakika)
-
-> ### ⚠️ Gmail hesabının NORMAL ŞİFRESİ ÇALIŞMAZ
-> Google 2022'den beri normal şifreyle SMTP girişini reddediyor
-> (`535-5.7.8 Username and Password not accepted`).
-> **16 haneli "Uygulama Şifresi" (App Password)** gerekiyor.
->
-> Google Cloud projesi, Gmail API veya OAuth **gerekmiyor** — bu yol
-> `System.Net.Mail` ile çalışır, ek NuGet paketi bile yok.
-
-**Adım adım:**
-
-| # | Ne yapacaksın | Nerede |
-|---|---|---|
-| 1 | **2 Adımlı Doğrulama'yı aç** (zorunlu ön koşul; kapalıyken uygulama şifresi menüsü hiç görünmez) | https://myaccount.google.com/signinoptions/twosv |
-| 2 | **Uygulama Şifresi oluştur** — "Uygulama adı" kutusuna `Vivido` yaz, Oluştur'a bas | https://myaccount.google.com/apppasswords |
-| 3 | Çıkan **16 haneli** değeri kopyala (`abcd efgh ijkl mnop`). Bu pencere bir daha açılmaz | — |
-| 4 | Değeri **boşlukları silerek** aşağıdaki gibi tanımla | user-secrets ya da `.env` |
-
-> ### ⚠️ Şifreyi nereye yazacağın, nasıl çalıştırdığına bağlı
-> `dotnet run` depo kökündeki **`.env` dosyasını OKUMAZ** — o dosya yalnızca
-> docker-compose içindir. `appsettings.Development.json` ise **git'te takipli**,
-> oraya şifre yazılamaz.
-
-**A) `pnpm dev:api` ile çalıştırıyorsan → user-secrets** (depo dışında durur):
-
-```powershell
-cd C:\dev\vivido
-dotnet user-secrets --project api/src/Vivido.Api set "Email:Provider"    "smtp"
-dotnet user-secrets --project api/src/Vivido.Api set "Email:User"        "senin.adresin@gmail.com"
-dotnet user-secrets --project api/src/Vivido.Api set "Email:Password"    "abcdefghijklmnop"
-dotnet user-secrets --project api/src/Vivido.Api set "Email:FromAddress" "senin.adresin@gmail.com"
-```
-
-**B) `docker compose --profile full` ile çalıştırıyorsan → `.env`:**
-
-```dotenv
-Email__Provider=smtp
-Email__Host=smtp.gmail.com
-Email__Port=587
-Email__User=senin.adresin@gmail.com
-Email__Password=abcdefghijklmnop        # 16 hane, BOŞLUKSUZ
-Email__FromAddress=senin.adresin@gmail.com
-Email__FromName=Vivido
-```
-
-API'yi yeniden başlat. Açılışta şunu görmelisin:
-
-```
----> E-posta sağlayıcısı: smtp (smtp.gmail.com)
-```
-
-**Sınırlar ve tuzaklar**
-
-| Sorun | Sebep / çözüm |
+| Document | What's in it |
 |---|---|
-| `apppasswords` sayfası "kullanılamıyor" diyor | 2FA açık değil (adım 1) ya da hesap bir kurum/okul hesabı ve yönetici kapatmış |
-| `535-5.7.8 Username and Password not accepted` | Normal şifre yazılmış ya da 16 hanenin arasındaki boşluklar silinmemiş |
-| Günde 500 e-posta sonrası gönderim durur | Gmail kotası. Demo için fazlasıyla yeterli; aşılırsa `Email__Provider=console`'a dön |
-| E-posta spam'e düşüyor | Gmail'den gönderilen otomatik postalarda olağan. Kullanıcıya "spam klasörüne de bak" diyoruz |
-
-> ⛔ **Uygulama şifresini `appsettings.json`'a YAZMA** — o dosya git'e giriyor.
-> Yalnızca `.env` (`.gitignore`'da) ya da ortam değişkeni.
-
-**Google Cloud + Gmail API isterseniz:** aynı sonucu verir ama GCP projesi,
-Gmail API etkinleştirme, OAuth consent screen ve refresh token üretimi
-gerektirir. Geçiş yapılacaksa `IEmailSender` arayüzüne yeni bir implementasyon
-yazmak yeterli — çağıran kodun hiçbir yeri değişmez
-([K-09 gerekçe §4](docs/02-KARARLAR.md#k-09)).
+| [`docs/KURULUM.md`](docs/KURULUM.md) | **Setup guide** — run the whole stack locally |
+| [`docs/04-MEVCUT-DURUM.md`](docs/04-MEVCUT-DURUM.md) | What actually works today, every bug found and fixed, known debt |
+| [`docs/02-KARARLAR.md`](docs/02-KARARLAR.md) | Decision log — 18 architectural decisions with their rationale *and* the alternatives that were rejected |
+| [`docs/01-PROJE-PLANI.md`](docs/01-PROJE-PLANI.md) | Full technical design: scoring maths, data model, API contract |
+| [`docs/00-KAPSAM.md`](docs/00-KAPSAM.md) | Scope contract — what is in, what is explicitly out |
+| [`data/README.md`](data/README.md) | The ETL pipeline, end to end |
+| [`deploy/README.md`](deploy/README.md) | Deployment and server setup |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Branching, commits, PR rules |
 
 ---
 
-## 3. Proje Yapısı
+## Licence and attribution
 
-```
-vivido/
-├── api/                      .NET 10 · ASP.NET Core Web API
-│   ├── src/
-│   │   ├── Vivido.Api/            Controller, auth, Swagger
-│   │   ├── Vivido.Application/    Use-case handler, DTO, validation
-│   │   ├── Vivido.Domain/         Entity, value object
-│   │   ├── Vivido.Infrastructure/ EF Core, OsrmClient, Redis
-│   │   └── Vivido.Scoring/        ★ SAF skorlama motoru — I/O YOK
-│   └── tests/
-├── web/                      React 18 + TypeScript + Vite + MapLibre GL JS
-├── mobile/                   Flutter + maplibre_gl (K-08)
-├── packages/shared/          Ortak TS tipleri + üretilmiş API istemcisi
-├── data/
-│   ├── scripts/                   ETL kabuk betikleri
-│   ├── lua/                       osm2pgsql flex şeması
-│   ├── gen/                       Sentetik konut üretimi (Python)
-│   └── artifacts/                 ~1 GB · git'te DEĞİL · Release'ten iner
-├── db/
-│   ├── schema/                    001_initial.sql — 13 tablo (+ 009: streets)
-│   └── checks/                    dq.sql — veri kalitesi kapıları
-├── docs/
-├── backlog/v2.md             Kapsam dışı fikirler
-└── docker-compose.yml
-```
+Map data © [OpenStreetMap](https://www.openstreetmap.org/copyright)
+contributors, licensed under **ODbL 1.0**. Vector tiles are produced with
+Planetiler using the OpenMapTiles schema (**CC-BY**). Both attributions are
+displayed visibly on the map in the web and mobile apps, and cannot be
+dismissed — this is a licence requirement, not a design choice.
 
-### `Vivido.Scoring` kuralı
-
-Bu projeye **hiçbir** dış paket referansı eklenmez — `DbContext`, `HttpClient`, `IMemoryCache` yok. Saf C#.
-Girdi `ScoringInput`, çıktı `ScoreResult`. Bu sayede skorlama motoru veritabanı olmadan, milisaniyelerde, yüzlerce vaka ile test edilebilir. **Bu kural bozulursa altın veri seti koruması ölür.**
-
----
-
-## 4. Günlük Komutlar
-
-| Komut | Ne yapar |
-|---|---|
-| `pnpm dev:api` | API'yi başlatır → `:5000` |
-| `pnpm dev:web` | Web'i başlatır → `:5173` |
-| `pnpm dev:mobile` | Flutter uygulamasını çalıştırır (K-08) |
-| `pnpm infra:up` / `infra:down` | Docker altyapısı |
-| `pnpm infra:reset` | Volume dahil sıfırlar (**veri gider**) |
-| **`pnpm db:migrate`** | **Şemayı kurar/günceller — kurulumda ZORUNLU** (K-12) |
-| `pnpm db:check` | Veri kalitesi (DQ) sorgularını çalıştırır |
-| `pnpm test` | Tüm testler |
-| `pnpm test:golden` | Skorlama altın veri seti (72 vaka) |
-| `pnpm typecheck` | TS tip kontrolü (tüm paketler) |
-
-### Şema değişikliği eklerken
-
-```bash
-# db/schema/008_aciklayici_ad.sql        ← numara mevcut EN BÜYÜKTEN bir fazla
-# Yalnızca DEĞİŞİKLİĞİ yaz (ALTER TABLE …), eski dosyaları DÜZENLEME
-pnpm db:migrate
-```
-
-`migrate.sh` üç şeyi zorluyor: aynı numarayı iki kez kullanamazsın (`exit 2`),
-uygulanmış bir dosyayı düzenleyemezsin (checksum, `exit 2`), şeması olup
-defteri olmayan bir veritabanına sessizce baseline almaz (`exit 3`).
-Dosyayı **yeniden adlandırmak güvenli** — içerik aynıysa checksum'dan tanır.
-
----
-
-## 5. Veri Boru Hattı ve Artefaktları
-
-Veri (DATA) ekibinin tamamladığı tüm ETL süreçleri, betikler ve dokümantasyon için bkz: [`data/README.md`](data/README.md)
-
-OSRM grafikleri (`osrm/foot/`, `osrm/car/`), harita tile'ları (`cankaya.mbtiles`) ve veritabanı yedeği (`seed.sql`) toplam ~1 GB'tır ve **git'te tutulmaz**.
-ETL **tek makinede bir kez** çalıştırılmıştır; çıktılar GitHub Release üzerinden indirilir.
-
-```bash
-./data/scripts/00_fetch_artifacts.sh    # gh release download ile hazır artefaktları indirir
-pnpm infra:up                            # veritabanı, OSRM ve harita servisleri ayağa kalkar
-```
-
-Geliştirme makinende `osrm-extract` tekrar çalıştırmana gerek yoktur — hazır artefaktlar tek tıkla yüklenir.
-
----
-
-## 6. Katkı
-
-Branch kuralları, commit formatı ve PR süreci: [`CONTRIBUTING.md`](CONTRIBUTING.md)
-
-Özet: `main` korumalı · her değişiklik PR ile · **1 onay** + CI yeşil zorunlu.
-
----
-
-## 7. Lisans ve Atıf
-
-Harita verisi © [OpenStreetMap](https://www.openstreetmap.org/copyright) katkıcıları — **ODbL 1.0**.
-Bu atıf web ve mobil uygulamada harita üzerinde **görünür** olmak zorundadır.
-
-Konut verisi **sentetiktir** (gerçek ilan değildir) ve arayüzde her yerde bu şekilde etiketlenir.
+Rental listings are synthetic and are labelled as such throughout the
+interface.

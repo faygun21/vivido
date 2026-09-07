@@ -48,13 +48,3 @@ export interface ProblemDetails {
   errors?: Record<string, string[]>;
 }
 
-/** Yakalanan bir hatanın ProblemDetails olup olmadığını anlamak için.
- *  `catch` bloğunda gelen değer `unknown` olduğu için gerekli. */
-export function isProblemDetails(value: unknown): value is ProblemDetails {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'status' in value &&
-    'title' in value
-  );
-}

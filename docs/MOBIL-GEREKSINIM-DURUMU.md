@@ -3,6 +3,12 @@
 > **Tarih:** 2026-08-26 (2026-09-02'de düzeltildi — bkz. not)
 > **İncelenen branch:** `feat/mobile-property-favorites-routes`
 > **Kapsam kaynağı:** Kullanıcının paylaştığı son mobil gereksinim listesi (`R-1`–`R-78`)
+>
+> ⚠️ **Sayılar 2026-08-26'da ölçüldü, o tarihten sonra DOĞRULANMADI.**
+> Mobil taraf bu tarihten sonra en az iki kez daha değişti (tasarım sistemi
+> [K-17](02-KARARLAR.md#k-17), konum analizi paneli). Aşağıdaki 46/16/16
+> dağılımı bugünün durumu **değil**, o günün fotoğrafı. Yeniden ölçülmeden
+> ilerleme göstergesi olarak kullanmayın.
 
 > ⚠️ **2026-09-02 düzeltmesi.** R-51–R-55, "Yapılmayan gereksinimler"
 > tablosunda listelenmiş ama açıklama sütunlarının tamamı zaten
