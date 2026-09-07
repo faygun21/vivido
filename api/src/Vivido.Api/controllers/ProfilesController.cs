@@ -16,6 +16,9 @@ namespace Vivido.Api.Controllers;
 [Authorize]
 public class ProfilesController : ControllerBase
 {
+    /// <summary>Ad ve soyad için üst sınır — şemada ikisi de sınırsız <c>text</c>.</summary>
+    private const int MaxNameLength = 80;
+
     private readonly VividoDbContext _context;
 
     public ProfilesController(VividoDbContext context)
@@ -114,6 +117,34 @@ public class ProfilesController : ControllerBase
             );
         }
 
+        // `first_name` / `last_name` şemada sınırsız `text`. Üst sınır
+        // olmadan bu uç, istek gövdesi sınırına (~30 MB) kadar her şeyi kabul
+        // edip saklıyordu; değerler ayrıca admin panelinde gösteriliyor.
+        //
+        // ⚠️ `?? string.Empty` de gerekli, sadece kolaylık değil: DTO alanı
+        // `string` (nullable değil) yazılmış olsa da System.Text.Json gövdede
+        // `"firstName": null` gelirse ORAYA null koyar — sütun ise
+        // `NOT NULL DEFAULT ''`. Normalize edilmezse istek SaveChanges'te
+        // patlayıp anlamsız bir INTERNAL_ERROR'a düşerdi.
+        var firstName = (request.FirstName ?? string.Empty).Trim();
+        var lastName = (request.LastName ?? string.Empty).Trim();
+
+        if (firstName.Length > MaxNameLength)
+        {
+            ModelState.AddModelError(
+                nameof(request.FirstName),
+                $"Ad en fazla {MaxNameLength} karakter olabilir."
+            );
+        }
+
+        if (lastName.Length > MaxNameLength)
+        {
+            ModelState.AddModelError(
+                nameof(request.LastName),
+                $"Soyad en fazla {MaxNameLength} karakter olabilir."
+            );
+        }
+
         if (!ModelState.IsValid)
         {
             return ValidationProblem(ModelState);
@@ -143,8 +174,8 @@ public class ProfilesController : ControllerBase
             {
                 Id = Guid.NewGuid(),
                 UserId = userId,
-                FirstName = request.FirstName,
-                LastName = request.LastName,
+                FirstName = firstName,
+                LastName = lastName,
                 PersonaCode = request.PersonaCode,
                 MinMonthlyBudget = request.MinMonthlyBudget,
                 MaxMonthlyBudget = request.MaxMonthlyBudget
@@ -154,8 +185,8 @@ public class ProfilesController : ControllerBase
         }
         else
         {
-            profile.FirstName = request.FirstName;
-            profile.LastName = request.LastName;
+            profile.FirstName = firstName;
+            profile.LastName = lastName;
             profile.PersonaCode = request.PersonaCode;
             profile.MinMonthlyBudget = request.MinMonthlyBudget;
             profile.MaxMonthlyBudget = request.MaxMonthlyBudget;

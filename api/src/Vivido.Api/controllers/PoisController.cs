@@ -24,6 +24,24 @@ namespace Vivido.Api.Controllers;
 public sealed class PoisController : ControllerBase
 {
     private const int MaximumPoiCount = 5000;
+
+    /// <summary>
+    /// <c>GET /pois/near</c> için en büyük yarıçap (metre).
+    ///
+    /// ⚠️ NEDEN SINIR VAR: aşağıdaki sorgu `ST_DistanceSphere` ile çalışıyor
+    /// ve bu fonksiyon İNDEKS KULLANMAZ — PostGIS her satır için mesafeyi
+    /// tek tek hesaplar. Yarıçap serbest bırakıldığında kimlik doğrulaması
+    /// istemeyen bu uca `radiusM=40000000` göndermek, tüm POI tablosunu
+    /// dolaşan bir tam tarama demekti; dakikada 120 istek hakkıyla
+    /// çarpıldığında veritabanını tek başına dize getirebilecek, maliyeti
+    /// saldırgana hiçbir şeye mal olmayan bir yük saldırısı.
+    ///
+    /// 20 km, Çankaya'nın en uzak iki ucu arasındaki mesafeden (~20 km) bile
+    /// geniş; gerçek kullanımda en büyük kategori yarıçapı
+    /// (<c>poi_categories.search_radius_m</c>) bunun çok altında.
+    /// </summary>
+    private const int MaximumSearchRadiusM = 20_000;
+
     private readonly VividoDbContext _context;
 
     public PoisController(VividoDbContext context)
@@ -160,10 +178,23 @@ public sealed class PoisController : ControllerBase
         [FromQuery] string category,
         CancellationToken cancellationToken)
     {
-        if (lat < -90 || lat > 90 || lon < -180 || lon > 180 || radiusM <= 0)
+        if (lat < -90 || lat > 90 || lon < -180 || lon > 180
+            || radiusM <= 0 || radiusM > MaximumSearchRadiusM)
         {
             ModelState.AddModelError("near",
-                "Geçerli bir enlem/boylam ve pozitif bir yarıçap (metre) gerekli.");
+                "Geçerli bir enlem/boylam ve 1 ile " +
+                $"{MaximumSearchRadiusM} metre arasında bir yarıçap gerekli.");
+            return ApiProblem.Validation(ModelState.ToDictionary(
+                kvp => kvp.Key,
+                kvp => kvp.Value!.Errors.Select(e => e.ErrorMessage).ToArray()));
+        }
+
+        // Kategori kodu ham SQL'e parametre olarak gidiyor (enjeksiyon riski
+        // yok) ama boş/aşırı uzun bir değerin veritabanına kadar gitmesinin
+        // de anlamı yok.
+        if (string.IsNullOrWhiteSpace(category) || category.Length > 64)
+        {
+            ModelState.AddModelError("category", "Geçerli bir kategori kodu gerekli.");
             return ApiProblem.Validation(ModelState.ToDictionary(
                 kvp => kvp.Key,
                 kvp => kvp.Value!.Errors.Select(e => e.ErrorMessage).ToArray()));

@@ -35,6 +35,9 @@ public class RoutesController : ControllerBase
     private const int DefaultPageSize = 50;
     private const int MaxPageSize = 100;
 
+    /// <summary>Rota adı ve başlangıç etiketi için üst sınır.</summary>
+    private const int MaxNameLength = 120;
+
     private readonly VividoDbContext _context;
     private readonly OsrmClient _osrm;
     private readonly IMemoryCache _cache;
@@ -203,6 +206,22 @@ public class RoutesController : ControllerBase
         // düşünmedi; istemesi, beğenmediği bir rota için ad uydurtmak olurdu.
         if (persist && string.IsNullOrWhiteSpace(request.Name))
             errors["name"] = new[] { "Rota adı zorunlu." };
+
+        // `routes.name` ve `routes.start_label` şemada sınırsız `text`. Üst
+        // sınır olmadan istek gövdesi sınırına (~30 MB) kadar her şey kabul
+        // edilip saklanıyordu — kullanıcı başına sınırsız rota ile birleşince
+        // bedava disk doldurma. İkisi de listede ve rota detayında gösteriliyor.
+        if (request.Name is { } name && name.Trim().Length > MaxNameLength)
+            errors["name"] = new[] { $"Rota adı en fazla {MaxNameLength} karakter olabilir." };
+
+        if (request.Start?.Label is { } startLabel &&
+            startLabel.Trim().Length > MaxNameLength)
+        {
+            errors["start"] = new[]
+            {
+                $"Başlangıç etiketi en fazla {MaxNameLength} karakter olabilir."
+            };
+        }
 
         var propertyIds = request.PropertyIds;
         if (propertyIds is null || propertyIds.Count < RouteLimits.MinStops ||

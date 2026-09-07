@@ -263,6 +263,22 @@ builder.Services.AddRateLimiter(options =>
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0,
         }));
+
+    // "geocoding" → /locations/search. Bu uç DIŞARIYA istek doğuruyor
+    // (Photon, sonra Nominatim). Sınırsız bırakıldığında giriş yapmış tek
+    // bir kullanıcı, her tuş vuruşunda tetiklenen aramayla Nominatim'in
+    // kullanım politikasını (saniyede en fazla 1 istek) aşabilir ve
+    // Vivido'nun sunucu IP'si kalıcı olarak engellenir — o andan sonra
+    // konum araması HERKES için çalışmaz. Kendi veritabanımızı değil, ÜÇÜNCÜ
+    // TARAFI koruyan bir sınır; bu yüzden "public-map"ten belirgin şekilde dar.
+    options.AddPolicy("geocoding", ctx => RateLimitPartition.GetFixedWindowLimiter(
+        ClientKey(ctx),
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 30,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+        }));
 });
 
 // ─── CORS ───
@@ -307,23 +323,80 @@ var app = builder.Build();
 // kullanıcılar arasında paylaşılan tek bir sayaca döner, bir kullanıcının
 // yanlış şifre denemesi başkasını da kilitleyebilir.
 //
-// `ForwardedHeaders:KnownProxies` yapılandırılmadıysa (varsayılan, örn.
-// yerel geliştirme) bu middleware'in hiçbir etkisi yoktur — ASP.NET Core
-// `X-Forwarded-For` başlığını yalnızca BİLİNEN/güvenilen bir proxy'den
-// geldiğinde kabul eder, aksi halde sahte bir başlıkla IP taklit
-// edilebilmesin diye tamamen YOK sayar. Üretime alırken gerçek proxy
-// IP'si/ağı buraya (virgülle ayrılmış, `ForwardedHeaders__KnownProxies` ortam
-// değişkeniyle) eklenmelidir.
+// `ForwardedHeaders:KnownProxies` / `:KnownNetworks` yapılandırılmadıysa
+// (varsayılan, örn. yerel geliştirme) bu middleware'in hiçbir etkisi yoktur —
+// ASP.NET Core `X-Forwarded-For` başlığını yalnızca BİLİNEN/güvenilen bir
+// proxy'den geldiğinde kabul eder, aksi halde sahte bir başlıkla IP taklit
+// edilebilmesin diye tamamen YOK sayar.
+//
+// ⭐ NEDEN AĞ (CIDR) DESTEĞİ DE VAR: staging/production'da tek ingress Caddy
+// ve API'ye YALNIZCA docker köprü ağından erişilebiliyor (bkz.
+// deploy/docker-compose.prod.yml — api servisinde `ports:` yok). Caddy'nin
+// konteyner IP'si ise SABİT DEĞİL: compose her `up`ta farklı bir adres
+// verebiliyor, dolayısıyla tek tek IP yazmak (`KnownProxies`) ilk yeniden
+// başlatmada sessizce geçersizleşirdi. Ağın tamamını güvenmek burada
+// güvenli, çünkü o ağa yalnızca bizim konteynerlerimiz bağlı.
+//
+// ⚠️ Bu ayar YAPILANDIRILMAZSA rate limiter'ın IP başına bölümlemesi
+// (`ClientKey`) HER istekte Caddy'nin IP'sini görür ve "auth" limiti (10/dk)
+// tüm kullanıcıların PAYLAŞTIĞI tek bir sayaca döner: bir kişinin yanlış
+// şifre denemeleri herkesin girişini kilitler ve kaba kuvvet koruması
+// saldırgan başına değil, sistem geneli olur.
 var forwardedHeadersOptions = new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
 };
 
+// `KnownProxies`/`KnownIPNetworks` BOŞ DEĞİL başlar (varsayılan: loopback),
+// bu yüzden "yapılandırıldı mı" sorusunu listelerin uzunluğuyla değil kendi
+// sayacımızla cevaplıyoruz — aksi halde aşağıdaki uyarı hiç basılmazdı.
+var trustedHopCount = 0;
+
 foreach (var proxy in (builder.Configuration["ForwardedHeaders:KnownProxies"] ?? string.Empty)
              .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
 {
     if (System.Net.IPAddress.TryParse(proxy, out var ip))
+    {
         forwardedHeadersOptions.KnownProxies.Add(ip);
+        trustedHopCount++;
+    }
+    else
+    {
+        Console.WriteLine(
+            $"---> UYARI: ForwardedHeaders:KnownProxies içindeki '{proxy}' " +
+            "geçerli bir IP değil, yok sayıldı.");
+    }
+}
+
+foreach (var network in (builder.Configuration["ForwardedHeaders:KnownNetworks"] ?? string.Empty)
+             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+{
+    // "172.16.0.0/12" biçiminde CIDR bekleniyor.
+    if (System.Net.IPNetwork.TryParse(network, out var parsed))
+    {
+        forwardedHeadersOptions.KnownIPNetworks.Add(parsed);
+        trustedHopCount++;
+    }
+    else
+    {
+        Console.WriteLine(
+            $"---> UYARI: ForwardedHeaders:KnownNetworks içindeki '{network}' " +
+            "geçerli bir CIDR değil, yok sayıldı.");
+    }
+}
+
+if (trustedHopCount > 0)
+{
+    app.Logger.LogInformation(
+        "ForwardedHeaders etkin: {Count} güvenilen proxy/ağ tanımlı.",
+        trustedHopCount);
+}
+else if (!app.Environment.IsDevelopment())
+{
+    app.Logger.LogWarning(
+        "ForwardedHeaders:KnownProxies/KnownNetworks TANIMSIZ. Ters vekil " +
+        "arkasındaysanız istek sınırları (rate limit) IP başına DEĞİL, tüm " +
+        "kullanıcılar için TEK sayaç olarak çalışır.");
 }
 
 app.UseForwardedHeaders(forwardedHeadersOptions);

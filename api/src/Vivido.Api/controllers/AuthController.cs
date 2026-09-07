@@ -19,6 +19,24 @@ namespace Vivido.Api.Controllers;
 [EnableRateLimiting("auth")]
 public class AuthController : ControllerBase
 {
+    /// <summary>Görünen ad için üst sınır — <c>users.display_name</c> sınırsız <c>text</c>.</summary>
+    private const int MaxDisplayNameLength = 100;
+
+    /// <summary>
+    /// Var olmayan kullanıcı için çalıştırılan sahte parola hash'i —
+    /// bkz. <see cref="Login"/> içindeki zamanlama notu.
+    ///
+    /// Sabit bir dizge gömmek yerine AÇILIŞTA üretiliyor: BCrypt'in
+    /// varsayılan iş faktörü kütüphane sürümüyle değişebilir ve elle
+    /// yazılmış bir hash o gün sessizce "gerçek doğrulamadan daha ucuz"
+    /// hâle gelir — yani korumak istediğimiz zamanlama farkı geri döner.
+    /// Aynı çağrıyla üretince maliyet her zaman eşleşir.
+    /// </summary>
+    private static readonly string DummyPasswordHash =
+        BCrypt.Net.BCrypt.HashPassword(
+            Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
+        );
+
     private readonly VividoDbContext _context;
     private readonly JwtService _jwtService;
     private readonly JwtOptions _jwtOptions;
@@ -74,6 +92,19 @@ public class AuthController : ControllerBase
             errors["password"] =
             [
                 "Parola en az 8 karakter olmalı; büyük harf, küçük harf, rakam ve özel karakter içermeli."
+            ];
+        }
+
+        // `display_name` şemada sınırsız `text`. Üst sınır olmadan kayıt ucu,
+        // istek gövdesi sınırına (~30 MB) kadar her şeyi kabul edip
+        // veritabanına yazıyordu — kimlik doğrulaması İSTEMEYEN bir uçtan
+        // bedava disk doldurma. Ayrıca bu değer admin panelinde listeleniyor.
+        if (request.DisplayName is { } displayName &&
+            displayName.Trim().Length > MaxDisplayNameLength)
+        {
+            errors["displayName"] =
+            [
+                $"Görünen ad en fazla {MaxDisplayNameLength} karakter olabilir."
             ];
         }
 
@@ -282,11 +313,34 @@ public class AuthController : ControllerBase
         var user = await _context.Users
             .SingleOrDefaultAsync(u => u.Email == email, ct);
 
-        if (user == null ||
-            !BCrypt.Net.BCrypt.Verify(
+        // ⭐ KULLANICI SIZINTISI (user enumeration) — zamanlama üzerinden.
+        //
+        // Eskiden `user == null` kısa devre yapıyordu: kayıtlı OLMAYAN bir
+        // e-posta için yanıt anında dönüyor, kayıtlı olan için BCrypt
+        // doğrulaması (bilerek yavaş, ~100–300 ms) çalışıyordu. İkisi
+        // arasındaki fark ölçülebilir büyüklükte; saldırgan sadece süreye
+        // bakarak "bu adres Vivido'da kayıtlı mı" sorusunu güvenilir biçimde
+        // cevaplayabiliyordu. Yanıt gövdesi aynı olduğu hâlde sızıntı devam
+        // ediyordu.
+        //
+        // Çözüm: kullanıcı yoksa da AYNI maliyetli işi yap. `DummyPasswordHash`
+        // gerçek bir hesaba ait değil; tek amacı BCrypt'i çalıştırmak.
+        bool passwordMatches;
+
+        if (user is null)
+        {
+            _ = BCrypt.Net.BCrypt.Verify(request.Password, DummyPasswordHash);
+            passwordMatches = false;
+        }
+        else
+        {
+            passwordMatches = BCrypt.Net.BCrypt.Verify(
                 request.Password,
                 user.PasswordHash
-            ))
+            );
+        }
+
+        if (user is null || !passwordMatches)
         {
             return ApiProblem.InvalidCredentials();
         }

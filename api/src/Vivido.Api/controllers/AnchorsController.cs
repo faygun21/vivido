@@ -25,6 +25,14 @@ public class AnchorsController : ControllerBase
     /// <summary>Şema <c>CHECK (priority BETWEEN 1 AND 3)</c> ile de zorluyor.</summary>
     private const int MaxAnchors = 3;
 
+    /// <summary>
+    /// Etiket için üst sınır. <c>anchors.label</c> şemada sınırsız <c>text</c>:
+    /// sınır konmadan istek gövdesi sınırına (~30 MB) kadar her şey kabul
+    /// edilip saklanıyordu. Etiket ayrıca admin panelinde ve konut
+    /// panelinde gösteriliyor.
+    /// </summary>
+    private const int MaxLabelLength = 120;
+
     private readonly VividoDbContext _context;
     private readonly IMemoryCache _cache;
 
@@ -72,6 +80,14 @@ public class AnchorsController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Label))
         {
             ModelState.AddModelError(nameof(request.Label), "Etiket boş olamaz.");
+            return ValidationProblem(ModelState);
+        }
+
+        if (request.Label.Trim().Length > MaxLabelLength)
+        {
+            ModelState.AddModelError(
+                nameof(request.Label),
+                $"Etiket en fazla {MaxLabelLength} karakter olabilir.");
             return ValidationProblem(ModelState);
         }
 

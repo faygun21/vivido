@@ -104,6 +104,37 @@
 	# ⚠️ Yalnızca domain modunda anlamlı; :80 modunda tarayıcı yok sayar.
 	header Strict-Transport-Security "max-age=31536000;"
 
+	# ── Tarayıcı tarafı sertleştirme ──
+	#
+	# Bunlar özellikle önemli, çünkü refresh token `localStorage`'da duruyor
+	# (bilinen takas, bkz. web/src/shared/api/tokens.ts): tarayıcıda kod
+	# çalıştırabilen biri oturumu ele geçirebilir. Aşağıdakiler o yüzeyi
+	# daraltıyor.
+
+	# Yüklenen dosyanın türünü tarayıcı KENDİ tahmin etmesin. Tahmin
+	# ettiğinde, metin olarak sunulan bir içeriği "aslında bu HTML/script"
+	# diye çalıştırabiliyor.
+	header X-Content-Type-Options "nosniff"
+
+	# Siteyi başka bir sayfanın iframe'ine gömmeyi engeller (clickjacking):
+	# saldırgan Vivido'yu görünmez bir çerçeveye alıp kullanıcıya farkında
+	# olmadan "hesabı pasifleştir" gibi düğmelere bastıramaz.
+	header X-Frame-Options "DENY"
+
+	# Dış bağlantılara gidilirken tam URL'yi (arama sorgusu, konum, id'ler)
+	# karşı tarafa yollama — yalnızca alan adı gitsin.
+	header Referrer-Policy "strict-origin-when-cross-origin"
+
+	# İhtiyacımız olmayan güçlü tarayıcı yetkilerini kapat. Konum (geolocation)
+	# BİLEREK açık: "konumumu kullan" özelliği ona dayanıyor.
+	header Permissions-Policy "camera=(), microphone=(), payment=(), usb=()"
+
+	# ⚠️ Content-Security-Policy BİLEREK EKLENMEDİ. XSS'e karşı en etkili
+	# katman odur ama MapLibre WebGL worker'ları (`blob:` ve `worker-src`),
+	# karo/font kaynakları ve Vite çıktısı dikkatli bir liste gerektiriyor;
+	# gerçek tarayıcıda denenmeden eklenirse harita sessizce boş çizilir.
+	# Ekleneceği zaman `Content-Security-Policy-Report-Only` ile başlanmalı.
+
 	log {
 		output file /var/log/caddy/access.log {
 			roll_size 10MiB

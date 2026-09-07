@@ -74,6 +74,26 @@ services:
       # (Native mobil uygulama CORS'a tabi değildir, tarayıcı mekanizması.)
       Cors__AllowedOrigins: ${Cors__AllowedOrigins:-}
 
+      # ⭐ İSTEK SINIRLARI BUNSUZ ÇALIŞMAZ.
+      #
+      # API'ye gelen HER istek Caddy'den geçiyor, dolayısıyla .NET tarafında
+      # `RemoteIpAddress` her seferinde Caddy konteynerinin IP'sini gösterir.
+      # Rate limiter da bölümlemeyi (partition) o IP'ye göre yaptığı için,
+      # bu ayar olmadan "auth" limiti (dakikada 10 istek) KULLANICI BAŞINA
+      # değil TÜM SİTE için tek bir sayaç olur:
+      #
+      #   · kaba kuvvet koruması saldırgan başına çalışmaz,
+      #   · daha kötüsü, tek bir kişinin (ya da bir botun) dakikada 10 giriş
+      #     denemesi HERKESİN girişini 429 ile kilitler.
+      #
+      # Aşağıdaki değer docker'ın varsayılan köprü ağı aralığı. Ağın
+      # tamamına güvenmek burada doğru: `api` servisinin `ports:` tanımı yok,
+      # yani dışarıdan erişilemiyor — bu ağa yalnızca bizim konteynerlerimiz
+      # bağlı. Caddy'nin konteyner IP'si her `up`ta değişebildiği için tek
+      # tek IP yazmak (ForwardedHeaders__KnownProxies) ilk yeniden
+      # başlatmada sessizce geçersizleşirdi.
+      ForwardedHeaders__KnownNetworks: ${ForwardedHeaders__KnownNetworks:-172.16.0.0/12}
+
       # ⭐ OSRM ADRESLERİ — BUNLAR OLMADAN ROTA OLUŞTURMA SESSİZCE ÖLÜR.
       #
       # `OsrmOptions` varsayılanı `http://localhost:5002` / `:5001`; o değerler
